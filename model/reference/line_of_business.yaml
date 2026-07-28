@@ -1,0 +1,25 @@
+kind: code_set
+name: line_of_business
+title: Line of Business
+description: >
+  The class of insurance business. Subset of the bricksurance-data-core
+  line_of_business code set - identical codes so imports merge, limited to the
+  P&C classes this reserving workbench triangulates. Extend by adding codes.
+standards:
+  acord: Line of business / class of business (indicative)
+codes:
+  - code: COMMERCIAL_PROPERTY
+    label: Commercial Property
+    description: Commercial property damage and business interruption.
+  - code: COMMERCIAL_MOTOR
+    label: Commercial Motor
+    description: Commercial and fleet motor - own damage and third-party.
+  - code: GENERAL_LIABILITY
+    label: General Liability
+    description: Commercial general / public / products liability.
+  - code: PROFESSIONAL_INDEMNITY
+    label: Professional Indemnity
+    description: Professional indemnity / errors & omissions.
+  - code: MARINE
+    label: Marine
+    description: Marine cargo and hull.

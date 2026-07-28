@@ -1,0 +1,62 @@
+kind: entity
+name: 1_raw_claim
+domain: reserving
+title: Claim (reserving ledger)
+description: >
+  The claim header for the self-contained reserving ledger - one row per claim,
+  carrying accident year, line of business and the policy it arose under. In the
+  shared core this role is played by claim.claim; here it is a local raw table so
+  the workbench stands alone. Deliberately the same shape (claim_id, accident
+  year, line_of_business_code, loss_date) so that on gen2 import the
+  loss_development view simply re-binds to claim.claim with no other change and
+  the triangle reconciles identically.
+
+  No business-level duplication: this is the claims system-of-record extract for
+  the reserving world, not a second copy of a core table - it IS the source, and
+  in gen2 it collapses into the core claim table.
+grain: One row per claim.
+tags:
+  project: reserving-workbench
+  layer: raw
+  gen: gen1
+  domain: reserving
+standards:
+  acord: Claim (indicative)
+attributes:
+  - name: claim_id
+    type: string
+    required: true
+    description: Identifier for the claim (golden-thread hero CLM-2026-000001 preserved).
+    classification: internal
+  - name: policy_id
+    type: string
+    required: true
+    description: The policy the claim arose under.
+    classification: internal
+  - name: accident_year
+    type: integer
+    required: true
+    description: The year the loss occurred - the accident-year rows of the triangle.
+    classification: internal
+  - name: loss_date
+    type: date
+    required: true
+    description: Date of loss.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: Line of business of the claim.
+    classification: internal
+  - name: report_date
+    type: date
+    required: false
+    description: Date the claim was reported (for reporting-lag analysis).
+    classification: internal
+keys:
+  primary: [claim_id]
+owner: Chief Actuary
+quality:
+  - name: accident_year_from_loss_date
+    rule: accident_year = year(loss_date)
+    description: Accident year must equal the year of the loss date.

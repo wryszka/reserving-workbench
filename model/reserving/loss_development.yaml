@@ -1,0 +1,62 @@
+kind: view
+name: loss_development
+domain: reserving
+title: Loss Development Triangle
+description: >
+  The loss-development triangle as a governed view: for every accident year and
+  development lag, the incremental and cumulative paid and incurred, derived by
+  summation over claim transactions. Nothing is stored - the triangle is a
+  semantic layer over the claim ledger (reserving.1_raw_claim_transaction here;
+  claim.claim_transaction in the shared core), so it always reconciles to the
+  penny with the ledger. Accident year is the year of loss; development lag is
+  transaction year minus accident year. Amounts are in original currency - group
+  by or filter on currency_code before summing.
+
+  Identical shape to the bricksurance-data-core loss_development view so the two
+  converge on import: the only difference is the source binding
+  (self-contained ledger here, claim domain there).
+grain: One row per accident year per development lag per line of business per currency.
+tags:
+  project: reserving-workbench
+  layer: semantic
+  gen: gen1
+  domain: reserving
+sql: |
+  WITH movements AS (
+    SELECT
+      c.accident_year                                     AS accident_year,
+      (ct.transaction_year - c.accident_year)             AS development_lag,
+      c.line_of_business_code                             AS line_of_business_code,
+      ct.currency_code                                    AS currency_code,
+      ct.claim_transaction_type_code                      AS ttype,
+      ct.amount                                           AS amount
+    FROM {reserving.1_raw_claim_transaction} ct
+    JOIN {reserving.1_raw_claim} c ON c.claim_id = ct.claim_id
+    WHERE ct.transaction_year >= c.accident_year
+  ),
+  incremental AS (
+    SELECT
+      accident_year, development_lag, line_of_business_code, currency_code,
+      SUM(CASE WHEN ttype IN ('INDEMNITY_PAYMENT','EXPENSE_PAYMENT') THEN amount
+               WHEN ttype = 'RECOVERY' THEN amount ELSE 0 END)          AS incremental_paid,
+      SUM(CASE WHEN ttype IN ('INDEMNITY_PAYMENT','EXPENSE_PAYMENT','RECOVERY','CASE_RESERVE_MOVEMENT')
+               THEN amount ELSE 0 END)                                  AS incremental_incurred
+    FROM movements
+    GROUP BY accident_year, development_lag, line_of_business_code, currency_code
+  )
+  SELECT
+    accident_year,
+    development_lag,
+    line_of_business_code,
+    currency_code,
+    incremental_paid,
+    incremental_incurred,
+    SUM(incremental_paid) OVER (
+      PARTITION BY accident_year, line_of_business_code, currency_code
+      ORDER BY development_lag ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_paid,
+    SUM(incremental_incurred) OVER (
+      PARTITION BY accident_year, line_of_business_code, currency_code
+      ORDER BY development_lag ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_incurred
+  FROM incremental

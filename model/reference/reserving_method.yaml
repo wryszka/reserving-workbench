@@ -1,0 +1,49 @@
+kind: code_set
+name: reserving_method
+title: Reserving Method
+description: >
+  Actuarial methods for projecting ultimate losses from a development triangle.
+  The method is a governed, attestable choice: swapping it produces a new
+  reserve estimate row, never an overwrite, so bases are comparable and the
+  sign-off records which method set the reserves. Superset of the
+  bricksurance-data-core reserving_method code set - the first four codes are
+  identical to the core (so import merges, never collides); MACK, GLM and
+  PEER_COMPARISON are additive.
+standards:
+  acord: n/a — actuarial method terminology
+codes:
+  - code: CHAIN_LADDER
+    label: Chain-Ladder
+    description: >
+      Volume-weighted age-to-age development factors applied to the latest
+      diagonal; the standard deterministic method for mature, stable lines.
+  - code: BORNHUETTER_FERGUSON
+    label: Bornhuetter-Ferguson
+    description: >
+      Blends the chain-ladder projection with an a-priori expected loss ratio,
+      weighting toward the prior for immature accident years.
+  - code: EXPECTED_LOSS_RATIO
+    label: Expected Loss Ratio
+    description: >
+      Ultimate set from an a-priori loss ratio times earned premium, ignoring
+      emerged experience; used for the greenest accident years.
+  - code: CAPE_COD
+    label: Cape Cod
+    description: >
+      A Bornhuetter-Ferguson variant that derives the expected loss ratio from
+      the triangle itself rather than taking it as given.
+  - code: MACK
+    label: Mack Chain-Ladder
+    description: >
+      Distribution-free stochastic chain-ladder giving a standard error /
+      prediction variance around the ultimate. Feeds reserve uncertainty.
+  - code: GLM
+    label: GLM-based (over-dispersed Poisson)
+    description: >
+      Generalised-linear-model reserving over the incremental triangle;
+      supports bootstrap for a full predictive distribution.
+  - code: PEER_COMPARISON
+    label: Peer-Comparison Benchmark
+    description: >
+      Benchmarks the selected pattern against an external / peer development
+      pattern for validity assessment rather than projecting independently.

@@ -1,0 +1,23 @@
+model: reserving-workbench
+title: Reserving Workbench
+version: 0.1.0
+description: >
+  A governed, end-to-end actuarial reserving model for Bricksurance SE - loss
+  development triangles, a methodology library (chain-ladder, Bornhuetter-
+  Ferguson, Mack, GLM, peer-comparison), governed loss-development-factor
+  selection with an external-tool (ResQ) seam, a model-validation framework,
+  an expert-judgement repository, and lineage from each reserve estimate to the
+  regulatory cells it produces. Authored in the bricksurance-data-core ontology
+  format so it converts into the shared semantic layer with no rewrite.
+domains:
+  - name: reference
+    description: >
+      Shared code sets used across the reserving model, plus the generated data
+      dictionary. Allowed values live in the specs, not in anyone's head.
+  - name: reserving
+    description: >
+      Actuarial reserving as a governed semantic layer over the claim ledger -
+      triangles derived by summation over claim movements (never stored), the
+      methodology library, factor selection, reserve estimates, cashflow
+      patterns, validation and expert judgement. The spreadsheet workflow done
+      on the platform: reproducible, reconciling to source, answerable in Genie.

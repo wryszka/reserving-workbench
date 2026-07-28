@@ -1,0 +1,19 @@
+command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+
+env:
+  - name: CATALOG_NAME
+    value: "lr_dev_aws_us_catalog"
+  - name: SCHEMA_NAME
+    value: "reserving_workbench"
+  - name: WAREHOUSE_ID
+    valueFrom: sql_warehouse
+  - name: FM_ENDPOINT
+    value: "databricks-claude-sonnet-5"
+  - name: VALUATION_DATE
+    value: "2026-12-31"
+  - name: ENTITY_NAME
+    value: "Bricksurance SE"
+  - name: GENIE_SPACE_ID
+    value: "01f18a8f41b816de883bd1a069353c7b"
+  - name: HUB_APP_URL
+    value: "https://actuarial-workbench-7474656169654171.aws.databricksapps.com"

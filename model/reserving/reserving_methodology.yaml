@@ -1,0 +1,77 @@
+kind: entity
+name: reserving_methodology
+domain: reserving
+title: Reserving Methodology (Library Registry)
+description: >
+  The methodology library: one row per registered reserving method available to
+  the workbench (chain-ladder, Bornhuetter-Ferguson, Mack, GLM-based,
+  peer-comparison). Each is backed by a Unity Catalog registered model
+  (MLflow pyfunc) and governed identically - versioned, aliased
+  production/candidate, and promoted through the same approval log as the
+  Solvency II app's model registry. This registry table is the business-facing
+  index over those UC models: what methods exist, which version is live, who
+  owns it, what it is for. Registering a method here is what makes it selectable
+  in the estimate step - so "governed identically" is structural, not a slogan.
+grain: One row per methodology per registered model version.
+tags:
+  maturity: certified
+  project: reserving-workbench
+  layer: governance
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: methodology_id
+    type: string
+    required: true
+    description: Identifier for this methodology-version registry row.
+    classification: internal
+  - name: reserving_method_code
+    code_set: reserving_method
+    required: true
+    description: Which method this is (CHAIN_LADDER, BF, MACK, GLM, PEER_COMPARISON, ...).
+    classification: internal
+  - name: uc_model_name
+    type: string
+    required: true
+    description: Fully-qualified Unity Catalog registered-model name backing this method (catalog.schema.model).
+    classification: internal
+  - name: model_version
+    type: integer
+    required: true
+    description: The MLflow model version this registry row describes.
+    classification: internal
+  - name: alias
+    type: string
+    required: false
+    description: Current alias on this version - 'production', 'candidate', or null (archived).
+    classification: internal
+  - name: produces_distribution
+    type: boolean
+    required: true
+    description: >
+      Whether the method yields a full predictive distribution / standard error
+      (true for MACK and GLM-bootstrap) rather than only a point estimate. Drives
+      whether it can feed reserve_estimate_distribution.
+    classification: internal
+  - name: summary
+    type: string
+    required: true
+    description: One-line description of the method and when to use it.
+    classification: internal
+  - name: owner_role
+    type: string
+    required: true
+    description: The governance role that owns this method (e.g. Chief Actuary).
+    classification: internal
+  - name: registered_at
+    type: timestamp
+    required: true
+    description: When this method version was registered in the library.
+    classification: internal
+keys:
+  primary: [methodology_id]
+owner: Chief Actuary
+quality:
+  - name: model_name_qualified
+    rule: uc_model_name LIKE '%.%.%'
+    description: The backing model must be a fully-qualified three-level UC name.

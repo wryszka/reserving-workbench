@@ -1,0 +1,25 @@
+kind: code_set
+name: ldf_averaging_method
+domain: reference
+title: LDF Averaging Method
+description: >
+  How an empirical age-to-age development factor is averaged across accident
+  years before selection. These are the standard choices an actuary toggles
+  when reviewing a triangle; the chosen method is recorded on the selected
+  pattern so the empirical basis is auditable.
+codes:
+  - code: VOLUME_WEIGHTED
+    label: Volume-weighted (all years)
+    description: Sum of next-period cumulatives over sum of current-period cumulatives — the classic chain-ladder factor.
+  - code: SIMPLE_AVERAGE
+    label: Simple average (all years)
+    description: Unweighted mean of the individual age-to-age ratios across accident years.
+  - code: LAST_N
+    label: Last-N average
+    description: Volume-weighted average over only the most recent N accident years (recency-weighted).
+  - code: MEDIAN
+    label: Median
+    description: Median of the individual age-to-age ratios — robust to a single anomalous year.
+  - code: GEOMETRIC
+    label: Geometric average
+    description: Geometric mean of the individual age-to-age ratios.

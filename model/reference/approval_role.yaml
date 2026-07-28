@@ -1,0 +1,19 @@
+kind: code_set
+name: approval_role
+domain: reference
+title: Approval Role
+description: >
+  The actuarial-governance role required to approve an expert judgement or
+  selection, routed by the magnitude of its impact. Mirrors the Solvency II
+  app's magnitude thresholds so authority routing is consistent across the
+  estate (senior actuary for any, chief actuary above ~1m, board above ~10m).
+codes:
+  - code: SENIOR_ACTUARY
+    label: Senior Reserving Actuary
+    description: Approves judgements of any magnitude below the chief-actuary threshold.
+  - code: CHIEF_ACTUARY
+    label: Chief Actuary
+    description: Required for judgements above the chief-actuary materiality threshold.
+  - code: BOARD
+    label: Board / Reserving Committee
+    description: Required for judgements above the board materiality threshold.

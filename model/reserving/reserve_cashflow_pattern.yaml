@@ -1,0 +1,54 @@
+kind: entity
+name: reserve_cashflow_pattern
+domain: reserving
+title: Reserve Cashflow Pattern
+description: >
+  The projected future payment pattern for a reserve estimate: how the
+  outstanding is expected to pay out over future calendar periods, derived from
+  the selected development pattern. This is the single-producer contract to the
+  regulatory regimes - Solvency II discounts these cashflows on the EIOPA
+  risk-free curve to get the technical-provision best estimate, and IFRS 17
+  projects the Liability for Incurred Claims (LIC) from the same pattern. Compute
+  the best estimate and its runoff ONCE here; the SII and IFRS 17 workbenks
+  consume it rather than each re-deriving chain-ladder. That is the duplication
+  this kills.
+grain: One row per reserve estimate per future development period.
+tags:
+  maturity: certified
+  project: reserving-workbench
+  layer: engine
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: cashflow_id
+    type: string
+    required: true
+    description: Identifier for this cashflow row.
+    classification: internal
+  - name: reserve_estimate_id
+    type: string
+    required: true
+    description: The reserve estimate this runoff belongs to.
+    classification: internal
+  - name: development_period
+    type: integer
+    required: true
+    description: Future development period (years from valuation date) the cashflow falls in.
+    classification: internal
+  - name: expected_payment
+    type: decimal(18,2)
+    required: true
+    description: Expected (undiscounted) claim payment in this future period, in currency_code.
+    classification: confidential
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the cashflow.
+    classification: internal
+keys:
+  primary: [cashflow_id]
+owner: Chief Actuary
+quality:
+  - name: payment_nonnegative
+    rule: expected_payment >= 0
+    description: Projected claim payments in a runoff pattern are non-negative.

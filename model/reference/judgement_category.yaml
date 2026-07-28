@@ -1,0 +1,25 @@
+kind: code_set
+name: judgement_category
+domain: reference
+title: Expert-Judgement Category
+description: >
+  The kind of expert judgement recorded in the expert-judgement repository
+  (reserving.expert_judgement). Mirrors the Solvency II overlays-register
+  categories so a judgement recorded here reconciles with the group overlays
+  view and can travel into the shared layer unchanged.
+codes:
+  - code: ONE_OFF_EVENT
+    label: One-off event
+    description: A judgement reflecting a non-recurring event (large loss, cat, commutation) not captured by the mechanical pattern.
+  - code: METHODOLOGY_JUDGEMENT
+    label: Methodology judgement
+    description: A deliberate deviation from the mechanical method (e.g. selecting a prior pattern, blending methods).
+  - code: DATA_CORRECTION
+    label: Data correction
+    description: An adjustment for a known data-quality issue in the triangle.
+  - code: TAIL_EXTENSION
+    label: Tail extension
+    description: A judgement about development beyond the observed triangle (tail factor selection).
+  - code: EXPERT_JUDGEMENT_OTHER
+    label: Other expert judgement
+    description: Any other documented actuarial judgement.

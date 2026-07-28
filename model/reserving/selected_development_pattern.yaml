@@ -1,0 +1,132 @@
+kind: entity
+name: selected_development_pattern
+domain: reserving
+title: Selected Development Pattern
+description: >
+  The audited output of the loss-development-factor (LDF) selection step: the
+  set of age-to-age development factors an actuary elected to use for one
+  accident-year cohort, line of business and valuation date, together with WHERE
+  the selection came from and WHY. This is the record the whole Hiscox US ask
+  turns on - view the empirical factors, compare them against a prior selection,
+  and elect empirical vs prior with every override logged.
+
+  The `source_code` field is the pluggable engine seam: a pattern selected in an
+  external tool (ResQ) has exactly this shape, so downstream consumption and
+  governance never depend on which tool made the pick. Selecting a new pattern
+  writes a new row (never an overwrite); the prior row is retired - so every
+  basis and the decision between them is auditable side by side.
+grain: One row per valuation date per accident year per line of business per selection version.
+tags:
+  maturity: certified
+  project: reserving-workbench
+  layer: governance
+  gen: gen1
+  domain: reserving
+standards:
+  acord: Loss-development / reserving pattern (indicative)
+attributes:
+  - name: selection_id
+    type: string
+    required: true
+    description: Identifier for this selected-pattern row.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: As-at date of the triangle the selection was made from.
+    classification: internal
+  - name: accident_year
+    type: integer
+    required: false
+    description: Accident year the selected factors apply to; null when the pattern is a cohort-wide selection applied to all accident years.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: Line of business the selection applies to.
+    classification: internal
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the underlying triangle.
+    classification: internal
+  - name: source_code
+    code_set: development_selection_source
+    required: true
+    description: >
+      Where the pattern came from - DATABRICKS_EMPIRICAL, RESQ (external tool),
+      PRIOR_SELECTION (held), or MANUAL. The engine seam.
+    classification: internal
+  - name: averaging_method_code
+    code_set: ldf_averaging_method
+    required: false
+    description: For empirical selections, how the age-to-age factors were averaged (volume-weighted, last-N, etc.). Null for pure prior/manual.
+    classification: internal
+  - name: last_n_years
+    type: integer
+    required: false
+    description: N for a LAST_N averaging selection; null otherwise.
+    classification: internal
+  - name: development_factors
+    type: string
+    required: true
+    description: >
+      JSON array of selected age-to-age factors by development lag, e.g.
+      [1.45,1.18,1.08,1.04,1.02]. Stored as JSON so the pattern travels as one
+      auditable value; parsed by the reserving engine.
+    classification: confidential
+  - name: tail_factor
+    type: decimal(9,6)
+    required: true
+    description: Selected tail factor applied beyond the observed triangle.
+    classification: confidential
+  - name: prior_selection_id
+    type: string
+    required: false
+    description: The selection_id this pattern was compared against / carried forward from (lineage of the decision).
+    classification: internal
+  - name: status_code
+    code_set: judgement_status
+    required: true
+    description: Lifecycle status (draft / pending_approval / approved / rejected / retired).
+    classification: internal
+  - name: rationale
+    type: string
+    required: false
+    description: >
+      Free-text reason for the election - required when overriding the empirical
+      pick or holding a prior pattern. This is the audit narrative.
+    classification: internal
+  - name: selected_by
+    type: string
+    required: true
+    description: The actuary who made the selection (maker).
+    classification: internal
+  - name: selected_at
+    type: timestamp
+    required: true
+    description: When the selection was made.
+    classification: internal
+  - name: approved_by
+    type: string
+    required: false
+    description: The role-holder who approved it (checker); null until approved.
+    classification: internal
+  - name: approved_at
+    type: timestamp
+    required: false
+    description: When it was approved.
+    classification: internal
+keys:
+  primary: [selection_id]
+owner: Chief Actuary
+quality:
+  - name: factors_present
+    rule: development_factors IS NOT NULL AND length(development_factors) > 1
+    description: A selected pattern must carry a non-empty development-factor array.
+  - name: tail_reasonable
+    rule: tail_factor >= 1.0 AND tail_factor < 3.0
+    description: Tail factor must be a plausible development multiple.
+  - name: override_has_rationale
+    rule: source_code IN ('DATABRICKS_EMPIRICAL') OR rationale IS NOT NULL
+    description: Any non-empirical election (prior/manual/external) must record a rationale.

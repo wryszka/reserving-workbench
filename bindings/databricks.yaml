@@ -1,0 +1,11 @@
+# Databricks binding — reserving-workbench gen1 standalone.
+# ONE schema for the whole workbench (reserving_workbench), so schema_pattern is
+# a constant and ignores {domain}. This is the ONLY thing that differs from the
+# gen2 shared layer, where the same specs bind to schema_pattern "bricksurance_{domain}".
+# Converting to gen2 = swap this binding + import_ontology.py; the specs don't change.
+platform: databricks
+catalog: lr_dev_aws_us_catalog
+schema_pattern: "reserving_workbench"
+# Namespace the labelling/governance tags so they never collide with the
+# workspace's governed tag policy (reserved "domain" key). See docs/ASSET_LABELLING.md.
+tag_prefix: "bxc_"

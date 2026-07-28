@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Reserving Workbench — Bricksurance SE</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --line:#2a3140; --ink:#e6edf3;
+    --muted:#9aa7b6; --accent:#4c8dff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+    --chip:#21283a; --shade:#1d2740; --hatch:#161b22;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  a{color:var(--accent);text-decoration:none}
+  .app{display:flex;min-height:100vh}
+  .side{width:230px;background:var(--panel);border-right:1px solid var(--line);padding:18px 12px;flex-shrink:0}
+  .brand{font-weight:700;font-size:15px;padding:4px 8px 2px}
+  .brand small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:2px}
+  .nav{margin-top:16px;display:flex;flex-direction:column;gap:2px}
+  .nav button{all:unset;cursor:pointer;padding:9px 10px;border-radius:7px;color:var(--muted);font-weight:500;display:flex;gap:9px;align-items:center}
+  .nav button:hover{background:var(--panel2);color:var(--ink)}
+  .nav button.on{background:var(--accent);color:#fff}
+  .main{flex:1;padding:26px 30px;max-width:1180px}
+  h1{font-size:22px;margin:0 0 2px} .sub{color:var(--muted);margin:0 0 18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:18px 20px;margin-bottom:18px}
+  .card h2{font-size:15px;margin:0 0 4px} .card .h-sub{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .tile{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:14px 16px;flex:1;min-width:150px}
+  .tile .k{color:var(--muted);font-size:12px} .tile .v{font-size:21px;font-weight:700;margin-top:3px}
+  table{border-collapse:collapse;width:100%;font-size:13px} th,td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left} th{color:var(--muted);font-weight:600}
+  .tri td{font-variant-numeric:tabular-nums} .tri .obs{background:var(--shade)} .tri .fut{color:#55606f}
+  .frow td{font-weight:600;color:var(--accent)} .anom{color:var(--bad);font-weight:700}
+  .chip{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:20px;padding:2px 10px;font-size:11.5px;color:var(--muted);margin:2px 4px 2px 0}
+  .chip.good{color:var(--good);border-color:#1e3a26} .chip.bad{color:var(--bad);border-color:#3a1e20} .chip.warn{color:var(--warn)}
+  .expl{background:var(--panel2);border-left:3px solid var(--accent);border-radius:6px;padding:10px 13px;margin:0 0 14px;color:var(--muted);font-size:12.5px}
+  .expl b{color:var(--ink)}
+  details.why{margin-top:8px} details.why summary{cursor:pointer;color:var(--accent);font-size:12.5px}
+  .seam{display:flex;align-items:stretch;gap:0;margin:6px 0 2px}
+  .seam .z{flex:1;border:1px solid var(--line);border-radius:8px;padding:11px 13px;background:var(--panel2)}
+  .seam .z.mid{border-color:var(--accent);background:#14203a}
+  .seam .arrow{align-self:center;color:var(--muted);padding:0 8px;font-size:18px}
+  .z .zt{font-weight:600;font-size:12.5px} .z .zd{color:var(--muted);font-size:11.5px;margin-top:3px}
+  .btn{all:unset;cursor:pointer;background:var(--accent);color:#fff;padding:8px 14px;border-radius:7px;font-weight:600;font-size:13px}
+  .btn.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
+  select{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:13px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+  .disc{color:#6b7688;font-size:11.5px;margin-top:26px;border-top:1px solid var(--line);padding-top:12px}
+  .brief{white-space:pre-wrap;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px 16px;font-size:13px}
+  .load{color:var(--muted);font-size:13px}
+  .lin{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .lin .node{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:7px 11px;font-size:12px}
+  .lin .node.on{border-color:var(--good)} .lin .a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="side">
+    <div class="brand">Reserving Workbench<small id="entity">Bricksurance SE</small></div>
+    <div class="nav" id="nav"></div>
+  </div>
+  <div class="main" id="main"><div class="load">Loading…</div></div>
+</div>
+<script>
+const API = (p,o)=>fetch(p,o).then(r=>r.json());
+const fmt=(n)=> n==null||n===''?'—':Number(n).toLocaleString('en-GB',{maximumFractionDigits:0});
+const money=(n)=> n==null?'—':'£'+fmt(n);
+const el=(h)=>{const d=document.createElement('div');d.innerHTML=h;return d.firstElementChild;};
+let CFG={};
+
+const PAGES=[
+  ["overview","Day in the life","🏠"],
+  ["triangle","Triangle & LDF selection","△"],
+  ["methodology","Methodology library","📚"],
+  ["estimates","Reserve estimates","∑"],
+  ["diagnostics","Validation diagnostics","🩺"],
+  ["judgements","Expert judgement","⚖️"],
+  ["committee","Committee & agent","👥"],
+  ["genie","Ask the Triangle","💬"],
+  ["assets","Assets & governance","🏷️"],
+];
+let CURRENT="overview", LOB="COMMERCIAL_PROPERTY";
+
+function renderNav(){
+  const nav=document.getElementById('nav'); nav.innerHTML='';
+  PAGES.forEach(([id,label,ic])=>{
+    const b=el(`<button class="${id===CURRENT?'on':''}">${ic} ${label}</button>`);
+    b.onclick=()=>{CURRENT=id;renderNav();route();}; nav.appendChild(b);
+  });
+}
+const main=(h)=>document.getElementById('main').innerHTML=h;
+const expl=(h)=>`<div class="expl">${h}</div>`;
+const disclaimer=`<div class="disc"><b>About this demo.</b> Bricksurance SE is fictional and all data is synthetic. This workbench demonstrates the <i>platform pattern</i> for governed reserving on Databricks — the methodology is illustrative, not a certified actuarial model. Every panel reads a real Unity Catalog table, view or function.</div>`;
+
+async function route(){
+  main('<div class="load">Loading…</div>');
+  try{ await PAGE[CURRENT](); }catch(e){ main(`<div class="card">Error: ${e.message}</div>`); }
+}
+
+const PAGE={};
+
+PAGE.overview=async()=>{
+  const c=await API('/api/committee');
+  const d=await API('/api/diagnostics');
+  const t=c.totals||{};
+  main(`<h1>A day in the life — reserving on Databricks</h1>
+  <p class="sub">The full quarterly reserving process as one governed flow, over a single source of truth.</p>
+  ${expl(`<b>What am I seeing?</b> The reserving lifecycle end to end: build the loss-development triangle from the claims ledger, select development factors (with a human override), apply the methodology library, validate actual-vs-expected, record expert judgement, and brief the committee — every step governed and reconciling. Each tile links to the step.`)}
+  <div class="row">
+    <div class="tile"><div class="k">Best-estimate ultimate (CL)</div><div class="v">${money(t.ultimate)}</div></div>
+    <div class="tile"><div class="k">IBNR</div><div class="v">${money(t.ibnr)}</div></div>
+    <div class="tile"><div class="k">Outstanding</div><div class="v">${money(t.outstanding)}</div></div>
+    <div class="tile"><div class="k">Validation breaches</div><div class="v">${(d.breaches&&d.breaches.breaches)||0}</div></div>
+  </div>
+  <div class="card"><h2>The reserving process, on the platform</h2>
+  <div class="h-sub">One triangle, derived from the ledger — never a stored copy. Seven governed steps.</div>
+  <table><thead><tr><th>Step</th><th style="text-align:left">What happens</th><th style="text-align:left">Where</th></tr></thead><tbody>
+  ${[
+    ["1 · Triangle","Losses developed by accident year × lag, derived from the claim ledger","loss_development view"],
+    ["2 · LDF selection","Empirical factors reviewed; prior held or empirical elected — audited","selected_development_pattern"],
+    ["3 · Methods","Chain-ladder, BF, Mack, GLM, peer — each a governed UC model","reserving_methodology"],
+    ["4 · Estimates","Ultimate / IBNR / outstanding per method; reconciles to the penny","reserve_estimate"],
+    ["5 · Validation","Actual-vs-expected on a rolling cohort; anomalies flagged","actual_vs_expected"],
+    ["6 · Judgement","Expert overlays, audit-trailed, magnitude-routed for approval","expert_judgement"],
+    ["7 · Committee","Q-o-Q view + Senior Reserving Actuary agent surfaces trends","reserve→QRT lineage"],
+  ].map(r=>`<tr><td>${r[0]}</td><td style="text-align:left">${r[1]}</td><td style="text-align:left" class="mono">${r[2]}</td></tr>`).join('')}
+  </tbody></table></div>
+  ${disclaimer}`);
+};
+
+PAGE.triangle=async()=>{
+  const t=await API('/api/triangle?lob='+encodeURIComponent(LOB));
+  const s=await API('/api/selection?lob='+encodeURIComponent(LOB));
+  const cell={}; t.cells.forEach(c=>cell[c.ay+'_'+c.lag]={paid:c.paid,incurred:c.incurred});
+  const now=new Date().getFullYear();
+  let head='<tr><th>AY \\ dev</th>'+t.development_lags.map(l=>`<th>${l}</th>`).join('')+'</tr>';
+  let body=t.accident_years.map(ay=>{
+    let tds=t.development_lags.map(lag=>{
+      const k=ay+'_'+lag, c=cell[k];
+      if(!c) return `<td class="fut">·</td>`;
+      const obs=(ay+lag)<=2026;
+      return `<td class="${obs?'obs':'fut'}">${fmt(c.paid)}</td>`;
+    }).join('');
+    return `<tr><td>${ay}</td>${tds}</tr>`;
+  }).join('');
+  // empirical factor row + individual (anomaly) rows
+  let frow='<tr class="frow"><td>vol-wtd LDF</td>'+t.development_lags.map(l=>{
+    const f=t.empirical_factors[l]; return `<td>${f?f.toFixed(3):'—'}</td>`;
+  }).join('')+'</tr>';
+  // find anomaly: any individual factor > 1.5x the volume-weighted
+  let indivRows=t.accident_years.map(ay=>{
+    const row=t.individual_factors[ay]||{};
+    let tds=t.development_lags.map(l=>{
+      const v=row[l], vw=t.empirical_factors[l];
+      if(v==null) return '<td class="fut">·</td>';
+      const anom=vw&&v>vw*1.4;
+      return `<td class="${anom?'anom':''}">${v.toFixed(2)}</td>`;
+    }).join('');
+    return `<tr><td>${ay}</td>${tds}</tr>`;
+  }).join('');
+  const lobOpts=t.lobs.map(l=>`<option value="${l}" ${l===LOB?'selected':''}>${l.replace(/_/g,' ')}</option>`).join('');
+
+  // selection lineage
+  const byId={}; s.selections.forEach(x=>byId[x.selection_id]=x);
+  const elected=s.selections.find(x=>x.status_code==='APPROVED'&&x.prior_selection_id&&x.source_code==='PRIOR_SELECTION');
+  const empirical=s.selections.find(x=>x.source_code==='DATABRICKS_EMPIRICAL');
+  const prior=s.selections.find(x=>x.source_code==='PRIOR_SELECTION'&&!x.prior_selection_id);
+
+  main(`<h1>Triangle &amp; loss-development-factor selection</h1>
+  <p class="sub">View the triangle and empirical factors, compare against the prior selection, and elect.</p>
+  <div style="margin-bottom:12px">Line of business: <select id="lob">${lobOpts}</select></div>
+  ${expl(`<b>What am I seeing?</b> The upper-left (shaded) cells are observed cumulative paid; the actuary develops each accident year to ultimate. The <b>vol-wtd LDF</b> row is the empirical age-to-age factor. Below it, each accident year's individual factor — <span class="anom">red</span> marks an outlier that distorts the empirical pick.`)}
+  <div class="card"><h2>Cumulative paid triangle</h2><div class="h-sub">Derived live from the claim ledger (loss_development view) — reconciles to the penny.</div>
+    <table class="tri"><thead>${head}</thead><tbody>${body}${frow}</tbody></table>
+  </div>
+  <div class="card"><h2>Individual age-to-age factors by accident year</h2>
+  <div class="h-sub">The diagnostic behind the selection: a single red cell is the reason to override.</div>
+    <table class="tri"><thead>${head}</thead><tbody>${indivRows}</tbody></table>
+  </div>
+  <div class="card"><h2>The engine seam — where selection happens</h2>
+  <div class="h-sub">Pluggable: do the selection in Databricks, or hand the triangle to an external tool (ResQ) and read the pick back. Same contract either way.</div>
+    <div class="seam">
+      <div class="z"><div class="zt">Databricks</div><div class="zd">Ledger → triangle → empirical factors + DQ. This part is always Databricks.</div></div>
+      <div class="arrow">→</div>
+      <div class="z mid"><div class="zt">Selection · Databricks OR ResQ</div><div class="zd">Elect empirical, hold prior, or import an external tool's pick. source = DATABRICKS_EMPIRICAL / RESQ / PRIOR_SELECTION / MANUAL.</div></div>
+      <div class="arrow">→</div>
+      <div class="z"><div class="zt">Databricks</div><div class="zd">Selection recorded, versioned, governed → estimates + downstream (SII/IFRS17). Back in Databricks.</div></div>
+    </div>
+  </div>
+  <div class="card"><h2>Selection decision &amp; audit trail</h2>
+  <div class="h-sub">Every election recorded: who, when, source, and why. New selection = new row; the prior is never overwritten.</div>
+    ${s.selections.length? `
+    <div class="lin">
+      ${prior?`<span class="node">Prior<br><span class="mono">${prior.factors.map(f=>f.toFixed(2)).join(' · ')}</span></span>`:''}
+      <span class="a">→</span>
+      ${empirical?`<span class="node">Empirical (${empirical.status_code})<br><span class="mono">${empirical.factors.map(f=>f.toFixed(2)).join(' · ')}</span></span>`:''}
+      <span class="a">→</span>
+      ${elected?`<span class="node on">Elected: ${elected.source_code==='PRIOR_SELECTION'?'held prior':'empirical'}<br><span class="mono">${elected.factors.map(f=>f.toFixed(2)).join(' · ')}</span></span>`:''}
+    </div>
+    <table style="margin-top:12px"><thead><tr><th>Selection</th><th style="text-align:left">Source</th><th style="text-align:left">Status</th><th style="text-align:left">Rationale</th><th style="text-align:left">By</th></tr></thead><tbody>
+    ${s.selections.map(x=>`<tr><td class="mono">${x.selection_id}</td><td style="text-align:left"><span class="chip">${x.source_code}</span></td><td style="text-align:left">${x.status_code}</td><td style="text-align:left;color:var(--muted)">${x.rationale||'—'}</td><td style="text-align:left">${x.approved_by||x.selected_by}</td></tr>`).join('')}
+    </tbody></table>`:'<div class="load">No selections recorded yet.</div>'}
+    <details class="why"><summary>Why does this matter?</summary><div style="color:var(--muted);margin-top:6px">Pricing actuaries develop losses to ultimate for rate indications; reserving actuaries for booked reserves — the same triangle machinery. The override moment (holding a prior pattern when a data anomaly distorts the empirical factor) is exactly the human-in-the-loop control that a black-box SQL script cannot offer, and every decision is audit-trailed here.</div></details>
+  </div>
+  ${disclaimer}`);
+  document.getElementById('lob').onchange=(e)=>{LOB=e.target.value;route();};
+};
+
+PAGE.methodology=async()=>{
+  const m=await API('/api/methodology');
+  main(`<h1>Methodology library</h1><p class="sub">Every reserving method registered in Unity Catalog and governed identically.</p>
+  ${expl(`<b>What am I seeing?</b> Each method (chain-ladder, Bornhuetter-Ferguson, Mack, GLM, peer-comparison) is a governed UC model with a version and a production alias — swapping method produces a new estimate row, never an overwrite. "Produces distribution" marks the stochastic methods that feed reserve uncertainty (SII risk margin / IFRS 17 risk adjustment).`)}
+  <div class="card"><table><thead><tr><th>Method</th><th style="text-align:left">UC model</th><th>Version</th><th style="text-align:left">Alias</th><th style="text-align:left">Distribution</th><th style="text-align:left">Owner</th></tr></thead><tbody>
+  ${m.methods.map(x=>`<tr><td>${x.reserving_method_code.replace(/_/g,' ')}</td><td style="text-align:left" class="mono">${x.uc_model_name.split('.').pop()}</td><td>${x.model_version}</td><td style="text-align:left"><span class="chip good">${x.alias||'—'}</span></td><td style="text-align:left">${x.produces_distribution==='true'||x.produces_distribution===true?'✓':'—'}</td><td style="text-align:left">${x.owner_role}</td></tr>`).join('')}
+  </tbody></table>
+  ${m.methods.map(x=>`<div style="margin-top:8px;color:var(--muted);font-size:12.5px"><b style="color:var(--ink)">${x.reserving_method_code.replace(/_/g,' ')}</b> — ${x.summary}</div>`).join('')}
+  </div>${disclaimer}`);
+};
+
+PAGE.estimates=async()=>{
+  const e=await API('/api/estimates');
+  const rows=e.estimates;
+  main(`<h1>Reserve estimates</h1><p class="sub">Ultimate, IBNR and outstanding per accident year and method — reconciling to the penny.</p>
+  ${expl(`<b>What am I seeing?</b> One row per accident year × method. paid + case + IBNR = ultimate by construction. Mack carries a standard error (uncertainty), widening for the greenest accident years. Methods sit side by side because each basis is auditable.`)}
+  <div class="card"><table><thead><tr><th>LOB</th><th>AY</th><th style="text-align:left">Method</th><th>Paid</th><th>Case</th><th>Ultimate</th><th>IBNR</th><th>Std err</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td>${r.accident_year}</td><td style="text-align:left">${r.reserving_method_code.replace(/_/g,' ')}</td><td>${money(r.paid_to_date)}</td><td>${money(r.case_reserves)}</td><td>${money(r.ultimate_loss)}</td><td>${money(r.ibnr)}</td><td>${r.ultimate_std_error?money(r.ultimate_std_error):'—'}</td></tr>`).join('')}
+  </tbody></table></div>${disclaimer}`);
+};
+
+PAGE.diagnostics=async()=>{
+  const d=await API('/api/diagnostics');
+  main(`<h1>Validation diagnostics</h1><p class="sub">Actual-vs-expected on a rolling cohort — the model-validation feedback loop.</p>
+  ${expl(`<b>What am I seeing?</b> For each cohort, what the prior valuation expected to emerge vs what actually did. The standardised residual scales the variance by its expected error; anything beyond ±2.5 breaches tolerance (<span class="chip bad">flagged</span>) and needs an actuary's eye — this is how the workbench validates its own methods.`)}
+  <div class="row"><div class="tile"><div class="k">Cohorts breaching tolerance</div><div class="v">${(d.breaches&&d.breaches.breaches)||0}</div></div></div>
+  <div class="card"><table><thead><tr><th>LOB</th><th>AY</th><th>Expected</th><th>Actual</th><th>Variance</th><th>Std resid</th><th style="text-align:left">Status</th></tr></thead><tbody>
+  ${d.actual_vs_expected.map(r=>{const ok=r.within_tolerance==='true'||r.within_tolerance===true;return `<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td>${r.accident_year}</td><td>${money(r.expected_emergence)}</td><td>${money(r.actual_emergence)}</td><td>${money(r.variance)}</td><td>${Number(r.standardised_residual).toFixed(2)}</td><td style="text-align:left"><span class="chip ${ok?'good':'bad'}">${ok?'within':'BREACH'}</span></td></tr>`;}).join('')}
+  </tbody></table></div>${disclaimer}`);
+};
+
+PAGE.judgements=async()=>{
+  const j=await API('/api/judgements');
+  main(`<h1>Expert-judgement repository</h1><p class="sub">Every judgement audit-trailed with rationale, magnitude and the regulatory cells it touches.</p>
+  ${expl(`<b>What am I seeing?</b> Actuarial judgements laid on top of the mechanical reserve. Each carries a signed magnitude, a substantive rationale, the QRT cells it flows into, and a magnitude-routed approval role (senior actuary / chief actuary / board). Judgements are never edited in place — they link to their predecessor, so the quarter-over-quarter story is visible.`)}
+  <div class="card"><table><thead><tr><th>ID</th><th>LOB</th><th style="text-align:left">Category</th><th>Magnitude</th><th style="text-align:left">Approval</th><th style="text-align:left">Status</th><th style="text-align:left">QRT cells</th></tr></thead><tbody>
+  ${j.judgements.map(x=>`<tr><td class="mono">${x.judgement_id}</td><td>${(x.line_of_business_code||'all').replace(/_/g,' ')}</td><td style="text-align:left">${x.category_code.replace(/_/g,' ')}</td><td>${money(x.magnitude)}</td><td style="text-align:left"><span class="chip">${x.required_approval_role_code.replace(/_/g,' ')}</span></td><td style="text-align:left"><span class="chip ${x.status_code==='APPROVED'?'good':''}">${x.status_code}</span></td><td style="text-align:left" class="mono">${(x.qrt_cells||[]).join(', ')||'—'}</td></tr>`).join('')}
+  </tbody></table>
+  ${j.judgements.map(x=>`<div style="margin-top:8px;color:var(--muted);font-size:12.5px"><b style="color:var(--ink)" class="mono">${x.judgement_id}</b> — ${x.rationale}</div>`).join('')}
+  </div>${disclaimer}`);
+};
+
+PAGE.committee=async()=>{
+  const c=await API('/api/committee');
+  main(`<h1>Reserving committee</h1><p class="sub">Quarter-over-quarter view, with the Senior Reserving Actuary agent surfacing emerging trends.</p>
+  ${expl(`<b>What am I seeing?</b> IBNR and outstanding by line of business (chain-ladder basis). The agent below is a real Foundation Model API call over the live diagnostics — it reads the out-of-tolerance cohorts, method spread and open judgements, and briefs the committee the way a senior actuary would.`)}
+  <div class="card"><h2>Reserves by line of business</h2><table><thead><tr><th>LOB</th><th>IBNR</th><th>Outstanding</th></tr></thead><tbody>
+  ${c.by_lob.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td>${money(r.ibnr)}</td><td>${money(r.outstanding)}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="card"><h2>Senior Reserving Actuary agent</h2><div class="h-sub">Claude via Databricks Foundation Model API, grounded on live reserving tables.</div>
+  <button class="btn" id="brief">Generate committee brief</button>
+  <div id="briefout" style="margin-top:14px"></div></div>${disclaimer}`);
+  document.getElementById('brief').onclick=async(e)=>{
+    e.target.disabled=true; document.getElementById('briefout').innerHTML='<div class="load">Asking the Senior Reserving Actuary agent…</div>';
+    const r=await API('/api/agent/brief',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    document.getElementById('briefout').innerHTML=`<div class="brief">${(r.brief||'').replace(/</g,'&lt;')}</div><div style="color:var(--muted);font-size:11.5px;margin-top:6px">Model: ${r.model}</div>`;
+    e.target.disabled=false;
+  };
+};
+
+PAGE.genie=async()=>{
+  const url=CFG.genie_embed_url;
+  main(`<h1>Ask the Triangle</h1><p class="sub">Natural-language analytics over the reserving tables — real AI/BI Genie.</p>
+  ${expl(`<b>What am I seeing?</b> A Databricks Genie space grounded on the reserving model (triangle, estimates, selections, validation, judgements). Ask in plain English — Genie writes governed SQL against the same certified tables the workbench uses, so the numbers match. Try: "Which cohorts breached validation tolerance?" or "Total IBNR by line of business".`)}
+  ${url?`<div class="card" style="padding:0;overflow:hidden"><iframe src="${url}" style="width:100%;height:680px;border:0;border-radius:11px"></iframe></div>`:`<div class="card"><div class="load">Genie space not configured (GENIE_SPACE_ID empty).</div></div>`}
+  ${disclaimer}`);
+};
+
+PAGE.assets=async()=>{
+  const a=await API('/api/assets');
+  main(`<h1>Assets &amp; governance</h1><p class="sub">What this workbench owns — every object announces it belongs to reserving-workbench.</p>
+  ${expl(`<b>What am I seeing?</b> The Unity Catalog objects this workbench owns in <span class="mono">${a.catalog}.${a.schema}</span>. Every table carries a <span class="mono">[reserving-workbench]</span> comment and <span class="mono">bxc_*</span> tags, so in a crowded workspace you can always tell what an asset belongs to — and "gen1 → gen2" is a single tag flip.`)}
+  <div class="card"><h2>Ownership tags</h2><div>${(a.tags||[]).map(t=>`<span class="chip">${t.tag_name} = ${t.tag_value} <b style="color:var(--ink)">(${t.n})</b></span>`).join('')||'<span class="load">Tag view not available on this warehouse.</span>'}</div></div>
+  <div class="card"><h2>Tables &amp; views (${a.tables.length})</h2><table><thead><tr><th>Object</th><th style="text-align:left">Comment</th></tr></thead><tbody>
+  ${a.tables.map(t=>`<tr><td class="mono">${t.table_name}</td><td style="text-align:left;color:var(--muted);font-size:12px">${(t.comment||'').slice(0,120)}</td></tr>`).join('')}
+  </tbody></table></div>${disclaimer}`);
+};
+
+(async()=>{
+  try{CFG=await API('/api/config'); if(CFG.entity) document.getElementById('entity').textContent=CFG.entity;}catch(e){}
+  renderNav(); route();
+})();
+</script>
+</body>
+</html>

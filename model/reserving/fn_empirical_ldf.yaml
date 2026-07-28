@@ -1,0 +1,38 @@
+kind: function
+name: fn_empirical_ldf
+domain: reserving
+title: Empirical Loss-Development Factor
+description: >
+  The volume-weighted empirical age-to-age development factor for one line of
+  business and development lag, computed live from the triangle: sum of the
+  cumulative paid at lag+1 over sum of the cumulative paid at lag, across all
+  accident years mature enough to have both. This is the empirical pick an
+  actuary reviews before selecting - governed and callable from SQL, Genie and
+  the app alike, so "the empirical factor" means one thing everywhere. Richer
+  averaging (last-N, simple, median) is done in the engine notebook; this
+  function is the canonical volume-weighted baseline.
+tags:
+  project: reserving-workbench
+  layer: engine
+  gen: gen1
+  domain: reserving
+inputs:
+  - name: in_line_of_business_code
+    type: string
+    description: Line of business code, e.g. COMMERCIAL_PROPERTY.
+  - name: in_development_lag
+    type: int
+    description: The development lag (from-age) to compute the factor out of, e.g. 1 for the 12-to-24-month factor.
+returns:
+  type: double
+  description: "Volume-weighted age-to-age factor from lag to lag+1; NULL if insufficient mature accident years."
+sql: |
+  (SELECT SUM(nxt.cumulative_paid) / NULLIF(SUM(cur.cumulative_paid), 0)
+   FROM {reserving.loss_development} cur
+   JOIN {reserving.loss_development} nxt
+     ON  nxt.accident_year        = cur.accident_year
+     AND nxt.line_of_business_code = cur.line_of_business_code
+     AND nxt.currency_code         = cur.currency_code
+     AND nxt.development_lag       = cur.development_lag + 1
+   WHERE cur.line_of_business_code = in_line_of_business_code
+     AND cur.development_lag       = in_development_lag)

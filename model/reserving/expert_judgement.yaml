@@ -1,0 +1,116 @@
+kind: entity
+name: expert_judgement
+domain: reserving
+title: Expert-Judgement Repository
+description: >
+  Every material actuarial judgement laid on top of the mechanical reserve, with
+  full audit trail: what, how much, why, who, when, and which downstream
+  regulatory cells it touches. Directly mirrors the Solvency II app's overlays
+  register (6_gov_overlays) so a judgement recorded here reconciles with the
+  group overlays view and can travel into the shared layer unchanged. Approval
+  authority is routed by magnitude (senior actuary / chief actuary / board).
+  A judgement is never edited in place - renewing or modifying a prior one
+  writes a new row linked to its predecessor, so the quarter-over-quarter
+  lineage of every judgement is visible.
+grain: One row per judgement per quarter (per line of business / accident year where scoped).
+tags:
+  maturity: certified
+  project: reserving-workbench
+  layer: governance
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: judgement_id
+    type: string
+    required: true
+    description: Identifier (UUID) for this judgement.
+    classification: internal
+  - name: quarter
+    type: string
+    required: true
+    description: Reserving quarter the judgement applies to, e.g. '2026-Q2'.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: false
+    description: Line of business the judgement is scoped to; null = across-the-board.
+    classification: internal
+  - name: accident_year
+    type: integer
+    required: false
+    description: Accident year the judgement is scoped to; null = all years.
+    classification: internal
+  - name: category_code
+    code_set: judgement_category
+    required: true
+    description: Kind of judgement (one-off event, methodology, data correction, tail extension, other).
+    classification: internal
+  - name: magnitude
+    type: decimal(18,2)
+    required: true
+    description: Signed monetary impact on the reserve, in currency_code (positive = strengthening).
+    classification: confidential
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the magnitude.
+    classification: internal
+  - name: rationale
+    type: string
+    required: true
+    description: >
+      The documented reason - the audit narrative. Must be substantive
+      (enforced minimum length in the app), not a placeholder.
+    classification: internal
+  - name: linked_qrt_cells
+    type: string
+    required: false
+    description: >
+      JSON array of regulatory cell references this judgement flows into, e.g.
+      ["S.19.01.R0100.C0100"]. The reserve-to-QRT lineage anchor.
+    classification: internal
+  - name: required_approval_role_code
+    code_set: approval_role
+    required: true
+    description: Approval authority required, routed by magnitude.
+    classification: internal
+  - name: status_code
+    code_set: judgement_status
+    required: true
+    description: Lifecycle status (draft / pending_approval / approved / rejected / retired).
+    classification: internal
+  - name: prior_judgement_id
+    type: string
+    required: false
+    description: The judgement this one was renewed / modified from (quarter-over-quarter lineage).
+    classification: internal
+  - name: author
+    type: string
+    required: true
+    description: Who raised the judgement (maker).
+    classification: internal
+  - name: created_at
+    type: timestamp
+    required: true
+    description: When it was raised.
+    classification: internal
+  - name: approver
+    type: string
+    required: false
+    description: Who approved it (checker); null until approved.
+    classification: internal
+  - name: approved_at
+    type: timestamp
+    required: false
+    description: When it was approved.
+    classification: internal
+keys:
+  primary: [judgement_id]
+owner: Chief Actuary
+quality:
+  - name: rationale_substantive
+    rule: length(rationale) >= 20
+    description: A judgement must carry a substantive rationale (audit-grade, not a placeholder).
+  - name: magnitude_nonzero
+    rule: magnitude <> 0
+    description: A judgement with zero impact is not a judgement.

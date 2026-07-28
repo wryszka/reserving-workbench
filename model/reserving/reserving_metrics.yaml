@@ -1,0 +1,64 @@
+kind: metric_view
+name: reserving_metrics
+domain: reserving
+title: Reserving Metrics
+description: >
+  Certified reserving KPIs over the loss-development triangle - cumulative paid
+  and incurred by accident year, line of business and development lag - defined
+  once so the reserving actuary, the finance close and Genie all read the same
+  figures. Superset of the bricksurance-data-core reserving_metrics view (same
+  measures, same names) so the two converge on import. Ultimate, IBNR and the
+  method projections are computed in the reserving engine from these same
+  movements and published to reserve_estimate. Amounts are in original currency:
+  always group by or filter on currency_code before summing. Query measures with
+  MEASURE(name).
+tags:
+  project: reserving-workbench
+  layer: semantic
+  gen: gen1
+  domain: reserving
+owner: Chief Actuary
+certification: certified
+source: reserving.loss_development
+joins:
+  - name: line_of_business
+    source: reference.line_of_business
+    condition: source.line_of_business_code = line_of_business.line_of_business_code
+dimensions:
+  - name: accident_year
+    expr: accident_year
+    description: Accident year - the year the loss occurred. The rows of the triangle.
+  - name: development_lag
+    expr: development_lag
+    description: Development lag in years (transaction year minus accident year). The columns of the triangle.
+  - name: line_of_business
+    expr: line_of_business.label
+    description: >
+      Line of business as its business label, e.g. 'Commercial Property'.
+      Filter with labels; use line_of_business_code for codes.
+  - name: line_of_business_code
+    expr: source.line_of_business_code
+    description: Line of business as its code, e.g. COMMERCIAL_PROPERTY.
+  - name: currency_code
+    expr: currency_code
+    description: Original currency of the amounts. Group by this before summing money.
+measures:
+  - name: paid_to_date
+    expr: SUM(incremental_paid)
+    description: >
+      Cumulative paid (indemnity plus expense, net of recoveries) for the
+      selected accident years and development lags, in original currency.
+  - name: incurred_to_date
+    expr: SUM(incremental_incurred)
+    description: >
+      Cumulative incurred (paid plus case reserves) for the selection, in
+      original currency - the latest diagonal is the current best estimate
+      before IBNR.
+  - name: paid_ratio
+    expr: SUM(incremental_paid) / NULLIF(SUM(incremental_incurred), 0)
+    description: >
+      Paid over incurred - how far the selected cohort has run off. Low early,
+      approaching 1.0 as an accident year matures.
+  - name: accident_year_count
+    expr: COUNT(DISTINCT accident_year)
+    description: Number of distinct accident years in the selection.

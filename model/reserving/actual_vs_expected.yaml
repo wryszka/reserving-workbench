@@ -1,0 +1,85 @@
+kind: entity
+name: actual_vs_expected
+domain: reserving
+title: Actual-vs-Expected (Validation)
+description: >
+  The model-validation feedback loop: for a rolling cohort, what the prior
+  valuation EXPECTED to emerge in the period versus what ACTUALLY emerged, with
+  the resulting variance and a standardised (residual) measure. This is how the
+  workbench closes the loop on its own methods - a method whose actuals
+  persistently exceed expected is failing validation. Surfaced in the Diagnostics
+  tab alongside tail-fit assessment and residual plots. One row per validated
+  cohort per validation period, so the quarter-over-quarter track record of each
+  method is queryable.
+grain: One row per reserving method per accident year per line of business per validation period.
+tags:
+  maturity: certified
+  project: reserving-workbench
+  layer: engine
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: ave_id
+    type: string
+    required: true
+    description: Identifier for this actual-vs-expected row.
+    classification: internal
+  - name: validation_period
+    type: string
+    required: true
+    description: The period over which emergence is measured, e.g. '2026-Q2' (prior valuation vs this one).
+    classification: internal
+  - name: reserving_method_code
+    code_set: reserving_method
+    required: true
+    description: The method whose prior projection is being validated.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: Line of business of the validated cohort.
+    classification: internal
+  - name: accident_year
+    type: integer
+    required: true
+    description: Accident year of the validated cohort.
+    classification: internal
+  - name: expected_emergence
+    type: decimal(18,2)
+    required: true
+    description: Amount the prior valuation expected to emerge in this period, in currency_code.
+    classification: confidential
+  - name: actual_emergence
+    type: decimal(18,2)
+    required: true
+    description: Amount that actually emerged in this period.
+    classification: confidential
+  - name: variance
+    type: decimal(18,2)
+    required: true
+    description: Actual minus expected (positive = adverse development).
+    classification: confidential
+  - name: standardised_residual
+    type: decimal(9,4)
+    required: false
+    description: >
+      Variance scaled by its expected standard error - the diagnostic used to
+      judge whether a variance is within model tolerance or a validation failure.
+    classification: confidential
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the amounts.
+    classification: internal
+  - name: within_tolerance
+    type: boolean
+    required: true
+    description: Whether the standardised residual is within the accepted validation band.
+    classification: internal
+keys:
+  primary: [ave_id]
+owner: Chief Actuary
+quality:
+  - name: variance_ties
+    rule: abs(variance - (actual_emergence - expected_emergence)) < 1.0
+    description: Variance must equal actual minus expected.

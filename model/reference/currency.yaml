@@ -1,0 +1,18 @@
+kind: code_set
+name: currency
+title: Currency
+description: >
+  ISO 4217 currency codes used across the reserving ledger. Subset of the
+  bricksurance-data-core currency code set (identical codes) so imports merge.
+standards:
+  acord: Currency (ISO 4217)
+codes:
+  - code: GBP
+    label: Pound Sterling
+    description: British pound sterling.
+  - code: EUR
+    label: Euro
+    description: Euro.
+  - code: USD
+    label: US Dollar
+    description: United States dollar.

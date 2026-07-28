@@ -1,0 +1,64 @@
+kind: entity
+name: 1_raw_claim_transaction
+domain: reserving
+title: Claim Transaction (reserving ledger)
+description: >
+  The movement-level claim ledger - one row per financial movement on a claim
+  (indemnity payment, expense payment, recovery, case-reserve movement), stamped
+  with the transaction year. This is the single source of truth the triangle is
+  derived from: loss_development sums these movements, so the triangle always
+  reconciles to the ledger to the penny and there is no separately-stored
+  triangle to drift. Same shape as claim.claim_transaction in the shared core
+  (claim_id, transaction_year, claim_transaction_type_code, amount,
+  currency_code) so gen2 import is a re-bind, not a reshape.
+grain: One row per claim financial movement.
+tags:
+  project: reserving-workbench
+  layer: raw
+  gen: gen1
+  domain: reserving
+standards:
+  acord: Claim financial transaction (indicative)
+attributes:
+  - name: claim_transaction_id
+    type: string
+    required: true
+    description: Identifier for the movement.
+    classification: internal
+  - name: claim_id
+    type: string
+    required: true
+    description: The claim this movement belongs to.
+    classification: internal
+  - name: transaction_year
+    type: integer
+    required: true
+    description: Calendar year of the movement - development lag = transaction_year minus accident_year.
+    classification: internal
+  - name: transaction_date
+    type: date
+    required: true
+    description: Date of the movement.
+    classification: internal
+  - name: claim_transaction_type_code
+    code_set: claim_transaction_type
+    required: true
+    description: Movement type (INDEMNITY_PAYMENT, EXPENSE_PAYMENT, RECOVERY, CASE_RESERVE_MOVEMENT).
+    classification: internal
+  - name: amount
+    type: decimal(18,2)
+    required: true
+    description: Signed movement amount in currency_code (recoveries negative to paid, reserve movements signed).
+    classification: confidential
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the movement.
+    classification: internal
+keys:
+  primary: [claim_transaction_id]
+owner: Chief Actuary
+quality:
+  - name: transaction_not_before_accident
+    rule: transaction_year >= 1990
+    description: Sanity bound on transaction year.

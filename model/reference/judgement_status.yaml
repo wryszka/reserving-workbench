@@ -1,0 +1,24 @@
+kind: code_set
+name: judgement_status
+domain: reference
+title: Judgement / Selection Status
+description: >
+  Lifecycle status of an expert judgement or a selected development pattern —
+  the maker/checker workflow state. Shared by expert_judgement and
+  selected_development_pattern so both move through the same governed lifecycle.
+codes:
+  - code: DRAFT
+    label: Draft
+    description: Created but not submitted for approval.
+  - code: PENDING_APPROVAL
+    label: Pending approval
+    description: Submitted; awaiting sign-off by the required approval role.
+  - code: APPROVED
+    label: Approved
+    description: Signed off and eligible to flow into published estimates.
+  - code: REJECTED
+    label: Rejected
+    description: Reviewed and declined; does not flow downstream.
+  - code: RETIRED
+    label: Retired
+    description: Previously approved, now superseded by a later selection/judgement.

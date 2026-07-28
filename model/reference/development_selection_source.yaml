@@ -1,0 +1,26 @@
+kind: code_set
+name: development_selection_source
+domain: reference
+title: Development-Selection Source
+description: >
+  Where a selected loss-development pattern came from. This is the pluggable
+  "engine seam": a selection made in an external actuarial tool (LCP ResQ,
+  Icecap, or equivalent) is a first-class citizen with exactly the same shape
+  as one made natively in Databricks, so the writeback, governance and
+  downstream code never depend on which tool produced the pick.
+codes:
+  - code: DATABRICKS_EMPIRICAL
+    label: Databricks (empirical)
+    description: Empirical factors computed natively on-platform (chainladder / SQL) and selected in the workbench.
+  - code: RESQ
+    label: External tool (ResQ / equiv)
+    description: >
+      Pattern selected in an external reserving tool (e.g. LCP ResQ) and read
+      back into the workbench. Databricks prepares the triangle, the external
+      tool makes the pick, Databricks consumes and governs it.
+  - code: PRIOR_SELECTION
+    label: Prior selection (held)
+    description: A previously-approved pattern carried forward unchanged because the empirical pick was rejected (e.g. data anomaly).
+  - code: MANUAL
+    label: Manual override
+    description: An analyst manually set the factors, with a recorded rationale.

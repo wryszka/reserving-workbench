@@ -1,0 +1,21 @@
+kind: code_set
+name: claim_transaction_type
+domain: reference
+title: Claim Transaction Type
+description: >
+  The type of a claim financial movement in the reserving ledger. Matches the
+  claim_transaction_type code set in bricksurance-data-core so the triangle
+  derivation and the ledger reconcile identically after gen2 import.
+codes:
+  - code: INDEMNITY_PAYMENT
+    label: Indemnity payment
+    description: A payment of loss (claim indemnity) to or on behalf of the insured.
+  - code: EXPENSE_PAYMENT
+    label: Expense payment
+    description: A claim-handling / allocated loss-adjustment expense payment.
+  - code: RECOVERY
+    label: Recovery
+    description: A recovery received (salvage, subrogation, reinsurance) - reduces paid.
+  - code: CASE_RESERVE_MOVEMENT
+    label: Case-reserve movement
+    description: A change in the case (manual) reserve set by a claims handler; signed.

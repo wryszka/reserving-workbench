@@ -1,0 +1,34 @@
+kind: function
+name: fn_reserve_to_qrt
+domain: reserving
+title: Reserve-to-QRT Lineage Trace
+description: >
+  The regulatory-cell lineage for a reserve estimate: given a reserve_estimate_id,
+  returns the QRT cells that estimate feeds, drawn from the expert judgements and
+  mapping linked to it. Answers the audit-panel question "which regulatory
+  numbers does this reserve produce?" as governed SQL, so the lineage from an
+  actuary's signed estimate to the S.19.01 non-life technical-provision cells is
+  queryable, not just drawn on a slide. Complements the hand-curated lineage map
+  in the app with a live, data-backed trace.
+tags:
+  project: reserving-workbench
+  layer: governance
+  gen: gen1
+  domain: reserving
+inputs:
+  - name: in_reserve_estimate_id
+    type: string
+    description: The reserve estimate to trace forward, e.g. RES-2026Q2-PROP-2023-CL.
+returns:
+  type: string
+  description: "Semicolon-separated list of distinct QRT cell references this reserve feeds; NULL if none mapped."
+sql: |
+  (SELECT array_join(array_sort(array_distinct(flatten(collect_list(
+            from_json(ej.linked_qrt_cells, 'ARRAY<STRING>'))))), '; ')
+   FROM {reserving.reserve_estimate} re
+   JOIN {reserving.expert_judgement} ej
+     ON  ej.line_of_business_code = re.line_of_business_code
+     AND (ej.accident_year IS NULL OR ej.accident_year = re.accident_year)
+     AND ej.status_code = 'APPROVED'
+     AND ej.linked_qrt_cells IS NOT NULL
+   WHERE re.reserve_estimate_id = in_reserve_estimate_id)

@@ -1,0 +1,19 @@
+kind: code_set
+name: source_system
+title: Source System
+description: >
+  The system that produced a record or estimate. Subset of the
+  bricksurance-data-core source_system code set plus reserving-specific engine
+  sources; identical codes for the shared ones so imports merge.
+standards:
+  acord: n/a — operational provenance
+codes:
+  - code: CLAIMS_CORE
+    label: Claims core system
+    description: The claims administration system of record (the ledger source).
+  - code: RESERVING_ENGINE
+    label: Reserving engine
+    description: The on-platform reserving engine (notebooks) that produced an estimate.
+  - code: EXTERNAL_RESERVING_TOOL
+    label: External reserving tool
+    description: An external actuarial tool (e.g. LCP ResQ) that produced a selection or estimate.
