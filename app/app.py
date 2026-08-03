@@ -6,7 +6,10 @@ import os
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from server import agents, config, sql
+import datetime
+import uuid
+
+from server import agents, config, reserving, sql
 
 app = FastAPI(title="Reserving Workbench — Bricksurance SE")
 F = config.fqn
@@ -80,6 +83,77 @@ def selection(lob: str = "COMMERCIAL_PROPERTY"):
         except Exception:
             r["factors"] = []
     return {"lob": lob, "selections": rows}
+
+
+# ------------------------------------------------------------------ interactive selection (the decision module)
+@app.post("/api/selection/compute")
+def selection_compute(body: dict):
+    """Recompute empirical factors under a chosen averaging basis (+ any manual per-factor
+    overrides) and the resulting chain-ladder ultimate/IBNR, live from the triangle. Also
+    returns the prior-selection reserve so the UI can show the delta. Read-only (no writeback)."""
+    lob = body.get("lob", "COMMERCIAL_PROPERTY")
+    basis = body.get("basis", "VOLUME_WEIGHTED")
+    last_n = int(body.get("last_n", 5) or 5)
+    tail = float(body.get("tail", 1.01) or 1.01)
+    overrides = body.get("overrides") or {}
+    out = reserving.compute(lob, basis, last_n, tail, overrides)
+    out["prior_reserve"] = reserving.prior_reserve(lob, tail)
+    return out
+
+
+@app.post("/api/selection/elect")
+def selection_elect(body: dict):
+    """Write back the actuary's election as a NEW audited selected_development_pattern row.
+    source = DATABRICKS_EMPIRICAL (accepted the computed pattern) or MANUAL (overrode factors).
+    Retires the prior DRAFT for this LOB so the trail reads prior → this. Returns the new
+    reserve. This is the human-in-the-loop decision the whole module exists for."""
+    import json
+    lob = body.get("lob", "COMMERCIAL_PROPERTY")
+    factors = body.get("factors") or []
+    tail = float(body.get("tail", 1.01) or 1.01)
+    basis = body.get("basis", "VOLUME_WEIGHTED")
+    overrode = bool(body.get("overrode"))
+    rationale = (body.get("rationale") or "").strip()
+    user = _user_from_headers()
+    if len(factors) < 2:
+        return {"ok": False, "error": "Need a development-factor array."}
+    if overrode and len(rationale) < 10:
+        return {"ok": False, "error": "An override needs a rationale (≥10 chars)."}
+    source = "MANUAL" if overrode else "DATABRICKS_EMPIRICAL"
+    sel_id = f"SEL-LIVE-{lob[:4]}-{datetime.datetime.now().strftime('%H%M%S')}"
+    prior = sql.query_one(
+        f"SELECT selection_id FROM {F('selected_development_pattern')} "
+        f"WHERE line_of_business_code = '{sql.esc(lob)}' AND source_code = 'PRIOR_SELECTION' "
+        f"AND status_code = 'APPROVED' ORDER BY valuation_date DESC LIMIT 1")
+    prior_id = prior["selection_id"] if prior else None
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    fac_json = json.dumps([round(float(f), 4) for f in factors]).replace("'", "''")
+    rat = rationale.replace("'", "''") if rationale else None
+    # retire any live/draft for this LOB so the trail stays clean
+    sql.query(f"UPDATE {F('selected_development_pattern')} SET status_code='RETIRED' "
+              f"WHERE line_of_business_code='{sql.esc(lob)}' AND status_code IN ('DRAFT','PENDING_APPROVAL') "
+              f"AND source_code='DATABRICKS_EMPIRICAL'")
+    avg_sql = "NULL" if overrode else ("'" + sql.esc(basis) + "'")
+    prior_sql = ("'" + prior_id + "'") if prior_id else "NULL"
+    rat_sql = ("'" + rat + "'") if rat else "NULL"
+    ts = now[:19].replace("T", " ")
+    cols = ("selection_id, valuation_date, accident_year, line_of_business_code, currency_code, "
+            "source_code, averaging_method_code, last_n_years, development_factors, tail_factor, "
+            "prior_selection_id, status_code, rationale, selected_by, selected_at, approved_by, approved_at")
+    vals = (f"'{sel_id}', DATE'{config.VALUATION_DATE}', NULL, '{sql.esc(lob)}', 'GBP', "
+            f"'{source}', {avg_sql}, NULL, '{fac_json}', {tail}, "
+            f"{prior_sql}, 'PENDING_APPROVAL', {rat_sql}, '{sql.esc(user)}', "
+            f"TIMESTAMP'{ts}', NULL, NULL")
+    sql.query(f"INSERT INTO {F('selected_development_pattern')} ({cols}) VALUES ({vals})")
+    tri = reserving.read_triangle(lob)
+    fdict = {i: float(f) for i, f in enumerate(factors)}
+    res = reserving.ultimate_ibnr(tri, fdict, tail)
+    return {"ok": True, "selection_id": sel_id, "source": source, "status": "PENDING_APPROVAL",
+            "prior_selection_id": prior_id, "selected_by": user, "reserve": res}
+
+
+def _user_from_headers():
+    return "reserving.actuary@bricksurance.demo"
 
 
 # ------------------------------------------------------------------ methodology library

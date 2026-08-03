@@ -163,6 +163,9 @@ PAGE.overview=async()=>{
   ${ABOUT}`);
 };
 
+// live state for the decision module (per page load)
+let SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, overrides:{}, empirical:{}, applied:{}, lags:[], overrode:false};
+
 PAGE.triangle=async()=>{
   const [t,s]=await Promise.all([API('/api/triangle?lob='+encodeURIComponent(LOB)),API('/api/selection?lob='+encodeURIComponent(LOB))]);
   const cell={}; t.cells.forEach(c=>cell[c.ay+'_'+c.lag]={paid:c.paid,incurred:c.incurred});
@@ -172,49 +175,143 @@ PAGE.triangle=async()=>{
       const obs=(ay+lag)<=2026;return `<td class="${obs?'obs':'fut'}">${fmt(c.paid)}</td>`;}).join('');
     return `<tr><td>${ay}</td>${tds}</tr>`;
   }).join('');
-  const frow='<tr class="frow"><td>vol-wtd LDF</td>'+t.development_lags.map(l=>{const f=t.empirical_factors[l];return `<td>${f?f.toFixed(3):'—'}</td>`;}).join('')+'</tr>';
   const indiv=t.accident_years.map(ay=>{const row=t.individual_factors[ay]||{};
     const tds=t.development_lags.map(l=>{const v=row[l],vw=t.empirical_factors[l];if(v==null)return '<td class="fut">·</td>';
       const anom=vw&&v>vw*1.4;return `<td class="${anom?'anom':''}">${v.toFixed(2)}</td>`;}).join('');
     return `<tr><td>${ay}</td>${tds}</tr>`;}).join('');
   const lobOpts=t.lobs.map(l=>`<option value="${l}" ${l===LOB?'selected':''}>${l.replace(/_/g,' ')}</option>`).join('');
   const sels=s.selections||[];
-  const elected=sels.find(x=>x.status_code==='APPROVED'&&x.prior_selection_id&&x.source_code==='PRIOR_SELECTION');
-  const empirical=sels.find(x=>x.source_code==='DATABRICKS_EMPIRICAL');
-  const prior=sels.find(x=>x.source_code==='PRIOR_SELECTION'&&!x.prior_selection_id);
-  const fj=(x)=>x?(x.factors||[]).map(f=>f.toFixed(2)).join(' · '):'';
+  // reset live state for this LOB
+  SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, overrides:{}, empirical:{}, applied:{}, lags:t.development_lags.slice(0,-1), overrode:false};
+
   main(`<h1>Triangle &amp; loss-development-factor selection</h1>
-  <p class="sub">View the triangle and empirical factors, compare against the prior selection, and elect.</p>
+  <p class="sub">Review the triangle, choose an averaging basis, override any factor, and elect — the decision is recorded and reserves recompute live.</p>
   <div style="margin-bottom:14px">Line of business: <select id="lob">${lobOpts}</select></div>
-  ${explain(`The upper-left (shaded) cells are observed cumulative paid; the actuary develops each accident year to ultimate. The <b>vol-wtd LDF</b> row is the empirical age-to-age factor. Below it, each accident year's individual factor — <span style="color:#dc2626;font-weight:700">red</span> marks an outlier that distorts the empirical pick.`)}
+  ${explain(`The upper-left (shaded) cells are observed cumulative paid. The <b>decision module</b> below lets you pick how factors are averaged, <b>edit any factor</b> (e.g. override the anomalous AY2023 step), and <b>elect</b> — the ultimate/IBNR recompute live and your decision is written back as a new audited selection row. This is the stop-and-override moment a black-box SQL script can't offer.`)}
   <div class="card"><h2>Cumulative paid triangle</h2><div class="h-sub">Derived live from the claim ledger (loss_development) — reconciles to the penny.</div>
-    <table class="tri"><thead>${head}</thead><tbody>${body}${frow}</tbody></table></div>
+    <table class="tri"><thead>${head}</thead><tbody>${body}</tbody></table></div>
   <div class="card"><h2>Individual age-to-age factors by accident year</h2><div class="h-sub">The diagnostic behind the selection: a single red cell is the reason to override.</div>
     <table class="tri"><thead>${head}</thead><tbody>${indiv}</tbody></table></div>
-  <div class="card"><h2>The engine seam — where selection happens</h2>
-  <div class="h-sub">Pluggable: select in Databricks, or hand the triangle to an external tool (ResQ) and read the pick back. Same contract either way.</div>
-    <div class="seam">
-      <div class="z"><div class="zt">Databricks</div><div class="zd">Ledger → triangle → empirical factors + DQ. Always Databricks.</div></div>
-      <div class="arrow">→</div>
-      <div class="z mid"><div class="zt">Selection · Databricks OR ResQ</div><div class="zd">Elect empirical, hold prior, or import an external tool's pick. source ∈ DATABRICKS_EMPIRICAL / RESQ / PRIOR_SELECTION / MANUAL.</div></div>
-      <div class="arrow">→</div>
-      <div class="z"><div class="zt">Databricks</div><div class="zd">Selection recorded, versioned, governed → estimates + downstream (SII/IFRS 17).</div></div>
-    </div></div>
-  <div class="card"><h2>Selection decision &amp; audit trail</h2>
-  <div class="h-sub">Every election recorded: who, when, source, why. New selection = new row; the prior is never overwritten.</div>
-    ${sels.length?`<div class="lin">
-      ${prior?`<span class="node">Prior<br><span class="mono">${fj(prior)}</span></span><span class="a">→</span>`:''}
-      ${empirical?`<span class="node">Empirical (${empirical.status_code})<br><span class="mono">${fj(empirical)}</span></span><span class="a">→</span>`:''}
-      ${elected?`<span class="node on">Elected: ${elected.source_code==='PRIOR_SELECTION'?'held prior':'empirical'}<br><span class="mono">${fj(elected)}</span></span>`:''}
+
+  <div class="card" style="border-color:#c7d2fe"><h2>Decision module — select development factors</h2>
+  <div class="h-sub">Change the basis or edit a factor; the reserve recomputes live. Then elect and save.</div>
+    <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+      <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Averaging basis</label>
+        <select id="basis">
+          <option value="VOLUME_WEIGHTED">Volume-weighted (all years)</option>
+          <option value="SIMPLE_AVERAGE">Simple average</option>
+          <option value="LAST_N">Last-N average</option>
+          <option value="MEDIAN">Median</option>
+          <option value="GEOMETRIC">Geometric</option>
+        </select></div>
+      <div id="lastnwrap" style="display:none"><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">N years</label>
+        <input id="lastn" type="number" value="5" min="1" max="8" style="width:70px;padding:7px;border:1px solid var(--line);border-radius:8px"></div>
+      <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tail factor</label>
+        <input id="tail" type="number" value="1.01" step="0.01" min="1" style="width:80px;padding:7px;border:1px solid var(--line);border-radius:8px"></div>
+      <button class="btn ghost" id="resetf" style="background:#eef2ff;color:var(--blue)">Reset overrides</button>
     </div>
-    <table style="margin-top:12px"><thead><tr><th>Selection</th><th>Source</th><th>Status</th><th>Rationale</th><th>By</th></tr></thead><tbody>
-    ${sels.map(x=>`<tr><td class="mono">${x.selection_id}</td><td><span class="pill pill-slate">${x.source_code}</span></td><td>${x.status_code}</td><td style="color:var(--mut)">${x.rationale||'—'}</td><td>${x.approved_by||x.selected_by}</td></tr>`).join('')}
-    </tbody></table>`:'<div class="load">No selections recorded for this line yet.</div>'}
+    <div style="overflow-x:auto"><table class="tri" id="ftable"><thead><tr><th>dev</th>${SEL.lags.map(l=>`<th>${l}→${l+1}</th>`).join('')}</tr></thead>
+      <tbody>
+        <tr><td>empirical</td><td colspan="${SEL.lags.length}" style="text-align:left;color:var(--mut)" id="emprow">computing…</td></tr>
+        <tr class="frow"><td>selected</td>${SEL.lags.map(l=>`<td><input class="fin" data-lag="${l}" type="number" step="0.001" style="width:66px;padding:5px;border:1px solid #c7d2fe;border-radius:6px;text-align:right;font-variant-numeric:tabular-nums"></td>`).join('')}</tr>
+      </tbody></table></div>
+    <div class="row" style="margin-top:16px;margin-bottom:0">
+      <div class="tile"><div class="k">Selected ultimate</div><div class="v sm" id="r_ult">—</div></div>
+      <div class="tile"><div class="k">Selected IBNR</div><div class="v sm" id="r_ibnr">—</div></div>
+      <div class="tile"><div class="k">Δ vs prior selection</div><div class="v sm" id="r_delta">—</div></div>
+    </div>
+    <div style="margin-top:14px">
+      <label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Rationale <span id="ratreq" style="color:var(--red);display:none">(required for an override)</span></label>
+      <textarea id="rationale" rows="2" placeholder="e.g. Held the prior 12–24m factor: AY2023 empirical spike is one late-reported large loss, reserved individually." style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+      <button class="btn" id="elect">Elect &amp; save selection</button>
+      <span id="electmsg" style="font-size:12.5px;color:var(--mut)"></span>
+    </div>
+  </div>
+
+  <div class="card"><h2>Selection audit trail</h2>
+  <div class="h-sub">Every election recorded: who, when, source, why. New selection = new row; the prior is never overwritten.</div>
+    <div id="audit">${renderAudit(sels)}</div>
     <details class="why"><summary>Why does this matter?</summary><div>Pricing actuaries develop losses to ultimate for rate indications; reserving actuaries for booked reserves — the same triangle machinery. The override moment (holding a prior pattern when a data anomaly distorts the empirical factor) is exactly the human-in-the-loop control a black-box SQL script cannot offer, and every decision is audit-trailed here.</div></details>
   </div>
   ${ABOUT}`);
+
   document.getElementById('lob').onchange=(e)=>{LOB=e.target.value;route();};
+  document.getElementById('basis').onchange=(e)=>{SEL.basis=e.target.value;SEL.overrides={};
+    document.getElementById('lastnwrap').style.display=(SEL.basis==='LAST_N')?'block':'none';recompute(true);};
+  document.getElementById('lastn').onchange=(e)=>{SEL.last_n=parseInt(e.target.value)||5;recompute(true);};
+  document.getElementById('tail').onchange=(e)=>{SEL.tail=parseFloat(e.target.value)||1.01;recompute(false);};
+  document.getElementById('resetf').onclick=()=>{SEL.overrides={};recompute(true);};
+  document.getElementById('elect').onclick=doElect;
+  recompute(true);   // initial compute fills the factor inputs
 };
+
+function renderAudit(sels){
+  if(!sels||!sels.length) return '<div class="load">No selections recorded for this line yet.</div>';
+  return `<table><thead><tr><th>Selection</th><th>Source</th><th>Status</th><th>Rationale</th><th>By</th></tr></thead><tbody>
+  ${sels.map(x=>`<tr><td class="mono">${x.selection_id}</td><td><span class="pill ${x.source_code==='RESQ'?'pill-violet':(x.source_code==='MANUAL'?'pill-amber':'pill-slate')}">${x.source_code}</span></td><td><span class="pill ${x.status_code==='APPROVED'?'pill-green':(x.status_code==='RETIRED'?'pill-slate':'pill-blue')}">${x.status_code}</span></td><td style="color:var(--mut)">${x.rationale||'—'}</td><td>${x.approved_by||x.selected_by}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+async function recompute(refillInputs){
+  const r=await API('/api/selection/compute',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides})});
+  SEL.empirical=r.empirical_factors; SEL.applied=r.applied_factors;
+  // empirical row
+  document.getElementById('emprow').outerHTML='';
+  const emp=SEL.lags.map(l=>{const f=r.empirical_factors[l];return `<td>${f?f.toFixed(3):'—'}</td>`;}).join('');
+  const et=document.querySelector('#ftable tbody'); et.rows[0].innerHTML=`<td>empirical</td>${emp}`;
+  // selected inputs — refill only when basis changed (preserve manual edits otherwise)
+  if(refillInputs){
+    document.querySelectorAll('.fin').forEach(inp=>{const l=inp.dataset.lag;
+      inp.value=(SEL.overrides[l]!=null?SEL.overrides[l]:r.applied_factors[l]);
+      inp.oninput=()=>{SEL.overrides[inp.dataset.lag]=parseFloat(inp.value);SEL.overrode=true;markOverride();recomputeReserveOnly();};
+    });
+  }
+  SEL.overrode=Object.keys(SEL.overrides).length>0;
+  markOverride();
+  paintReserve(r.reserve, r.prior_reserve);
+}
+
+async function recomputeReserveOnly(){
+  const r=await API('/api/selection/compute',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides})});
+  paintReserve(r.reserve, r.prior_reserve);
+}
+
+function markOverride(){
+  document.getElementById('ratreq').style.display=SEL.overrode?'inline':'none';
+  document.querySelectorAll('.fin').forEach(inp=>{const l=inp.dataset.lag;
+    inp.style.borderColor=(SEL.overrides[l]!=null)?'#d97706':'#c7d2fe';
+    inp.style.background=(SEL.overrides[l]!=null)?'#fffbeb':'#fff';});
+}
+
+function paintReserve(res, prior){
+  document.getElementById('r_ult').textContent=money(res.ultimate);
+  document.getElementById('r_ibnr').textContent=money(res.ibnr);
+  const el=document.getElementById('r_delta');
+  if(prior){const d=res.ultimate-prior.ultimate; const pct=prior.ultimate?(d/prior.ultimate*100):0;
+    el.innerHTML=`<span style="color:${d>0?'#dc2626':'#16a34a'}">${d>=0?'+':''}${money(d)}</span> <span style="font-size:12px;color:var(--mut)">(${pct>=0?'+':''}${pct.toFixed(1)}%)</span>`;
+  } else el.textContent='—';
+}
+
+async function doElect(ev){
+  const btn=ev.target, msg=document.getElementById('electmsg');
+  const factors=SEL.lags.map(l=>{const inp=document.querySelector(`.fin[data-lag="${l}"]`);return parseFloat(inp.value);});
+  const rationale=document.getElementById('rationale').value;
+  if(SEL.overrode && rationale.trim().length<10){msg.innerHTML='<span style="color:#dc2626">An override needs a rationale (≥10 chars).</span>';return;}
+  btn.disabled=true; msg.textContent='Saving selection…';
+  try{
+    const r=await API('/api/selection/elect',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lob:LOB,factors,tail:SEL.tail,basis:SEL.basis,overrode:SEL.overrode,rationale})});
+    if(!r.ok){msg.innerHTML=`<span style="color:#dc2626">${r.error}</span>`;btn.disabled=false;return;}
+    msg.innerHTML=`<span style="color:#16a34a">✓ Saved ${r.selection_id} (${r.source}, ${r.status}) — ultimate ${money(r.reserve.ultimate)}. Refreshing audit trail…</span>`;
+    const s=await API('/api/selection?lob='+encodeURIComponent(LOB));
+    document.getElementById('audit').innerHTML=renderAudit(s.selections||[]);
+  }catch(e){msg.innerHTML=`<span style="color:#dc2626">Save failed: ${e.message}</span>`;}
+  btn.disabled=false;
+}
 
 PAGE.methodology=async()=>{
   const m=await API('/api/methodology');
