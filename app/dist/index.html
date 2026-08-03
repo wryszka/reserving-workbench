@@ -6,283 +6,330 @@
 <title>Reserving Workbench — Bricksurance SE</title>
 <style>
   :root{
-    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --line:#2a3140; --ink:#e6edf3;
-    --muted:#9aa7b6; --accent:#4c8dff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
-    --chip:#21283a; --shade:#1d2740; --hatch:#161b22;
+    --slate:#1e293b; --slate2:#0f172a; --blue:#2563eb; --blue4:#60a5fa; --blue7:#1d4ed8;
+    --ink:#0f172a; --mut:#64748b; --line:#e2e8f0; --bg:#f8fafc; --card:#fff;
+    --red:#dc2626; --redbg:#fef2f2; --amber:#d97706; --ambbg:#fffbeb;
+    --green:#16a34a; --greenbg:#f0fdf4; --violet:#6d28d9; --violetbg:#ede9fe;
   }
-  *{box-sizing:border-box} html,body{margin:0}
-  body{background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-  a{color:var(--accent);text-decoration:none}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:var(--bg);font-size:13px;line-height:1.55}
   .app{display:flex;min-height:100vh}
-  .side{width:230px;background:var(--panel);border-right:1px solid var(--line);padding:18px 12px;flex-shrink:0}
-  .brand{font-weight:700;font-size:15px;padding:4px 8px 2px}
-  .brand small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:2px}
-  .nav{margin-top:16px;display:flex;flex-direction:column;gap:2px}
-  .nav button{all:unset;cursor:pointer;padding:9px 10px;border-radius:7px;color:var(--muted);font-weight:500;display:flex;gap:9px;align-items:center}
-  .nav button:hover{background:var(--panel2);color:var(--ink)}
-  .nav button.on{background:var(--accent);color:#fff}
-  .main{flex:1;padding:26px 30px;max-width:1180px}
-  h1{font-size:22px;margin:0 0 2px} .sub{color:var(--muted);margin:0 0 18px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:18px 20px;margin-bottom:18px}
-  .card h2{font-size:15px;margin:0 0 4px} .card .h-sub{color:var(--muted);font-size:12.5px;margin:0 0 14px}
-  .row{display:flex;gap:14px;flex-wrap:wrap}
-  .tile{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:14px 16px;flex:1;min-width:150px}
-  .tile .k{color:var(--muted);font-size:12px} .tile .v{font-size:21px;font-weight:700;margin-top:3px}
-  table{border-collapse:collapse;width:100%;font-size:13px} th,td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line)}
-  th:first-child,td:first-child{text-align:left} th{color:var(--muted);font-weight:600}
-  .tri td{font-variant-numeric:tabular-nums} .tri .obs{background:var(--shade)} .tri .fut{color:#55606f}
-  .frow td{font-weight:600;color:var(--accent)} .anom{color:var(--bad);font-weight:700}
-  .chip{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:20px;padding:2px 10px;font-size:11.5px;color:var(--muted);margin:2px 4px 2px 0}
-  .chip.good{color:var(--good);border-color:#1e3a26} .chip.bad{color:var(--bad);border-color:#3a1e20} .chip.warn{color:var(--warn)}
-  .expl{background:var(--panel2);border-left:3px solid var(--accent);border-radius:6px;padding:10px 13px;margin:0 0 14px;color:var(--muted);font-size:12.5px}
-  .expl b{color:var(--ink)}
-  details.why{margin-top:8px} details.why summary{cursor:pointer;color:var(--accent);font-size:12.5px}
-  .seam{display:flex;align-items:stretch;gap:0;margin:6px 0 2px}
-  .seam .z{flex:1;border:1px solid var(--line);border-radius:8px;padding:11px 13px;background:var(--panel2)}
-  .seam .z.mid{border-color:var(--accent);background:#14203a}
-  .seam .arrow{align-self:center;color:var(--muted);padding:0 8px;font-size:18px}
-  .z .zt{font-weight:600;font-size:12.5px} .z .zd{color:var(--muted);font-size:11.5px;margin-top:3px}
-  .btn{all:unset;cursor:pointer;background:var(--accent);color:#fff;padding:8px 14px;border-radius:7px;font-weight:600;font-size:13px}
-  .btn.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
-  select{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:13px}
+  /* sidebar */
+  .sidebar{width:264px;background:linear-gradient(180deg,#1e293b 0%,#172033 100%);color:#cbd5e1;
+    flex-shrink:0;display:flex;flex-direction:column;position:fixed;height:100vh;
+    border-right:1px solid rgba(255,255,255,.06);z-index:5}
+  .brand{display:flex;align-items:center;gap:11px;padding:16px;border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer;color:inherit}
+  .brand:hover{background:rgba(255,255,255,.03)}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#2563eb,#60a5fa);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 10px rgba(37,99,235,.4);color:#fff;font-weight:800}
+  .brand .bt{font-weight:700;color:#fff;font-size:14px} .brand .bs{font-size:11px;color:#94a3b8;margin-top:1px}
+  .nav{flex:1;padding:6px 10px;overflow:auto}
+  .nav-section{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#5b6878;padding:15px 10px 5px}
+  .nav a{display:flex;align-items:center;gap:11px;padding:8.5px 11px;border-radius:9px;color:#cbd5e1;
+    text-decoration:none;font-size:13.5px;margin:1px 0;cursor:pointer;transition:background .12s,color .12s}
+  .nav a:hover{background:rgba(255,255,255,.06);color:#fff}
+  .nav a.active{background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font-weight:600;box-shadow:0 2px 8px rgba(37,99,235,.35)}
+  .nav a .ic{width:18px;text-align:center;opacity:.9}
+  .side-foot{padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#7c8797}
+  .side-foot .st{display:inline-block;margin-top:6px;padding:2px 8px;border-radius:999px;background:rgba(251,191,36,.14);
+    color:#fbbf24;font-weight:700;font-size:10px;letter-spacing:.04em}
+  /* main */
+  .main{margin-left:264px;flex:1;padding:26px 34px;max-width:1200px}
+  h1{font-size:24px;font-weight:700;margin:0 0 3px}
+  .sub{color:var(--mut);margin:0 0 18px;font-size:13.5px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:18px}
+  .card h2{font-size:15px;font-weight:700;margin:0 0 3px}
+  .card .h-sub{color:var(--mut);font-size:12.5px;margin:0 0 14px}
+  .row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px;flex:1;min-width:160px}
+  .tile .k{color:var(--mut);font-size:12px} .tile .v{font-size:26px;font-weight:700;margin-top:4px;color:var(--ink)}
+  .tile .v.sm{font-size:20px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .tri td{font-variant-numeric:tabular-nums;text-align:right} .tri td:first-child{text-align:left;font-weight:600}
+  .tri th{text-align:right} .tri th:first-child{text-align:left}
+  .tri .obs{background:#eff6ff} .tri .fut{color:#cbd5e1}
+  .frow td{font-weight:700;color:var(--blue7);background:#f8fafc}
+  .anom{color:var(--red);font-weight:700;background:var(--redbg)}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700}
+  .pill-green{background:var(--greenbg);color:var(--green)} .pill-amber{background:var(--ambbg);color:var(--amber)}
+  .pill-red{background:var(--redbg);color:var(--red)} .pill-blue{background:#dbeafe;color:var(--blue7)}
+  .pill-slate{background:#e2e8f0;color:#334155} .pill-violet{background:var(--violetbg);color:var(--violet)}
+  .btn{padding:8px 14px;border-radius:8px;background:var(--blue);color:#fff;border:0;cursor:pointer;
+    font-size:12.5px;font-weight:700;transition:background .12s}
+  .btn:hover{background:var(--blue7)} .btn:disabled{opacity:.5;cursor:default}
+  .explain{background:linear-gradient(90deg,#eef2ff,#faf5ff);border:1px solid #ddd6fe;border-radius:10px;
+    padding:11px 15px;margin:0 0 16px;font-size:12.5px;color:#4338ca;line-height:1.6}
+  .explain b{color:#312e81}
+  details.why{margin-top:10px} details.why summary{cursor:pointer;color:var(--blue);font-size:12.5px;font-weight:600}
+  details.why div{color:var(--mut);margin-top:7px;font-size:12.5px}
+  .about{background:var(--ambbg);border:1px solid #fde68a;border-radius:12px;padding:14px 18px;
+    font-size:12.5px;color:#92400e;line-height:1.6;margin-top:24px}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
-  .disc{color:#6b7688;font-size:11.5px;margin-top:26px;border-top:1px solid var(--line);padding-top:12px}
-  .brief{white-space:pre-wrap;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px 16px;font-size:13px}
-  .load{color:var(--muted);font-size:13px}
-  .lin{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
-  .lin .node{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:7px 11px;font-size:12px}
-  .lin .node.on{border-color:var(--good)} .lin .a{color:var(--muted)}
+  .seam{display:flex;align-items:stretch;gap:0;margin:6px 0 2px;flex-wrap:wrap}
+  .seam .z{flex:1;min-width:180px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#f8fafc}
+  .seam .z.mid{border-color:var(--blue4);background:#eff6ff}
+  .seam .arrow{align-self:center;color:var(--mut);padding:0 10px;font-size:18px}
+  .z .zt{font-weight:700;font-size:12.5px;color:var(--ink)} .z .zd{color:var(--mut);font-size:11.5px;margin-top:4px}
+  .brief{background:#f8fafc;border:1px solid var(--line);border-left:3px solid var(--violet);border-radius:8px;
+    padding:14px 16px;font-size:13.5px;line-height:1.6;white-space:pre-wrap}
+  .brief .tag{font-size:10.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:block}
+  .load{color:var(--mut);font-size:13px;padding:8px 0}
+  .err{background:var(--redbg);border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:12px 15px;font-size:12.5px}
+  select{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:13px}
+  .lin{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+  .lin .node{background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12px}
+  .lin .node.on{border-color:var(--green);background:var(--greenbg)} .lin .a{color:var(--mut);font-size:16px}
+  iframe{width:100%;height:680px;border:0;border-radius:10px}
+  .step-table td:nth-child(2){white-space:normal}
 </style>
 </head>
 <body>
 <div class="app">
-  <div class="side">
-    <div class="brand">Reserving Workbench<small id="entity">Bricksurance SE</small></div>
+  <div class="sidebar">
+    <div class="brand" onclick="go('overview')">
+      <div class="logo">△</div>
+      <div><div class="bt">Reserving Workbench</div><div class="bs" id="entity">Bricksurance SE</div></div>
+    </div>
     <div class="nav" id="nav"></div>
+    <div class="side-foot">
+      Synthetic demo · governed on Databricks
+      <br><span class="st">IN PROGRESS</span>
+    </div>
   </div>
   <div class="main" id="main"><div class="load">Loading…</div></div>
 </div>
 <script>
-const API = (p,o)=>fetch(p,o).then(r=>r.json());
+const API=(p,o)=>fetch(p,o).then(async r=>{if(!r.ok){throw new Error('HTTP '+r.status+' on '+p);}return r.json();});
 const fmt=(n)=> n==null||n===''?'—':Number(n).toLocaleString('en-GB',{maximumFractionDigits:0});
-const money=(n)=> n==null?'—':'£'+fmt(n);
-const el=(h)=>{const d=document.createElement('div');d.innerHTML=h;return d.firstElementChild;};
+const money=(n)=> n==null||n===''?'—':'£'+fmt(n);
 let CFG={};
 
 const PAGES=[
-  ["overview","Day in the life","🏠"],
+  ["overview","Overview","▤"],
   ["triangle","Triangle & LDF selection","△"],
-  ["methodology","Methodology library","📚"],
+  ["methodology","Methodology library","▦"],
   ["estimates","Reserve estimates","∑"],
-  ["diagnostics","Validation diagnostics","🩺"],
-  ["judgements","Expert judgement","⚖️"],
-  ["committee","Committee & agent","👥"],
-  ["genie","Ask the Triangle","💬"],
-  ["assets","Assets & governance","🏷️"],
+  ["diagnostics","Validation diagnostics","◫"],
+  ["judgements","Expert judgement","⚖"],
+  ["committee","Committee & agent","◆"],
+  ["engines","External engines (ResQ)","⚙"],
+  ["genie","Ask the Triangle","✦"],
+  ["assets","Assets & governance","⬡"],
 ];
 let CURRENT="overview", LOB="COMMERCIAL_PROPERTY";
 
 function renderNav(){
-  const nav=document.getElementById('nav'); nav.innerHTML='';
+  const nav=document.getElementById('nav'); nav.innerHTML='<div class="nav-section">Reserving process</div>';
   PAGES.forEach(([id,label,ic])=>{
-    const b=el(`<button class="${id===CURRENT?'on':''}">${ic} ${label}</button>`);
-    b.onclick=()=>{CURRENT=id;renderNav();route();}; nav.appendChild(b);
+    const a=document.createElement('a'); a.className=(id===CURRENT?'active':'');
+    a.innerHTML=`<span class="ic">${ic}</span> ${label}`; a.onclick=()=>go(id); nav.appendChild(a);
+    if(id==='estimates'){const s=document.createElement('div');s.className='nav-section';s.textContent='Governance & AI';nav.appendChild(s);}
   });
 }
+function go(id){CURRENT=id;renderNav();route();}
 const main=(h)=>document.getElementById('main').innerHTML=h;
-const expl=(h)=>`<div class="expl">${h}</div>`;
-const disclaimer=`<div class="disc"><b>About this demo.</b> Bricksurance SE is fictional and all data is synthetic. This workbench demonstrates the <i>platform pattern</i> for governed reserving on Databricks — the methodology is illustrative, not a certified actuarial model. Every panel reads a real Unity Catalog table, view or function.</div>`;
+const explain=(h)=>`<div class="explain"><b>What am I seeing?</b> ${h}</div>`;
+const ABOUT=`<div class="about"><b>About this demo.</b> Bricksurance SE is fictional and all data is synthetic. This workbench demonstrates the <i>platform pattern</i> for governed reserving on Databricks — the methodology is illustrative, not a certified actuarial model. Every panel reads a real Unity Catalog table, view or function.</div>`;
 
 async function route(){
   main('<div class="load">Loading…</div>');
-  try{ await PAGE[CURRENT](); }catch(e){ main(`<div class="card">Error: ${e.message}</div>`); }
+  try{ await PAGE[CURRENT](); }
+  catch(e){ main(`<h1>${(PAGES.find(p=>p[0]===CURRENT)||['','Page'])[1]}</h1><div class="err">Couldn't load this page: ${e.message}. The app may be waking up — try again in a moment.</div>`); }
 }
-
 const PAGE={};
 
 PAGE.overview=async()=>{
-  const c=await API('/api/committee');
-  const d=await API('/api/diagnostics');
+  const [c,d,lc]=await Promise.all([API('/api/committee'),API('/api/diagnostics'),API('/api/lifecycle')]);
   const t=c.totals||{};
-  main(`<h1>A day in the life — reserving on Databricks</h1>
-  <p class="sub">The full quarterly reserving process as one governed flow, over a single source of truth.</p>
-  ${expl(`<b>What am I seeing?</b> The reserving lifecycle end to end: build the loss-development triangle from the claims ledger, select development factors (with a human override), apply the methodology library, validate actual-vs-expected, record expert judgement, and brief the committee — every step governed and reconciling. Each tile links to the step.`)}
+  const stbadge=(s)=> s==='built'?'<span class="pill pill-green">built</span>':'<span class="pill pill-amber">next</span>';
+  main(`<h1>Reserving on Databricks</h1>
+  <p class="sub">The full quarterly reserving system — data, engines, agents and governance on one platform.</p>
+  ${explain(`This is the reserving analogue of the pricing workbench: an end-to-end system, not a single tool. Databricks does it all — governed <b>data</b> (triangles from the ledger), <b>engines</b> (the methodology library), <b>agents</b> (Senior Reserving Actuary) and <b>governance</b> (audit, lineage, judgement). Stages marked <span class="pill pill-green">built</span> are live here; <span class="pill pill-amber">next</span> are the roadmap bookends (ingestion upstream, roll-forward/ranges/close downstream).`)}
   <div class="row">
-    <div class="tile"><div class="k">Best-estimate ultimate (CL)</div><div class="v">${money(t.ultimate)}</div></div>
+    <div class="tile"><div class="k">Best-estimate ultimate (chain-ladder)</div><div class="v">${money(t.ultimate)}</div></div>
     <div class="tile"><div class="k">IBNR</div><div class="v">${money(t.ibnr)}</div></div>
     <div class="tile"><div class="k">Outstanding</div><div class="v">${money(t.outstanding)}</div></div>
     <div class="tile"><div class="k">Validation breaches</div><div class="v">${(d.breaches&&d.breaches.breaches)||0}</div></div>
   </div>
-  <div class="card"><h2>The reserving process, on the platform</h2>
-  <div class="h-sub">One triangle, derived from the ledger — never a stored copy. Seven governed steps.</div>
-  <table><thead><tr><th>Step</th><th style="text-align:left">What happens</th><th style="text-align:left">Where</th></tr></thead><tbody>
-  ${[
-    ["1 · Triangle","Losses developed by accident year × lag, derived from the claim ledger","loss_development view"],
-    ["2 · LDF selection","Empirical factors reviewed; prior held or empirical elected — audited","selected_development_pattern"],
-    ["3 · Methods","Chain-ladder, BF, Mack, GLM, peer — each a governed UC model","reserving_methodology"],
-    ["4 · Estimates","Ultimate / IBNR / outstanding per method; reconciles to the penny","reserve_estimate"],
-    ["5 · Validation","Actual-vs-expected on a rolling cohort; anomalies flagged","actual_vs_expected"],
-    ["6 · Judgement","Expert overlays, audit-trailed, magnitude-routed for approval","expert_judgement"],
-    ["7 · Committee","Q-o-Q view + Senior Reserving Actuary agent surfaces trends","reserve→QRT lineage"],
-  ].map(r=>`<tr><td>${r[0]}</td><td style="text-align:left">${r[1]}</td><td style="text-align:left" class="mono">${r[2]}</td></tr>`).join('')}
+  <div class="card"><h2>The reserving lifecycle — 8 stages (${lc.built}/${lc.total} built)</h2>
+  <div class="h-sub">One triangle, derived from the ledger — never a stored copy. The same shape as the pricing workbench.</div>
+  <table class="step-table"><thead><tr><th>Stage</th><th>What it answers</th><th>Where</th><th>Status</th></tr></thead><tbody>
+  ${lc.stages.map(s=>`<tr><td><b>${s.n} · ${s.stage}</b></td><td>${s.answers}</td><td class="mono">${s.where}</td><td>${stbadge(s.status)}</td></tr>`).join('')}
   </tbody></table></div>
-  ${disclaimer}`);
+  ${ABOUT}`);
 };
 
 PAGE.triangle=async()=>{
-  const t=await API('/api/triangle?lob='+encodeURIComponent(LOB));
-  const s=await API('/api/selection?lob='+encodeURIComponent(LOB));
+  const [t,s]=await Promise.all([API('/api/triangle?lob='+encodeURIComponent(LOB)),API('/api/selection?lob='+encodeURIComponent(LOB))]);
   const cell={}; t.cells.forEach(c=>cell[c.ay+'_'+c.lag]={paid:c.paid,incurred:c.incurred});
-  const now=new Date().getFullYear();
-  let head='<tr><th>AY \\ dev</th>'+t.development_lags.map(l=>`<th>${l}</th>`).join('')+'</tr>';
-  let body=t.accident_years.map(ay=>{
-    let tds=t.development_lags.map(lag=>{
-      const k=ay+'_'+lag, c=cell[k];
-      if(!c) return `<td class="fut">·</td>`;
-      const obs=(ay+lag)<=2026;
-      return `<td class="${obs?'obs':'fut'}">${fmt(c.paid)}</td>`;
-    }).join('');
+  const head='<tr><th>AY \\ dev</th>'+t.development_lags.map(l=>`<th>${l}</th>`).join('')+'</tr>';
+  const body=t.accident_years.map(ay=>{
+    const tds=t.development_lags.map(lag=>{const c=cell[ay+'_'+lag];if(!c)return '<td class="fut">·</td>';
+      const obs=(ay+lag)<=2026;return `<td class="${obs?'obs':'fut'}">${fmt(c.paid)}</td>`;}).join('');
     return `<tr><td>${ay}</td>${tds}</tr>`;
   }).join('');
-  // empirical factor row + individual (anomaly) rows
-  let frow='<tr class="frow"><td>vol-wtd LDF</td>'+t.development_lags.map(l=>{
-    const f=t.empirical_factors[l]; return `<td>${f?f.toFixed(3):'—'}</td>`;
-  }).join('')+'</tr>';
-  // find anomaly: any individual factor > 1.5x the volume-weighted
-  let indivRows=t.accident_years.map(ay=>{
-    const row=t.individual_factors[ay]||{};
-    let tds=t.development_lags.map(l=>{
-      const v=row[l], vw=t.empirical_factors[l];
-      if(v==null) return '<td class="fut">·</td>';
-      const anom=vw&&v>vw*1.4;
-      return `<td class="${anom?'anom':''}">${v.toFixed(2)}</td>`;
-    }).join('');
-    return `<tr><td>${ay}</td>${tds}</tr>`;
-  }).join('');
+  const frow='<tr class="frow"><td>vol-wtd LDF</td>'+t.development_lags.map(l=>{const f=t.empirical_factors[l];return `<td>${f?f.toFixed(3):'—'}</td>`;}).join('')+'</tr>';
+  const indiv=t.accident_years.map(ay=>{const row=t.individual_factors[ay]||{};
+    const tds=t.development_lags.map(l=>{const v=row[l],vw=t.empirical_factors[l];if(v==null)return '<td class="fut">·</td>';
+      const anom=vw&&v>vw*1.4;return `<td class="${anom?'anom':''}">${v.toFixed(2)}</td>`;}).join('');
+    return `<tr><td>${ay}</td>${tds}</tr>`;}).join('');
   const lobOpts=t.lobs.map(l=>`<option value="${l}" ${l===LOB?'selected':''}>${l.replace(/_/g,' ')}</option>`).join('');
-
-  // selection lineage
-  const byId={}; s.selections.forEach(x=>byId[x.selection_id]=x);
-  const elected=s.selections.find(x=>x.status_code==='APPROVED'&&x.prior_selection_id&&x.source_code==='PRIOR_SELECTION');
-  const empirical=s.selections.find(x=>x.source_code==='DATABRICKS_EMPIRICAL');
-  const prior=s.selections.find(x=>x.source_code==='PRIOR_SELECTION'&&!x.prior_selection_id);
-
+  const sels=s.selections||[];
+  const elected=sels.find(x=>x.status_code==='APPROVED'&&x.prior_selection_id&&x.source_code==='PRIOR_SELECTION');
+  const empirical=sels.find(x=>x.source_code==='DATABRICKS_EMPIRICAL');
+  const prior=sels.find(x=>x.source_code==='PRIOR_SELECTION'&&!x.prior_selection_id);
+  const fj=(x)=>x?(x.factors||[]).map(f=>f.toFixed(2)).join(' · '):'';
   main(`<h1>Triangle &amp; loss-development-factor selection</h1>
   <p class="sub">View the triangle and empirical factors, compare against the prior selection, and elect.</p>
-  <div style="margin-bottom:12px">Line of business: <select id="lob">${lobOpts}</select></div>
-  ${expl(`<b>What am I seeing?</b> The upper-left (shaded) cells are observed cumulative paid; the actuary develops each accident year to ultimate. The <b>vol-wtd LDF</b> row is the empirical age-to-age factor. Below it, each accident year's individual factor — <span class="anom">red</span> marks an outlier that distorts the empirical pick.`)}
-  <div class="card"><h2>Cumulative paid triangle</h2><div class="h-sub">Derived live from the claim ledger (loss_development view) — reconciles to the penny.</div>
-    <table class="tri"><thead>${head}</thead><tbody>${body}${frow}</tbody></table>
-  </div>
-  <div class="card"><h2>Individual age-to-age factors by accident year</h2>
-  <div class="h-sub">The diagnostic behind the selection: a single red cell is the reason to override.</div>
-    <table class="tri"><thead>${head}</thead><tbody>${indivRows}</tbody></table>
-  </div>
+  <div style="margin-bottom:14px">Line of business: <select id="lob">${lobOpts}</select></div>
+  ${explain(`The upper-left (shaded) cells are observed cumulative paid; the actuary develops each accident year to ultimate. The <b>vol-wtd LDF</b> row is the empirical age-to-age factor. Below it, each accident year's individual factor — <span style="color:#dc2626;font-weight:700">red</span> marks an outlier that distorts the empirical pick.`)}
+  <div class="card"><h2>Cumulative paid triangle</h2><div class="h-sub">Derived live from the claim ledger (loss_development) — reconciles to the penny.</div>
+    <table class="tri"><thead>${head}</thead><tbody>${body}${frow}</tbody></table></div>
+  <div class="card"><h2>Individual age-to-age factors by accident year</h2><div class="h-sub">The diagnostic behind the selection: a single red cell is the reason to override.</div>
+    <table class="tri"><thead>${head}</thead><tbody>${indiv}</tbody></table></div>
   <div class="card"><h2>The engine seam — where selection happens</h2>
-  <div class="h-sub">Pluggable: do the selection in Databricks, or hand the triangle to an external tool (ResQ) and read the pick back. Same contract either way.</div>
+  <div class="h-sub">Pluggable: select in Databricks, or hand the triangle to an external tool (ResQ) and read the pick back. Same contract either way.</div>
     <div class="seam">
-      <div class="z"><div class="zt">Databricks</div><div class="zd">Ledger → triangle → empirical factors + DQ. This part is always Databricks.</div></div>
+      <div class="z"><div class="zt">Databricks</div><div class="zd">Ledger → triangle → empirical factors + DQ. Always Databricks.</div></div>
       <div class="arrow">→</div>
-      <div class="z mid"><div class="zt">Selection · Databricks OR ResQ</div><div class="zd">Elect empirical, hold prior, or import an external tool's pick. source = DATABRICKS_EMPIRICAL / RESQ / PRIOR_SELECTION / MANUAL.</div></div>
+      <div class="z mid"><div class="zt">Selection · Databricks OR ResQ</div><div class="zd">Elect empirical, hold prior, or import an external tool's pick. source ∈ DATABRICKS_EMPIRICAL / RESQ / PRIOR_SELECTION / MANUAL.</div></div>
       <div class="arrow">→</div>
-      <div class="z"><div class="zt">Databricks</div><div class="zd">Selection recorded, versioned, governed → estimates + downstream (SII/IFRS17). Back in Databricks.</div></div>
-    </div>
-  </div>
+      <div class="z"><div class="zt">Databricks</div><div class="zd">Selection recorded, versioned, governed → estimates + downstream (SII/IFRS 17).</div></div>
+    </div></div>
   <div class="card"><h2>Selection decision &amp; audit trail</h2>
-  <div class="h-sub">Every election recorded: who, when, source, and why. New selection = new row; the prior is never overwritten.</div>
-    ${s.selections.length? `
-    <div class="lin">
-      ${prior?`<span class="node">Prior<br><span class="mono">${prior.factors.map(f=>f.toFixed(2)).join(' · ')}</span></span>`:''}
-      <span class="a">→</span>
-      ${empirical?`<span class="node">Empirical (${empirical.status_code})<br><span class="mono">${empirical.factors.map(f=>f.toFixed(2)).join(' · ')}</span></span>`:''}
-      <span class="a">→</span>
-      ${elected?`<span class="node on">Elected: ${elected.source_code==='PRIOR_SELECTION'?'held prior':'empirical'}<br><span class="mono">${elected.factors.map(f=>f.toFixed(2)).join(' · ')}</span></span>`:''}
+  <div class="h-sub">Every election recorded: who, when, source, why. New selection = new row; the prior is never overwritten.</div>
+    ${sels.length?`<div class="lin">
+      ${prior?`<span class="node">Prior<br><span class="mono">${fj(prior)}</span></span><span class="a">→</span>`:''}
+      ${empirical?`<span class="node">Empirical (${empirical.status_code})<br><span class="mono">${fj(empirical)}</span></span><span class="a">→</span>`:''}
+      ${elected?`<span class="node on">Elected: ${elected.source_code==='PRIOR_SELECTION'?'held prior':'empirical'}<br><span class="mono">${fj(elected)}</span></span>`:''}
     </div>
-    <table style="margin-top:12px"><thead><tr><th>Selection</th><th style="text-align:left">Source</th><th style="text-align:left">Status</th><th style="text-align:left">Rationale</th><th style="text-align:left">By</th></tr></thead><tbody>
-    ${s.selections.map(x=>`<tr><td class="mono">${x.selection_id}</td><td style="text-align:left"><span class="chip">${x.source_code}</span></td><td style="text-align:left">${x.status_code}</td><td style="text-align:left;color:var(--muted)">${x.rationale||'—'}</td><td style="text-align:left">${x.approved_by||x.selected_by}</td></tr>`).join('')}
-    </tbody></table>`:'<div class="load">No selections recorded yet.</div>'}
-    <details class="why"><summary>Why does this matter?</summary><div style="color:var(--muted);margin-top:6px">Pricing actuaries develop losses to ultimate for rate indications; reserving actuaries for booked reserves — the same triangle machinery. The override moment (holding a prior pattern when a data anomaly distorts the empirical factor) is exactly the human-in-the-loop control that a black-box SQL script cannot offer, and every decision is audit-trailed here.</div></details>
+    <table style="margin-top:12px"><thead><tr><th>Selection</th><th>Source</th><th>Status</th><th>Rationale</th><th>By</th></tr></thead><tbody>
+    ${sels.map(x=>`<tr><td class="mono">${x.selection_id}</td><td><span class="pill pill-slate">${x.source_code}</span></td><td>${x.status_code}</td><td style="color:var(--mut)">${x.rationale||'—'}</td><td>${x.approved_by||x.selected_by}</td></tr>`).join('')}
+    </tbody></table>`:'<div class="load">No selections recorded for this line yet.</div>'}
+    <details class="why"><summary>Why does this matter?</summary><div>Pricing actuaries develop losses to ultimate for rate indications; reserving actuaries for booked reserves — the same triangle machinery. The override moment (holding a prior pattern when a data anomaly distorts the empirical factor) is exactly the human-in-the-loop control a black-box SQL script cannot offer, and every decision is audit-trailed here.</div></details>
   </div>
-  ${disclaimer}`);
+  ${ABOUT}`);
   document.getElementById('lob').onchange=(e)=>{LOB=e.target.value;route();};
 };
 
 PAGE.methodology=async()=>{
   const m=await API('/api/methodology');
   main(`<h1>Methodology library</h1><p class="sub">Every reserving method registered in Unity Catalog and governed identically.</p>
-  ${expl(`<b>What am I seeing?</b> Each method (chain-ladder, Bornhuetter-Ferguson, Mack, GLM, peer-comparison) is a governed UC model with a version and a production alias — swapping method produces a new estimate row, never an overwrite. "Produces distribution" marks the stochastic methods that feed reserve uncertainty (SII risk margin / IFRS 17 risk adjustment).`)}
-  <div class="card"><table><thead><tr><th>Method</th><th style="text-align:left">UC model</th><th>Version</th><th style="text-align:left">Alias</th><th style="text-align:left">Distribution</th><th style="text-align:left">Owner</th></tr></thead><tbody>
-  ${m.methods.map(x=>`<tr><td>${x.reserving_method_code.replace(/_/g,' ')}</td><td style="text-align:left" class="mono">${x.uc_model_name.split('.').pop()}</td><td>${x.model_version}</td><td style="text-align:left"><span class="chip good">${x.alias||'—'}</span></td><td style="text-align:left">${x.produces_distribution==='true'||x.produces_distribution===true?'✓':'—'}</td><td style="text-align:left">${x.owner_role}</td></tr>`).join('')}
+  ${explain(`Each method (chain-ladder, Bornhuetter-Ferguson, Mack, GLM, peer-comparison) is a governed UC model with a version and a production alias — swapping method produces a new estimate row, never an overwrite. "Distribution" marks the stochastic methods that feed reserve uncertainty (SII risk margin / IFRS 17 risk adjustment).`)}
+  <div class="card"><table><thead><tr><th>Method</th><th>UC model</th><th class="num">Version</th><th>Alias</th><th>Distribution</th><th>Owner</th></tr></thead><tbody>
+  ${m.methods.map(x=>`<tr><td><b>${x.reserving_method_code.replace(/_/g,' ')}</b></td><td class="mono">${x.uc_model_name.split('.').pop()}</td><td class="num">${x.model_version}</td><td><span class="pill pill-green">${x.alias||'—'}</span></td><td>${x.produces_distribution==='true'||x.produces_distribution===true?'✓':'—'}</td><td>${x.owner_role}</td></tr>`).join('')}
   </tbody></table>
-  ${m.methods.map(x=>`<div style="margin-top:8px;color:var(--muted);font-size:12.5px"><b style="color:var(--ink)">${x.reserving_method_code.replace(/_/g,' ')}</b> — ${x.summary}</div>`).join('')}
-  </div>${disclaimer}`);
+  ${m.methods.map(x=>`<div style="margin-top:8px;color:var(--mut);font-size:12.5px"><b style="color:var(--ink)">${x.reserving_method_code.replace(/_/g,' ')}</b> — ${x.summary}</div>`).join('')}
+  </div>${ABOUT}`);
 };
 
 PAGE.estimates=async()=>{
   const e=await API('/api/estimates');
-  const rows=e.estimates;
   main(`<h1>Reserve estimates</h1><p class="sub">Ultimate, IBNR and outstanding per accident year and method — reconciling to the penny.</p>
-  ${expl(`<b>What am I seeing?</b> One row per accident year × method. paid + case + IBNR = ultimate by construction. Mack carries a standard error (uncertainty), widening for the greenest accident years. Methods sit side by side because each basis is auditable.`)}
-  <div class="card"><table><thead><tr><th>LOB</th><th>AY</th><th style="text-align:left">Method</th><th>Paid</th><th>Case</th><th>Ultimate</th><th>IBNR</th><th>Std err</th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td>${r.accident_year}</td><td style="text-align:left">${r.reserving_method_code.replace(/_/g,' ')}</td><td>${money(r.paid_to_date)}</td><td>${money(r.case_reserves)}</td><td>${money(r.ultimate_loss)}</td><td>${money(r.ibnr)}</td><td>${r.ultimate_std_error?money(r.ultimate_std_error):'—'}</td></tr>`).join('')}
-  </tbody></table></div>${disclaimer}`);
+  ${explain(`One row per accident year × method. paid + case + IBNR = ultimate by construction. Mack carries a standard error (uncertainty), widening for the greenest accident years. Methods sit side by side because each basis is auditable.`)}
+  <div class="card"><table><thead><tr><th>LOB</th><th class="num">AY</th><th>Method</th><th class="num">Paid</th><th class="num">Case</th><th class="num">Ultimate</th><th class="num">IBNR</th><th class="num">Std err</th></tr></thead><tbody>
+  ${e.estimates.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td>${r.reserving_method_code.replace(/_/g,' ')}</td><td class="num">${money(r.paid_to_date)}</td><td class="num">${money(r.case_reserves)}</td><td class="num">${money(r.ultimate_loss)}</td><td class="num">${money(r.ibnr)}</td><td class="num">${r.ultimate_std_error?money(r.ultimate_std_error):'—'}</td></tr>`).join('')}
+  </tbody></table></div>${ABOUT}`);
 };
 
 PAGE.diagnostics=async()=>{
   const d=await API('/api/diagnostics');
   main(`<h1>Validation diagnostics</h1><p class="sub">Actual-vs-expected on a rolling cohort — the model-validation feedback loop.</p>
-  ${expl(`<b>What am I seeing?</b> For each cohort, what the prior valuation expected to emerge vs what actually did. The standardised residual scales the variance by its expected error; anything beyond ±2.5 breaches tolerance (<span class="chip bad">flagged</span>) and needs an actuary's eye — this is how the workbench validates its own methods.`)}
+  ${explain(`For each cohort, what the prior valuation expected to emerge vs what actually did. The standardised residual scales the variance by its expected error; beyond ±2.5 breaches tolerance (<span style="color:#dc2626;font-weight:700">flagged</span>) and needs an actuary's eye — how the workbench validates its own methods.`)}
   <div class="row"><div class="tile"><div class="k">Cohorts breaching tolerance</div><div class="v">${(d.breaches&&d.breaches.breaches)||0}</div></div></div>
-  <div class="card"><table><thead><tr><th>LOB</th><th>AY</th><th>Expected</th><th>Actual</th><th>Variance</th><th>Std resid</th><th style="text-align:left">Status</th></tr></thead><tbody>
-  ${d.actual_vs_expected.map(r=>{const ok=r.within_tolerance==='true'||r.within_tolerance===true;return `<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td>${r.accident_year}</td><td>${money(r.expected_emergence)}</td><td>${money(r.actual_emergence)}</td><td>${money(r.variance)}</td><td>${Number(r.standardised_residual).toFixed(2)}</td><td style="text-align:left"><span class="chip ${ok?'good':'bad'}">${ok?'within':'BREACH'}</span></td></tr>`;}).join('')}
-  </tbody></table></div>${disclaimer}`);
+  <div class="card"><table><thead><tr><th>LOB</th><th class="num">AY</th><th class="num">Expected</th><th class="num">Actual</th><th class="num">Variance</th><th class="num">Std resid</th><th>Status</th></tr></thead><tbody>
+  ${d.actual_vs_expected.map(r=>{const ok=r.within_tolerance==='true'||r.within_tolerance===true;return `<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td class="num">${money(r.expected_emergence)}</td><td class="num">${money(r.actual_emergence)}</td><td class="num">${money(r.variance)}</td><td class="num">${Number(r.standardised_residual).toFixed(2)}</td><td><span class="pill ${ok?'pill-green':'pill-red'}">${ok?'within':'BREACH'}</span></td></tr>`;}).join('')}
+  </tbody></table></div>${ABOUT}`);
 };
 
 PAGE.judgements=async()=>{
   const j=await API('/api/judgements');
   main(`<h1>Expert-judgement repository</h1><p class="sub">Every judgement audit-trailed with rationale, magnitude and the regulatory cells it touches.</p>
-  ${expl(`<b>What am I seeing?</b> Actuarial judgements laid on top of the mechanical reserve. Each carries a signed magnitude, a substantive rationale, the QRT cells it flows into, and a magnitude-routed approval role (senior actuary / chief actuary / board). Judgements are never edited in place — they link to their predecessor, so the quarter-over-quarter story is visible.`)}
-  <div class="card"><table><thead><tr><th>ID</th><th>LOB</th><th style="text-align:left">Category</th><th>Magnitude</th><th style="text-align:left">Approval</th><th style="text-align:left">Status</th><th style="text-align:left">QRT cells</th></tr></thead><tbody>
-  ${j.judgements.map(x=>`<tr><td class="mono">${x.judgement_id}</td><td>${(x.line_of_business_code||'all').replace(/_/g,' ')}</td><td style="text-align:left">${x.category_code.replace(/_/g,' ')}</td><td>${money(x.magnitude)}</td><td style="text-align:left"><span class="chip">${x.required_approval_role_code.replace(/_/g,' ')}</span></td><td style="text-align:left"><span class="chip ${x.status_code==='APPROVED'?'good':''}">${x.status_code}</span></td><td style="text-align:left" class="mono">${(x.qrt_cells||[]).join(', ')||'—'}</td></tr>`).join('')}
+  ${explain(`Actuarial judgements laid on top of the mechanical reserve. Each carries a signed magnitude, a substantive rationale, the QRT cells it flows into, and a magnitude-routed approval role (senior actuary / chief actuary / board). Judgements link to their predecessor, so the quarter-over-quarter story is visible.`)}
+  <div class="card"><table><thead><tr><th>ID</th><th>LOB</th><th>Category</th><th class="num">Magnitude</th><th>Approval</th><th>Status</th><th>QRT cells</th></tr></thead><tbody>
+  ${j.judgements.map(x=>`<tr><td class="mono">${x.judgement_id}</td><td>${(x.line_of_business_code||'all').replace(/_/g,' ')}</td><td>${x.category_code.replace(/_/g,' ')}</td><td class="num">${money(x.magnitude)}</td><td><span class="pill pill-blue">${x.required_approval_role_code.replace(/_/g,' ')}</span></td><td><span class="pill ${x.status_code==='APPROVED'?'pill-green':'pill-slate'}">${x.status_code}</span></td><td class="mono">${(x.qrt_cells||[]).join(', ')||'—'}</td></tr>`).join('')}
   </tbody></table>
-  ${j.judgements.map(x=>`<div style="margin-top:8px;color:var(--muted);font-size:12.5px"><b style="color:var(--ink)" class="mono">${x.judgement_id}</b> — ${x.rationale}</div>`).join('')}
-  </div>${disclaimer}`);
+  ${j.judgements.map(x=>`<div style="margin-top:8px;color:var(--mut);font-size:12.5px"><b style="color:var(--ink)" class="mono">${x.judgement_id}</b> — ${x.rationale}</div>`).join('')}
+  </div>${ABOUT}`);
 };
 
 PAGE.committee=async()=>{
   const c=await API('/api/committee');
   main(`<h1>Reserving committee</h1><p class="sub">Quarter-over-quarter view, with the Senior Reserving Actuary agent surfacing emerging trends.</p>
-  ${expl(`<b>What am I seeing?</b> IBNR and outstanding by line of business (chain-ladder basis). The agent below is a real Foundation Model API call over the live diagnostics — it reads the out-of-tolerance cohorts, method spread and open judgements, and briefs the committee the way a senior actuary would.`)}
-  <div class="card"><h2>Reserves by line of business</h2><table><thead><tr><th>LOB</th><th>IBNR</th><th>Outstanding</th></tr></thead><tbody>
-  ${c.by_lob.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td>${money(r.ibnr)}</td><td>${money(r.outstanding)}</td></tr>`).join('')}
+  ${explain(`IBNR and outstanding by line of business (chain-ladder basis). The agent below is a real Foundation Model API call over the live diagnostics — it reads the out-of-tolerance cohorts, method spread and open judgements, and briefs the committee the way a senior actuary would.`)}
+  <div class="card"><h2>Reserves by line of business</h2><table><thead><tr><th>LOB</th><th class="num">IBNR</th><th class="num">Outstanding</th></tr></thead><tbody>
+  ${c.by_lob.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.ibnr)}</td><td class="num">${money(r.outstanding)}</td></tr>`).join('')}
   </tbody></table></div>
   <div class="card"><h2>Senior Reserving Actuary agent</h2><div class="h-sub">Claude via Databricks Foundation Model API, grounded on live reserving tables.</div>
-  <button class="btn" id="brief">Generate committee brief</button>
-  <div id="briefout" style="margin-top:14px"></div></div>${disclaimer}`);
-  document.getElementById('brief').onclick=async(e)=>{
-    e.target.disabled=true; document.getElementById('briefout').innerHTML='<div class="load">Asking the Senior Reserving Actuary agent…</div>';
-    const r=await API('/api/agent/brief',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    document.getElementById('briefout').innerHTML=`<div class="brief">${(r.brief||'').replace(/</g,'&lt;')}</div><div style="color:var(--muted);font-size:11.5px;margin-top:6px">Model: ${r.model}</div>`;
-    e.target.disabled=false;
+  <button class="btn" id="brief">Generate committee brief</button><div id="briefout" style="margin-top:14px"></div></div>${ABOUT}`);
+  document.getElementById('brief').onclick=async(ev)=>{
+    ev.target.disabled=true; document.getElementById('briefout').innerHTML='<div class="load">Asking the Senior Reserving Actuary agent…</div>';
+    try{const r=await API('/api/agent/brief',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      document.getElementById('briefout').innerHTML=`<div class="brief"><span class="tag">Senior Reserving Actuary · ${r.model}</span>${(r.brief||'').replace(/</g,'&lt;')}</div>`;
+    }catch(e){document.getElementById('briefout').innerHTML=`<div class="err">Agent error: ${e.message}</div>`;}
+    ev.target.disabled=false;
   };
+};
+
+PAGE.engines=async()=>{
+  const e=await API('/api/engines');
+  const counts=e.counts||[]; const sels=e.selections||[];
+  const srcLabel={DATABRICKS_EMPIRICAL:'Databricks (native)',RESQ:'External tool · ResQ',PRIOR_SELECTION:'Prior selection',MANUAL:'Manual'};
+  const resqCount=(counts.find(c=>c.source_code==='RESQ')||{}).n||0;
+  main(`<h1>External engines — orchestrating ResQ &amp; the like</h1>
+  <p class="sub">Two ways to run reserving on Databricks. Default: we do it all. Or: keep your tool, we enrich and govern it.</p>
+  ${explain(`The selection step is a pluggable seam. Whether the pattern is picked natively in Databricks or in an external tool like LCP ResQ, it lands in the <b>same</b> governed <span class="mono">selected_development_pattern</span> table with a <span class="mono">source_code</span> — so the audit trail, lineage and downstream never depend on which engine produced it.`)}
+  <div class="card"><h2>Track 1 — we do it all (default)</h2>
+  <div class="h-sub">Databricks as the whole reserving platform.</div>
+    <div class="row" style="margin:0">
+      <div class="tile"><div class="k">Data</div><div class="v sm">Governed triangles</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">Derived from the claim ledger, reconciling to the penny</div></div>
+      <div class="tile"><div class="k">Engines</div><div class="v sm">Methodology library</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">CL · BF · Mack · GLM · peer, each a governed UC model</div></div>
+      <div class="tile"><div class="k">Agents</div><div class="v sm">Senior Reserving Actuary</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">Claude via FMAPI, grounded on live tables</div></div>
+      <div class="tile"><div class="k">Governance</div><div class="v sm">Audit · lineage · judgement</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">Every number traceable to the QRT cell it produces</div></div>
+    </div>
+  </div>
+  <div class="card"><h2>Track 2 — you have ResQ? We enrich your flow</h2>
+  <div class="h-sub">We don't replace the tool your team knows — we wrap it in data + orchestration + governance.</div>
+    <div class="seam">
+      <div class="z"><div class="zt">DATA plane · Databricks</div><div class="zd">Ingest claims/premium, build the governed triangle, apply DQ expectations. ResQ reads a clean, versioned triangle instead of the team hand-assembling one.</div></div>
+      <div class="arrow">→</div>
+      <div class="z mid"><div class="zt">ORCHESTRATION · run ResQ as a job step</div><div class="zd">A Databricks Workflow hands ResQ the prepared triangle (ODBC / file / API), triggers the run, and reads the selected pattern + ultimates back. ResQ becomes "just another engine".</div></div>
+      <div class="arrow">→</div>
+      <div class="z"><div class="zt">GOVERNANCE plane · Databricks</div><div class="zd">The ResQ pick lands in selected_development_pattern (source = RESQ) with the same audit trail, lineage and attestation → same downstream (SII / IFRS 17 / capital).</div></div>
+    </div>
+    <div style="margin-top:12px;color:var(--mut);font-size:12.5px">This isn't a mock: <b style="color:var(--ink)">${resqCount}</b> selection(s) in this workbench were produced by ResQ and sit in the same governed table as the native ones — shown below.</div>
+  </div>
+  <div class="card"><h2>Every selection, by engine</h2>
+  <div class="h-sub">Native and ResQ picks, side by side in one governed table — the proof the seam is real.</div>
+    <div style="margin-bottom:10px">${counts.map(c=>`<span class="pill ${c.source_code==='RESQ'?'pill-violet':'pill-blue'}" style="margin-right:6px">${srcLabel[c.source_code]||c.source_code}: ${c.n}</span>`).join('')}</div>
+    <table><thead><tr><th>Source</th><th>LOB</th><th>Selection</th><th>Status</th><th>By</th></tr></thead><tbody>
+    ${sels.map(x=>`<tr><td><span class="pill ${x.source_code==='RESQ'?'pill-violet':'pill-slate'}">${x.source_code}</span></td><td>${x.line_of_business_code.replace(/_/g,' ')}</td><td class="mono">${x.selection_id}</td><td>${x.status_code}</td><td>${x.selected_by}</td></tr>`).join('')}
+    </tbody></table>
+    <details class="why"><summary>Why does this win on the account?</summary><div>The reserving team has already moved to LCP ResQ. "Rip it out" loses; "keep ResQ, we govern and orchestrate it, and give you the data, reporting and AI around it" meets them where they are — while the US pricing team gets the same triangle/selection machinery for rate indications. One governed platform, two teams, no data islands.</div></details>
+  </div>
+  ${ABOUT}`);
 };
 
 PAGE.genie=async()=>{
   const url=CFG.genie_embed_url;
   main(`<h1>Ask the Triangle</h1><p class="sub">Natural-language analytics over the reserving tables — real AI/BI Genie.</p>
-  ${expl(`<b>What am I seeing?</b> A Databricks Genie space grounded on the reserving model (triangle, estimates, selections, validation, judgements). Ask in plain English — Genie writes governed SQL against the same certified tables the workbench uses, so the numbers match. Try: "Which cohorts breached validation tolerance?" or "Total IBNR by line of business".`)}
-  ${url?`<div class="card" style="padding:0;overflow:hidden"><iframe src="${url}" style="width:100%;height:680px;border:0;border-radius:11px"></iframe></div>`:`<div class="card"><div class="load">Genie space not configured (GENIE_SPACE_ID empty).</div></div>`}
-  ${disclaimer}`);
+  ${explain(`A Databricks Genie space grounded on the reserving model. Ask in plain English — Genie writes governed SQL against the same certified tables the workbench uses, so the numbers match. Try "Which cohorts breached validation tolerance?" or "Total IBNR by line of business".`)}
+  ${url?`<div class="card" style="padding:8px"><iframe src="${url}"></iframe></div>`:`<div class="card"><div class="load">Genie space not configured.</div></div>`}
+  ${ABOUT}`);
 };
 
 PAGE.assets=async()=>{
   const a=await API('/api/assets');
   main(`<h1>Assets &amp; governance</h1><p class="sub">What this workbench owns — every object announces it belongs to reserving-workbench.</p>
-  ${expl(`<b>What am I seeing?</b> The Unity Catalog objects this workbench owns in <span class="mono">${a.catalog}.${a.schema}</span>. Every table carries a <span class="mono">[reserving-workbench]</span> comment and <span class="mono">bxc_*</span> tags, so in a crowded workspace you can always tell what an asset belongs to — and "gen1 → gen2" is a single tag flip.`)}
-  <div class="card"><h2>Ownership tags</h2><div>${(a.tags||[]).map(t=>`<span class="chip">${t.tag_name} = ${t.tag_value} <b style="color:var(--ink)">(${t.n})</b></span>`).join('')||'<span class="load">Tag view not available on this warehouse.</span>'}</div></div>
-  <div class="card"><h2>Tables &amp; views (${a.tables.length})</h2><table><thead><tr><th>Object</th><th style="text-align:left">Comment</th></tr></thead><tbody>
-  ${a.tables.map(t=>`<tr><td class="mono">${t.table_name}</td><td style="text-align:left;color:var(--muted);font-size:12px">${(t.comment||'').slice(0,120)}</td></tr>`).join('')}
-  </tbody></table></div>${disclaimer}`);
+  ${explain(`The Unity Catalog objects this workbench owns in <span class="mono">${a.catalog}.${a.schema}</span>. Every table carries a <span class="mono">[reserving-workbench]</span> comment and <span class="mono">bxc_*</span> tags, so in a crowded workspace you can always tell what an asset belongs to — and gen1 → gen2 is a single tag flip.`)}
+  <div class="card"><h2>Ownership tags</h2><div style="margin-top:6px">${(a.tags||[]).map(t=>`<span class="pill pill-slate" style="margin:3px 5px 3px 0">${t.tag_name} = ${t.tag_value} (${t.n})</span>`).join('')||'<span class="load">Tag view not available on this warehouse.</span>'}</div></div>
+  <div class="card"><h2>Tables &amp; views (${a.tables.length})</h2><table><thead><tr><th>Object</th><th>Comment</th></tr></thead><tbody>
+  ${a.tables.map(t=>`<tr><td class="mono">${t.table_name}</td><td style="color:var(--mut);font-size:12px">${(t.comment||'').slice(0,110)}</td></tr>`).join('')}
+  </tbody></table></div>${ABOUT}`);
 };
 
 (async()=>{

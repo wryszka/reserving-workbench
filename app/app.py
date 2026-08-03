@@ -156,6 +156,54 @@ def agent_brief(body: dict = None):
     return agents.senior_reserving_brief((body or {}).get("period"))
 
 
+# ------------------------------------------------------------------ full-system lifecycle + external engines
+LIFECYCLE = [
+    {"n": 1, "stage": "Ingestion & triangle construction",
+     "answers": "Where does my triangle come from? — ingest claims/premium (Federation to source), DQ expectations, versioned snapshots",
+     "where": "loss_development ← claim ledger", "status": "next"},
+    {"n": 2, "stage": "Triangle & LDF selection",
+     "answers": "View triangle + empirical factors, compare to prior, elect/override — audited",
+     "where": "selected_development_pattern", "status": "built"},
+    {"n": 3, "stage": "Methodology library",
+     "answers": "Chain-ladder, BF, Mack, GLM, peer — each a governed UC model",
+     "where": "reserving_methodology", "status": "built"},
+    {"n": 4, "stage": "Reserve estimates",
+     "answers": "Ultimate / IBNR / outstanding per method, reconciling to the penny",
+     "where": "reserve_estimate", "status": "built"},
+    {"n": 5, "stage": "Validation & diagnostics",
+     "answers": "Actual-vs-expected, tail-fit, residuals — the workbench validates its own methods",
+     "where": "actual_vs_expected", "status": "built"},
+    {"n": 6, "stage": "Expert judgement",
+     "answers": "Overlays, audit-trailed, magnitude-routed approval",
+     "where": "expert_judgement", "status": "built"},
+    {"n": 7, "stage": "Roll-forward, ranges & committee sign-off",
+     "answers": "How do I get to a signed number? — prior→new ultimate walk, stochastic ranges, board pack",
+     "where": "reserve_estimate (+ranges)", "status": "next"},
+    {"n": 8, "stage": "Downstream & close",
+     "answers": "Single-producer contract to Solvency II TP, IFRS 17 LIC, GL recon, capital model; the reserving close cockpit",
+     "where": "reserve_cashflow_pattern", "status": "next"},
+]
+
+
+@app.get("/api/lifecycle")
+def lifecycle():
+    return {"stages": LIFECYCLE,
+            "built": sum(1 for s in LIFECYCLE if s["status"] == "built"),
+            "total": len(LIFECYCLE)}
+
+
+@app.get("/api/engines")
+def engines():
+    """The external-engine (ResQ) talk track: show every selection by source, so a ResQ-produced
+    pick sits in the same governed table as a native one — same audit trail, same downstream."""
+    rows = sql.query(
+        f"SELECT source_code, line_of_business_code, selection_id, status_code, rationale, selected_by "
+        f"FROM {F('selected_development_pattern')} ORDER BY source_code, line_of_business_code")
+    counts = sql.query(
+        f"SELECT source_code, count(*) n FROM {F('selected_development_pattern')} GROUP BY source_code ORDER BY source_code")
+    return {"selections": rows, "counts": counts}
+
+
 # ------------------------------------------------------------------ assets manifest (asset labelling)
 @app.get("/api/assets")
 def assets():

@@ -246,7 +246,24 @@ def main():
         prior_selection_id="SEL-2026Q4-PROP-EMPIRICAL", status_code="APPROVED",
         rationale=("Overrode the empirical 12-24m factor (distorted by the CLM-2023-ANOMALY late-reported large loss) "
                    "and held the prior 1.667x pattern; the large loss is reserved individually."),
-        selected_by="senior.reserving.actuary", selected_at=now, approved_by="chief.actuary", approved_at=now)]
+        selected_by="senior.reserving.actuary", selected_at=now, approved_by="chief.actuary", approved_at=now),
+        # A ResQ-SOURCED selection (General Liability): the external-engine talk track made real —
+        # same table, source_code=RESQ, same governance as a native pick.
+        dict(selection_id="SEL-2026Q3-GL-PRIOR", valuation_date="2026-09-30", accident_year=None,
+        line_of_business_code="GENERAL_LIABILITY", currency_code="GBP", source_code="PRIOR_SELECTION",
+        averaging_method_code=None, last_n_years=None,
+        development_factors=json.dumps([1.90, 1.52, 1.26, 1.12, 1.06, 1.03]), tail_factor=1.02,
+        prior_selection_id=None, status_code="APPROVED",
+        rationale="Prior quarter's approved GL pattern, carried forward as the comparison baseline.",
+        selected_by="senior.reserving.actuary", selected_at=now, approved_by="chief.actuary", approved_at=now),
+        dict(selection_id="SEL-2026Q4-GL-RESQ", valuation_date="2026-12-31", accident_year=None,
+        line_of_business_code="GENERAL_LIABILITY", currency_code="GBP", source_code="RESQ",
+        averaging_method_code=None, last_n_years=None,
+        development_factors=json.dumps([1.85, 1.50, 1.25, 1.12, 1.06, 1.03]), tail_factor=1.02,
+        prior_selection_id="SEL-2026Q3-GL-PRIOR", status_code="APPROVED",
+        rationale=("Selected in LCP ResQ by the reserving team; Databricks prepared the governed triangle, "
+                   "orchestrated the ResQ run, and read the selected pattern back. Same audit trail as a native pick."),
+        selected_by="resq.reserving.team", selected_at=now, approved_by="chief.actuary", approved_at=now)]
     overwrite(w, wid, "selected_development_pattern",
         ["selection_id","valuation_date","accident_year","line_of_business_code","currency_code","source_code",
          "averaging_method_code","last_n_years","development_factors","tail_factor","prior_selection_id",
