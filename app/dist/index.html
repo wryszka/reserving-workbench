@@ -186,7 +186,7 @@ PAGE.triangle=async()=>{
 
   main(`<h1>Triangle &amp; loss-development-factor selection</h1>
   <p class="sub">Review the triangle, choose an averaging basis, override any factor, and elect — the decision is recorded and reserves recompute live.</p>
-  <div style="margin-bottom:14px">Line of business: <select id="lob">${lobOpts}</select></div>
+  <div style="margin-bottom:14px">Line of business: <select id="lob" name="lob" aria-label="Line of business">${lobOpts}</select></div>
   ${explain(`The upper-left (shaded) cells are observed cumulative paid. The <b>decision module</b> below lets you pick how factors are averaged, <b>edit any factor</b> (e.g. override the anomalous AY2023 step), and <b>elect</b> — the ultimate/IBNR recompute live and your decision is written back as a new audited selection row. This is the stop-and-override moment a black-box SQL script can't offer.`)}
   <div class="card"><h2>Cumulative paid triangle</h2><div class="h-sub">Derived live from the claim ledger (loss_development) — reconciles to the penny.</div>
     <table class="tri"><thead>${head}</thead><tbody>${body}</tbody></table></div>
@@ -197,7 +197,7 @@ PAGE.triangle=async()=>{
   <div class="h-sub">Change the basis or edit a factor; the reserve recomputes live. Then elect and save.</div>
     <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
       <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Averaging basis</label>
-        <select id="basis">
+        <select id="basis" name="basis" aria-label="Averaging basis">
           <option value="VOLUME_WEIGHTED">Volume-weighted (all years)</option>
           <option value="SIMPLE_AVERAGE">Simple average</option>
           <option value="LAST_N">Last-N average</option>
@@ -222,7 +222,7 @@ PAGE.triangle=async()=>{
     </div>
     <div style="margin-top:14px">
       <label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Rationale <span id="ratreq" style="color:var(--red);display:none">(required for an override)</span></label>
-      <textarea id="rationale" rows="2" placeholder="e.g. Held the prior 12–24m factor: AY2023 empirical spike is one late-reported large loss, reserved individually." style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
+      <textarea id="rationale" name="rationale" aria-label="Rationale" rows="2" placeholder="e.g. Held the prior 12–24m factor: AY2023 empirical spike is one late-reported large loss, reserved individually." style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
       <button class="btn" id="elect">Elect &amp; save selection</button>
@@ -255,29 +255,36 @@ function renderAudit(sels){
 }
 
 async function recompute(refillInputs){
-  const r=await API('/api/selection/compute',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides})});
-  SEL.empirical=r.empirical_factors; SEL.applied=r.applied_factors;
-  // empirical row
-  document.getElementById('emprow').outerHTML='';
-  const emp=SEL.lags.map(l=>{const f=r.empirical_factors[l];return `<td>${f?f.toFixed(3):'—'}</td>`;}).join('');
-  const et=document.querySelector('#ftable tbody'); et.rows[0].innerHTML=`<td>empirical</td>${emp}`;
-  // selected inputs — refill only when basis changed (preserve manual edits otherwise)
-  if(refillInputs){
-    document.querySelectorAll('.fin').forEach(inp=>{const l=inp.dataset.lag;
-      inp.value=(SEL.overrides[l]!=null?SEL.overrides[l]:r.applied_factors[l]);
-      inp.oninput=()=>{SEL.overrides[inp.dataset.lag]=parseFloat(inp.value);SEL.overrode=true;markOverride();recomputeReserveOnly();};
-    });
+  try{
+    const r=await API('/api/selection/compute',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides})});
+    SEL.empirical=r.empirical_factors; SEL.applied=r.applied_factors;
+    // empirical row — always target the first row of the factor table (id-independent, idempotent)
+    const emp=SEL.lags.map(l=>{const f=r.empirical_factors[l];return `<td>${f!=null?Number(f).toFixed(3):'—'}</td>`;}).join('');
+    const tb=document.querySelector('#ftable tbody'); if(tb&&tb.rows[0]) tb.rows[0].innerHTML=`<td>empirical</td>${emp}`;
+    // selected inputs — refill only when basis changed (preserve manual edits otherwise)
+    if(refillInputs){
+      document.querySelectorAll('.fin').forEach(inp=>{const l=inp.dataset.lag;
+        inp.value=(SEL.overrides[l]!=null?SEL.overrides[l]:r.applied_factors[l]);
+        inp.oninput=()=>{const v=parseFloat(inp.value);
+          if(isNaN(v)){delete SEL.overrides[inp.dataset.lag];}else{SEL.overrides[inp.dataset.lag]=v;}
+          SEL.overrode=Object.keys(SEL.overrides).length>0;markOverride();recomputeReserveOnly();};
+      });
+    }
+    SEL.overrode=Object.keys(SEL.overrides).length>0;
+    markOverride();
+    paintReserve(r.reserve, r.prior_reserve);
+  }catch(e){
+    const m=document.getElementById('electmsg'); if(m) m.innerHTML=`<span style="color:#dc2626">Recompute failed: ${e.message}</span>`;
   }
-  SEL.overrode=Object.keys(SEL.overrides).length>0;
-  markOverride();
-  paintReserve(r.reserve, r.prior_reserve);
 }
 
 async function recomputeReserveOnly(){
-  const r=await API('/api/selection/compute',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides})});
-  paintReserve(r.reserve, r.prior_reserve);
+  try{
+    const r=await API('/api/selection/compute',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides})});
+    paintReserve(r.reserve, r.prior_reserve);
+  }catch(e){}
 }
 
 function markOverride(){
