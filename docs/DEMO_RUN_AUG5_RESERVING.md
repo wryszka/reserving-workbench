@@ -1,97 +1,71 @@
 # Demo Run — Aug 5, 2026 · Hiscox Reserving Team Workshop
 
 **Audience:** ~10–12 Hiscox reserving analysts (Daniel Tully, Jay Bishop). **Slot:**
-10:00–11:00 "Databricks 101 & Reserving on Databricks (visionary / high-level)".
-**Frame:** *A day in the life of a reserving actuary on Databricks* — reserving proper.
-**App:** https://reserving-workbench-7474656169654171.aws.databricksapps.com
+10:00–11:00 "Databricks 101 & Reserving on Databricks (visionary)". **Frame:** a day in
+the life — reserving proper. **App:** https://reserving-workbench-7474656169654171.aws.databricksapps.com
 
-> This is the "art of the possible" beat — show the end-state, then (11:15+) the
-> hands-on worked examples take over. Keep it a narrative, not a feature tour.
+> Tell a story, not a feature tour. One character, one close, one hero moment. Every
+> beat below maps to a real screen. Pre-warm the AI cache (sidebar → the demo opens
+> instantly) and hit Reset demo before you start.
 
-## One-line pitch
-"Your whole quarterly reserving process — triangle to committee sign-off — as one
-governed flow over a single source of truth, with the spreadsheet's flexibility but
-none of its key-person risk, and an AI second set of eyes."
+## The story: "The Monday of close week — Sarah, senior reserving analyst"
 
-## Pre-flight (2 min before)
-- App is live (scale-to-zero; open it once ~1 min ahead so compute is warm).
-- Confirm the DEV workspace tab is open at Catalog Explorer →
-  `lr_dev_aws_us_catalog.reserving_workbench` (for the "it's all real, governed" beat).
-- Genie space "Ask the Triangle" open in a second tab.
+### Beat 0 — Today (landing / close cockpit)
+Open on **Today — Q4 close cockpit**. "It's the first Monday of Q4 close. Sarah opens
+the workbench." Point at:
+- **The triangle's already built and reconciling** — she didn't spend the weekend in Excel.
+- **⚠ Needs your attention:** the platform has flagged ONE cohort — **Commercial Property
+  AY2023, residual −3.05**. "She didn't eyeball 40 triangles. It told her where to look."
+- Pending sign-offs, KPI tiles, and the "two ways in" (reserving vs pricing). Click **Review →**.
 
-## The run (≈12–15 min, leaves room for questions)
+### Beat 1 — the judgment moment (Triangle & LDF selection)
+The triangle + individual-factor grid. The AY2023 12→24m factor is **3.63× vs ~1.67×**
+everywhere else, in red. "Sarah recognises it instantly — one late-reported large loss.
+*This* is the actuarial work, not the janitorial work." (Cross-ref **Large-loss review** —
+CLM-2023-ANOMALY, £1.05m, reserved individually — if asked "how do you know?")
 
-### 0 · Home — "the process, on the platform" (1 min)
-Open **Day in the life**. Walk the 7-step table once: triangle → selection → methods →
-estimates → validation → judgement → committee. "Every step governed, every number
-reconciling, nothing in a spreadsheet nobody can audit." Point at the four headline
-tiles (ultimate, IBNR, outstanding, validation breaches).
+### Beat 2 — the hero beat (the decision module, live)
+In the **Decision module**: "Watch." Edit the first factor 1.899 → **1.667**. The **Selected
+ultimate recomputes live £14.74M → £14.44M**, Δ-vs-prior updates. Type the rationale
+("held prior 12–24m factor; AY2023 is one large loss, reserved individually"). Click
+**Elect & save**. A new **MANUAL / PENDING_APPROVAL** row appears in the audit trail.
+"Her old process couldn't stop to let her do that. This one records who, when, and why."
 
-### 1 · The triangle is DERIVED, not stored (2 min)
-Open **Triangle & LDF selection** (Commercial Property). 
-- "This triangle isn't a copy — it's a *view* over the claim ledger, so it reconciles
-  to the penny and can never drift. Change a claim, the triangle changes."
-- Show the cumulative-paid grid (shaded = observed) and the **vol-wtd LDF** row.
+### Beat 3 — the AI does the grunt work (Workbench AI)
+Go to **Workbench AI**. Type *"why did Commercial Property reserves move this quarter?"* →
+the supervisor routes to the **Movement Explainer**, which narrates the roll-forward. Then
+*"draft the committee note"* → the **Committee-Note Drafter**. "Sarah edits; she doesn't
+author from a blank page. The AI does the tedious 80% so she does the 20% she trained for.
+A second set of eyes — she stays in control." (Note the routing reason + cached/live badge.)
 
-### 2 · The override moment — THE beat (3 min)
-Scroll to **Individual age-to-age factors**. 
-- "Every accident year develops at ~1.67× at 12–24 months… except **AY2023 at 3.63×**"
-  (the red cell). "One late-reported large loss distorts the empirical factor."
-- Scroll to **Selection decision & audit trail**: prior → empirical (draft) → **elected
-  (held prior)**. "The actuary overrode the empirical pick, held the prior pattern, and
-  reserved the large loss individually — and every step is logged: who, when, why."
-- "A black-box SQL script can't stop and let you do this. This can."
-- Gesture at the **engine seam**: "and if your team prefers ResQ, the selection step
-  is pluggable — Databricks preps the triangle, ResQ makes the pick, Databricks governs
-  it. Same contract."
+### Beat 4 — best estimate AND uncertainty (Reserve ranges)
+**Reserve ranges**: CoV and percentiles per line. "When the board asks 'how confident are
+you?', she has the range — and it's the same number that becomes the Solvency II risk margin
+and IFRS 17 risk adjustment. One producer, many consumers."
 
-### 3 · Methods, side by side (1.5 min)
-**Methodology library**: "Chain-ladder, BF, Mack, GLM, peer — each a governed model in
-Unity Catalog, versioned and aliased. Swapping method writes a new estimate, never
-overwrites — so bases are comparable." Then **Reserve estimates**: "Mack carries a
-standard error that widens for the greenest years — that's your uncertainty for the
-risk margin / risk adjustment."
+### Beat 5 — sign-off without fear (Governance & sign-off)
+**Governance & sign-off**. Point at:
+- **Triangle ↔ ledger: ties to the penny** — the reconciliation dread, gone.
+- The **audit trail** — every selection, judgement, agent call, logged.
+- The **model registry** — every method a versioned UC model.
+- Click **Sign off** on a pending line → green confirmation. "She puts her name to the
+  number. The data version makes it reproducible — when the auditor asks 'why did you
+  override AY2023 property?', she clicks, and shows them. Two years ago that was a frantic
+  email search."
 
-### 4 · The workbench validates itself (1.5 min)
-**Validation diagnostics**: "Actual-vs-expected on a rolling cohort. AY2023 Commercial
-Property breaches tolerance (residual −3.05) — the same anomaly, surfaced automatically.
-The platform tells you where to look."
+### Close
+"That's a close week: the platform found the problem, Sarah made the judgment, the AI wrote
+it up, and it's all governed and reproducible. Time back, and bulletproof at sign-off."
 
-### 5 · Judgement + committee + the AI actuary (3 min)
-**Expert judgement**: "Every overlay audit-trailed — magnitude, rationale, the QRT cells
-it touches, and approval routed by size (senior actuary / chief / board)."
-**Committee & agent** → click **Generate committee brief**: the Senior Reserving Actuary
-agent (real Claude, grounded on these tables) narrates the emerging trends. "Not a
-chatbot — it reads the live diagnostics and briefs you like a colleague would. A second
-set of eyes, not a replacement."
+## Daniel's stated needs → where they land
+- **Practitioner workflows, not toy notebooks** → the whole Sarah flow is her actual quarter.
+- **Excel migration** → "this is what your workbook did — triangle, selection, overlays — governed and reproducible."
+- **Entry-level AI + Genie for semi-technical actuaries** → Workbench AI (routed specialists) + Ask the Triangle (Genie) + the Learn page.
 
-### 6 · Ask the Triangle (1.5 min)
-**Ask the Triangle** (Genie): type *"Which cohorts breached validation tolerance?"* and
-*"Total IBNR by line of business"*. "Plain English, governed SQL, same certified numbers
-— for the semi-technical analyst who doesn't want to write code yet."
-
-### 7 · It's all real & governed (1 min)
-Flip to Catalog Explorer. Show the schema comment and the `bxc_*` tags on the tables.
-"Everything you saw is a governed Unity Catalog object — commented, tagged, owned. In a
-crowded workspace you always know what belongs to what."
-
-## Talk-track anchors (Daniel's stated needs)
-- **Practitioner workflows, not toy notebooks** → this IS the quarterly process.
-- **Excel migration** → "this is what your workbook did — the triangle, the selection,
-  the overlays — but governed, reproducible and answerable in Genie."
-- **Entry-level AI for semi-technical actuaries** → the agent + Genie beats.
-
-## Q&A armour
-- *"Is the methodology certified?"* — No; it's illustrative, demonstrating the platform
-  pattern. Your methods plug in as governed models — the workbench is methodology-agnostic.
-- *"Our data isn't this clean."* — The triangle is a view; point it at your ledger (or
-  federate to it) and it reconciles to whatever's there. Messy data is a DQ-expectations
-  conversation, separate from the reserving logic.
-- *"Does this replace ResQ / our tool?"* — No. The selection step is a pluggable seam;
-  keep your tool for the pick and let Databricks own the data, governance and downstream.
-- *"How does this feed Solvency II / IFRS 17?"* — The reserve estimate + cashflow pattern
-  is a single-producer contract those regimes consume — compute the best estimate once.
+## Logistics
+- Pre-warm cache + Reset demo before the room. Cache toggle in the sidebar (show "live" once for authenticity, then back to "cached").
+- If the app is cold, the first call wakes it (~20s) — open Today a minute early.
+- Afternoon deep-dive: External engines (ResQ) for the "keep your tool, we govern it" conversation, and the Learn page.
 
 ## About this demo
-Bricksurance SE is fictional; all data synthetic; the methodology is illustrative, not a
-certified model. Every panel reads a real Unity Catalog table, view or function.
+Bricksurance SE is fictional; synthetic data; methodology illustrative, not certified. Every panel reads a real Unity Catalog table, view or function.

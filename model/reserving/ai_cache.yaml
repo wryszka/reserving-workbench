@@ -1,0 +1,50 @@
+kind: entity
+name: 5_ai_cache
+domain: reserving
+title: AI Response Cache
+description: >
+  Cache of agent / Foundation Model API responses keyed by a hash of the prompt,
+  so the demo opens instantly and is repeatable (the same question returns the
+  same grounded answer without a fresh model call). A live/cached toggle lets the
+  presenter show either a genuine live call or the warmed cache. Operational, not
+  actuarial.
+grain: One row per cached prompt hash.
+tags:
+  project: reserving-workbench
+  layer: governance
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: cache_key
+    type: string
+    required: true
+    description: SHA-256 hash of (agent, prompt).
+    classification: internal
+  - name: agent
+    type: string
+    required: true
+    description: The agent / role the response is for.
+    classification: internal
+  - name: question
+    type: string
+    required: false
+    description: The question / prompt (for readability).
+    classification: internal
+  - name: response
+    type: string
+    required: true
+    description: The cached response text.
+    classification: internal
+  - name: model
+    type: string
+    required: false
+    description: The model that produced the response.
+    classification: internal
+  - name: created_at
+    type: timestamp
+    required: true
+    description: When the response was cached.
+    classification: internal
+keys:
+  primary: [cache_key]
+owner: Chief Actuary

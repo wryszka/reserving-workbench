@@ -1,0 +1,80 @@
+kind: entity
+name: reserve_variability
+domain: reserving
+title: Reserve Variability (Ranges)
+description: >
+  The uncertainty around the best-estimate reserve for one line of business and
+  valuation date: the coefficient of variation and selected percentiles of the
+  ultimate distribution (from Mack / bootstrap). This is what turns a point
+  estimate into a range — the input Solvency II needs for the risk margin and
+  IFRS 17 for the risk adjustment. Reserving actuaries are increasingly asked
+  "what's your best estimate AND how uncertain is it" by the board and the
+  regulator; this answers the second half.
+grain: One row per valuation date per line of business per method.
+tags:
+  maturity: certified
+  project: reserving-workbench
+  layer: engine
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: variability_id
+    type: string
+    required: true
+    description: Identifier for this variability row.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: As-at date.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: Line of business.
+    classification: internal
+  - name: reserving_method_code
+    code_set: reserving_method
+    required: true
+    description: The stochastic method producing the distribution (MACK / GLM).
+    classification: internal
+  - name: best_estimate
+    type: decimal(18,2)
+    required: true
+    description: The best-estimate ultimate (mean of the distribution).
+    classification: confidential
+  - name: standard_error
+    type: decimal(18,2)
+    required: true
+    description: Standard error of the ultimate.
+    classification: confidential
+  - name: coefficient_of_variation
+    type: decimal(9,4)
+    required: true
+    description: Standard error over best estimate — the headline uncertainty measure.
+    classification: confidential
+  - name: percentile_75
+    type: decimal(18,2)
+    required: true
+    description: 75th percentile of the ultimate distribution.
+    classification: confidential
+  - name: percentile_95
+    type: decimal(18,2)
+    required: true
+    description: 95th percentile of the ultimate distribution.
+    classification: confidential
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency.
+    classification: internal
+keys:
+  primary: [variability_id]
+owner: Chief Actuary
+quality:
+  - name: cov_positive
+    rule: coefficient_of_variation >= 0
+    description: Coefficient of variation is non-negative.
+  - name: percentiles_ordered
+    rule: percentile_95 >= percentile_75 AND percentile_75 >= best_estimate
+    description: Percentiles must be ordered above the best estimate.

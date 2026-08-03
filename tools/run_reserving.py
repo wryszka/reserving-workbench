@@ -270,6 +270,91 @@ def main():
          "status_code","rationale","selected_by","selected_at","approved_by","approved_at"], sel)
     print(f"selected_development_pattern: {len(sel)} rows")
 
+    # ---- wider-process tables: variability, large loss, roll-forward, sign-off ----
+    import math
+    # reserve variability (Mack CoV + percentiles) from the MACK estimates
+    mack = [e for e in est if e["reserving_method_code"] == "MACK"]
+    by_lob_mack = {}
+    for e in mack:
+        d = by_lob_mack.setdefault(e["line_of_business_code"], {"ult": 0.0, "var": 0.0})
+        d["ult"] += e["ultimate_loss"]
+        d["var"] += (e["ultimate_std_error"] or 0.0) ** 2
+    # Plausible per-line CoV floor: long-tail liability lines are more uncertain than short-tail
+    # property/marine. The smooth synthetic triangle understates Mack sigma, so floor it to a
+    # realistic level per line (real reserve CoVs run ~3-15% by tail length).
+    COV_FLOOR = {"COMMERCIAL_PROPERTY": 0.05, "COMMERCIAL_MOTOR": 0.07, "GENERAL_LIABILITY": 0.12,
+                 "PROFESSIONAL_INDEMNITY": 0.14, "MARINE": 0.06}
+    var_rows = []
+    for lob, d in by_lob_mack.items():
+        be = d["ult"]; se_raw = math.sqrt(d["var"])
+        cov = max((se_raw / be) if be else 0.0, COV_FLOOR.get(lob, 0.08))
+        se = round(be * cov, 2)
+        var_rows.append(dict(variability_id=f"VAR-2026-{lob[:4]}", valuation_date=VAL_DATE,
+            line_of_business_code=lob, reserving_method_code="MACK", best_estimate=round(be, 2),
+            standard_error=se, coefficient_of_variation=round(cov, 4),
+            percentile_75=round(be + 0.674 * se, 2), percentile_95=round(be + 1.645 * se, 2),
+            currency_code="GBP"))
+    overwrite(w, wid, "reserve_variability",
+        ["variability_id", "valuation_date", "line_of_business_code", "reserving_method_code",
+         "best_estimate", "standard_error", "coefficient_of_variation", "percentile_75",
+         "percentile_95", "currency_code"], var_rows)
+    print(f"reserve_variability: {len(var_rows)} rows")
+
+    # large loss: the AY2023 anomaly claim, reserved individually (distorts the factor)
+    ll_rows = [dict(large_loss_id="LL-2023-001", claim_id="CLM-2023-ANOMALY",
+        line_of_business_code="COMMERCIAL_PROPERTY", accident_year=2023, incurred=1050000.00,
+        threshold=500000.00, treatment="reserved_individually", distorts_factor=True, currency_code="GBP")]
+    overwrite(w, wid, "large_loss",
+        ["large_loss_id", "claim_id", "line_of_business_code", "accident_year", "incurred",
+         "threshold", "treatment", "distorts_factor", "currency_code"], ll_rows)
+    print(f"large_loss: {len(ll_rows)} rows")
+
+    # roll-forward waterfall for Commercial Property (prior → this quarter)
+    cl_cp = sum(e["ultimate_loss"] for e in est if e["line_of_business_code"] == "COMMERCIAL_PROPERTY" and e["reserving_method_code"] == "CHAIN_LADDER")
+    opening = round(cl_cp * 0.94, 2)
+    rf = [("opening", opening, 0), ("expected_runoff", round(-cl_cp * 0.06, 2), 1),
+          ("experience_ave", round(cl_cp * 0.05, 2), 2), ("assumption_change", round(cl_cp * 0.02, 2), 3),
+          ("large_loss", round(cl_cp * 0.04, 2), 4), ("expert_judgement", round(-cl_cp * 0.045, 2), 5)]
+    closing = round(sum(a for _, a, _ in rf), 2)
+    rf.append(("closing", closing, 6))
+    rf_rows = [dict(rollforward_id=f"RF-2026-COMM-{o}", valuation_date=VAL_DATE,
+        line_of_business_code="COMMERCIAL_PROPERTY", driver=drv, amount=amt, display_order=o,
+        currency_code="GBP") for drv, amt, o in rf]
+    overwrite(w, wid, "reserve_rollforward",
+        ["rollforward_id", "valuation_date", "line_of_business_code", "driver", "amount",
+         "display_order", "currency_code"], rf_rows)
+    print(f"reserve_rollforward: {len(rf_rows)} rows")
+
+    # sign-off rows (one signed, others pending) — reproduce-as-at carries a data version
+    so_rows = []
+    for lob in lobs:
+        signed = lob == "GENERAL_LIABILITY"
+        be = sum(e["ultimate_loss"] for e in est if e["line_of_business_code"] == lob and e["reserving_method_code"] == "CHAIN_LADDER")
+        so_rows.append(dict(signoff_id=f"SO-2026-{lob[:4]}", valuation_date=VAL_DATE,
+            line_of_business_code=lob, signed_best_estimate=round(be, 2),
+            selection_id=None, reserving_method_code="CHAIN_LADDER", data_version="v1 (2026-12-31 snapshot)",
+            status_code="APPROVED" if signed else "PENDING_APPROVAL",
+            signed_by="chief.actuary" if signed else None,
+            signed_at=now if signed else None, currency_code="GBP"))
+    overwrite(w, wid, "reserve_signoff",
+        ["signoff_id", "valuation_date", "line_of_business_code", "signed_best_estimate",
+         "selection_id", "reserving_method_code", "data_version", "status_code", "signed_by",
+         "signed_at", "currency_code"], so_rows)
+    print(f"reserve_signoff: {len(so_rows)} rows")
+
+    # seed a few audit events so the governance panel isn't empty on first load
+    ae = [
+        ("selection_elected", "selection", "SEL-2026Q4-PROP-ELECTED", "Held prior 12-24m factor for AY2023 anomaly", "senior.reserving.actuary"),
+        ("judgement_approved", "judgement", "EJ-2026Q4-001", "Approved -620,000 methodology judgement (CP AY2023)", "chief.actuary"),
+        ("selection_elected", "selection", "SEL-2026Q4-GL-RESQ", "Imported ResQ pattern for General Liability", "resq.reserving.team"),
+        ("signed_off", "signoff", "SO-2026-GENE", "Signed off General Liability reserves, data v1", "chief.actuary"),
+    ]
+    ae_rows = [dict(event_id=f"AE-{i:04d}", event_type=t, entity_type=et, entity_id=eid,
+        detail=det, actor=act, created_at=now) for i, (t, et, eid, det, act) in enumerate(ae, 1)]
+    overwrite(w, wid, "5_gov_audit_event",
+        ["event_id", "event_type", "entity_type", "entity_id", "detail", "actor", "created_at"], ae_rows)
+    print(f"5_gov_audit_event: {len(ae_rows)} rows")
+
     # reconciliation gate
     bad = read_df(w, wid, f"""SELECT COUNT(*) n FROM {FQ}.reserve_estimate
         WHERE abs((paid_to_date + case_reserves + ibnr) - ultimate_loss) >= 1.0""")

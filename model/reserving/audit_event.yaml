@@ -1,0 +1,57 @@
+kind: entity
+name: 5_gov_audit_event
+domain: reserving
+title: Audit Event Log
+description: >
+  Append-only log of every user action and agent call in the workbench — factor
+  selections, elections/overrides, expert judgements, sign-offs, agent questions.
+  Who, when, what, and the detail. This is the governance spine: nothing happens
+  in the workbench that isn't recorded here, so any number can be traced back to
+  the action and person that produced it. Reserving actuaries sign their name to
+  numbers that flow to the regulator; this is what lets them do it without fear.
+grain: One row per action per timestamp.
+tags:
+  maturity: certified
+  project: reserving-workbench
+  layer: governance
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: event_id
+    type: string
+    required: true
+    description: Identifier (UUID) for the event.
+    classification: internal
+  - name: event_type
+    type: string
+    required: true
+    description: Kind of action — selection_elected / judgement_raised / judgement_approved / signed_off / agent_query / demo_reset.
+    classification: internal
+  - name: entity_type
+    type: string
+    required: false
+    description: The object acted on (selection / judgement / estimate / line_of_business).
+    classification: internal
+  - name: entity_id
+    type: string
+    required: false
+    description: Identifier of the object acted on.
+    classification: internal
+  - name: detail
+    type: string
+    required: false
+    description: Human-readable detail of the action (JSON or free text).
+    classification: internal
+  - name: actor
+    type: string
+    required: true
+    description: The user or agent that performed the action.
+    classification: internal
+  - name: created_at
+    type: timestamp
+    required: true
+    description: When the action occurred.
+    classification: internal
+keys:
+  primary: [event_id]
+owner: Chief Actuary

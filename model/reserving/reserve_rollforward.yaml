@@ -1,0 +1,57 @@
+kind: entity
+name: reserve_rollforward
+domain: reserving
+title: Reserve Roll-Forward (Movement)
+description: >
+  The bridge from the prior valuation's reserve to this one, decomposed into
+  drivers: expected run-off, actual-vs-expected experience, changes in
+  assumptions/factor selections, large-loss movements, and expert judgement.
+  This answers THE question every reserving committee asks — "why did reserves
+  move this quarter?" — as data, not a manual detective exercise across
+  spreadsheets. One row per driver per line of business.
+grain: One row per line of business per movement driver per valuation date.
+tags:
+  maturity: certified
+  project: reserving-workbench
+  layer: engine
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: rollforward_id
+    type: string
+    required: true
+    description: Identifier for this roll-forward driver row.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: The current valuation date.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: Line of business.
+    classification: internal
+  - name: driver
+    type: string
+    required: true
+    description: The movement driver — opening / expected_runoff / experience_ave / assumption_change / large_loss / expert_judgement / closing.
+    classification: internal
+  - name: amount
+    type: decimal(18,2)
+    required: true
+    description: Signed contribution of this driver to the reserve movement (opening and closing are levels; the rest are deltas summing between them).
+    classification: confidential
+  - name: display_order
+    type: integer
+    required: true
+    description: Order for the waterfall display.
+    classification: internal
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency.
+    classification: internal
+keys:
+  primary: [rollforward_id]
+owner: Chief Actuary

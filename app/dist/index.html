@@ -96,6 +96,11 @@
     </div>
     <div class="nav" id="nav"></div>
     <div class="side-foot">
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button id="cacheBtn" onclick="toggleCache()" style="flex:1;font-size:10.5px;font-weight:700;padding:6px;border-radius:7px;border:1px solid rgba(52,211,153,.4);background:rgba(52,211,153,.12);color:#34d399;cursor:pointer">AI: cached</button>
+        <button onclick="resetDemo()" style="flex:1;font-size:10.5px;font-weight:700;padding:6px;border-radius:7px;border:1px solid rgba(148,163,184,.3);background:rgba(148,163,184,.1);color:#cbd5e1;cursor:pointer">Reset demo</button>
+      </div>
+      <span id="resetmsg" style="font-size:10.5px;color:#7c8797"></span>
       Synthetic demo · governed on Databricks
       <br><span class="st">IN PROGRESS</span>
     </div>
@@ -109,28 +114,49 @@ const money=(n)=> n==null||n===''?'—':'£'+fmt(n);
 let CFG={};
 
 const PAGES=[
-  ["overview","Overview","▤"],
+  ["overview","Today — close cockpit","▤"],
   ["triangle","Triangle & LDF selection","△"],
   ["methodology","Methodology library","▦"],
   ["estimates","Reserve estimates","∑"],
+  ["variability","Reserve ranges","∿"],
+  ["largeloss","Large-loss review","◎"],
   ["diagnostics","Validation diagnostics","◫"],
+  ["movement","Movement & roll-forward","⇅"],
   ["judgements","Expert judgement","⚖"],
-  ["committee","Committee & agent","◆"],
-  ["engines","External engines (ResQ)","⚙"],
+  ["committee","Committee","◆"],
+  ["ai","Workbench AI","✦"],
   ["genie","Ask the Triangle","✦"],
-  ["assets","Assets & governance","⬡"],
+  ["engines","External engines (ResQ)","⚙"],
+  ["governance","Governance & sign-off","⬡"],
+  ["learn","Learn","✎"],
+  ["assets","Assets","▦"],
 ];
+// nav section boundaries (after which key a section header is inserted)
+const NAV_SECTIONS={overview:"Reserving process", ai:"AI & governance"};
 let CURRENT="overview", LOB="COMMERCIAL_PROPERTY";
 
 function renderNav(){
   const nav=document.getElementById('nav'); nav.innerHTML='<div class="nav-section">Reserving process</div>';
   PAGES.forEach(([id,label,ic])=>{
+    if(NAV_SECTIONS[id]&&id!=='overview'){const s=document.createElement('div');s.className='nav-section';s.textContent=NAV_SECTIONS[id];nav.appendChild(s);}
     const a=document.createElement('a'); a.className=(id===CURRENT?'active':'');
     a.innerHTML=`<span class="ic">${ic}</span> ${label}`; a.onclick=()=>go(id); nav.appendChild(a);
-    if(id==='estimates'){const s=document.createElement('div');s.className='nav-section';s.textContent='Governance & AI';nav.appendChild(s);}
   });
 }
 function go(id){CURRENT=id;renderNav();route();}
+let CACHE_ON=true;
+async function toggleCache(){
+  const r=await API('/api/ai/cache/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({on:!CACHE_ON})});
+  CACHE_ON=r.use_cache; const b=document.getElementById('cacheBtn');
+  b.textContent='AI: '+(CACHE_ON?'cached':'live');
+  b.style.color=CACHE_ON?'#34d399':'#fbbf24'; b.style.borderColor=CACHE_ON?'rgba(52,211,153,.4)':'rgba(251,191,36,.45)';
+  b.style.background=CACHE_ON?'rgba(52,211,153,.12)':'rgba(251,191,36,.12)';
+}
+async function resetDemo(){
+  const m=document.getElementById('resetmsg'); m.textContent='Resetting…';
+  try{const r=await API('/api/reset',{method:'POST'}); m.textContent='✓ reset ('+(r.actions||[]).length+' actions)'; setTimeout(()=>{m.textContent='';route();},1500);}
+  catch(e){m.textContent='reset failed';}
+}
 const main=(h)=>document.getElementById('main').innerHTML=h;
 const explain=(h)=>`<div class="explain"><b>What am I seeing?</b> ${h}</div>`;
 const ABOUT=`<div class="about"><b>About this demo.</b> Bricksurance SE is fictional and all data is synthetic. This workbench demonstrates the <i>platform pattern</i> for governed reserving on Databricks — the methodology is illustrative, not a certified actuarial model. Every panel reads a real Unity Catalog table, view or function.</div>`;
@@ -143,23 +169,41 @@ async function route(){
 const PAGE={};
 
 PAGE.overview=async()=>{
-  const [c,d,lc]=await Promise.all([API('/api/committee'),API('/api/diagnostics'),API('/api/lifecycle')]);
-  const t=c.totals||{};
+  const [a,lc]=await Promise.all([API('/api/attention'),API('/api/lifecycle')]);
+  const t=a.totals||{};
   const stbadge=(s)=> s==='built'?'<span class="pill pill-green">built</span>':'<span class="pill pill-amber">next</span>';
-  main(`<h1>Reserving on Databricks</h1>
-  <p class="sub">The full quarterly reserving system — data, engines, agents and governance on one platform.</p>
-  ${explain(`This is the reserving analogue of the pricing workbench: an end-to-end system, not a single tool. Databricks does it all — governed <b>data</b> (triangles from the ledger), <b>engines</b> (the methodology library), <b>agents</b> (Senior Reserving Actuary) and <b>governance</b> (audit, lineage, judgement). Stages marked <span class="pill pill-green">built</span> are live here; <span class="pill pill-amber">next</span> are the roadmap bookends (ingestion upstream, roll-forward/ranges/close downstream).`)}
+  const topBreach=(a.breaches||[])[0];
+  main(`<h1>Today — Q4 close cockpit</h1>
+  <p class="sub">Valuation ${a.valuation_date}. What needs your attention this close.</p>
+  ${explain(`This is the reserving actuary's Monday-morning view of close week. The triangle is already built and reconciling — no weekend in Excel. The platform points you at the one cohort that needs judgment, tracks what's still pending, and carries the whole process (data · engines · agents · governance) end to end, the same shape as the pricing workbench.`)}
   <div class="row">
-    <div class="tile"><div class="k">Best-estimate ultimate (chain-ladder)</div><div class="v">${money(t.ultimate)}</div></div>
+    <div class="tile"><div class="k">Best-estimate ultimate</div><div class="v">${money(t.ultimate)}</div></div>
     <div class="tile"><div class="k">IBNR</div><div class="v">${money(t.ibnr)}</div></div>
-    <div class="tile"><div class="k">Outstanding</div><div class="v">${money(t.outstanding)}</div></div>
-    <div class="tile"><div class="k">Validation breaches</div><div class="v">${(d.breaches&&d.breaches.breaches)||0}</div></div>
+    <div class="tile"><div class="k">Pending selections</div><div class="v">${a.pending_selections}</div></div>
+    <div class="tile"><div class="k">Pending sign-offs</div><div class="v">${a.pending_signoffs}</div></div>
   </div>
-  <div class="card"><h2>The reserving lifecycle — 8 stages (${lc.built}/${lc.total} built)</h2>
-  <div class="h-sub">One triangle, derived from the ledger — never a stored copy. The same shape as the pricing workbench.</div>
-  <table class="step-table"><thead><tr><th>Stage</th><th>What it answers</th><th>Where</th><th>Status</th></tr></thead><tbody>
-  ${lc.stages.map(s=>`<tr><td><b>${s.n} · ${s.stage}</b></td><td>${s.answers}</td><td class="mono">${s.where}</td><td>${stbadge(s.status)}</td></tr>`).join('')}
-  </tbody></table></div>
+  <div class="card" style="border-color:#fecaca;background:#fffbfb"><h2>⚠ Needs your attention</h2>
+  <div class="h-sub">The platform flagged these — you didn't have to eyeball 40 triangles.</div>
+    ${(a.breaches||[]).map(b=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)">
+      <div><b>${b.line_of_business_code.replace(/_/g,' ')} — AY ${b.accident_year}</b> <span style="color:var(--mut)">breached actual-vs-expected validation</span></div>
+      <div style="display:flex;gap:12px;align-items:center"><span class="pill pill-red">resid ${Number(b.standardised_residual).toFixed(2)}</span>
+      <button class="btn" style="padding:5px 11px" onclick="go('triangle')">Review →</button></div></div>`).join('')||'<div style="color:var(--green)">Nothing outside tolerance — clean close.</div>'}
+    ${a.large_losses>0?`<div style="margin-top:10px;color:var(--mut);font-size:12.5px">${a.large_losses} large loss flagged for individual treatment (distorts a factor).</div>`:''}
+  </div>
+  <div class="row">
+    <div class="card" style="flex:1;min-width:280px"><h2>Sign-off status</h2><div class="h-sub">Where each line stands for this close.</div>
+      <table><thead><tr><th>Line of business</th><th class="num">Best estimate</th><th>Status</th></tr></thead><tbody>
+      ${(a.signoff||[]).map(s=>`<tr><td>${s.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(s.signed_best_estimate)}</td><td><span class="pill ${s.status_code==='APPROVED'?'pill-green':'pill-amber'}">${s.status_code==='APPROVED'?'signed':'pending'}</span></td></tr>`).join('')}
+      </tbody></table></div>
+    <div class="card" style="flex:1;min-width:280px"><h2>Two ways in</h2><div class="h-sub">The same triangle machinery, two teams.</div>
+      <div style="padding:10px 0;border-bottom:1px solid var(--line)"><b>Reserving actuary</b> — book the reserve: select factors, validate, judge, sign off. <a onclick="go('triangle')" style="cursor:pointer">Start →</a></div>
+      <div style="padding:10px 0"><b>Pricing analyst</b> — develop losses to ultimate for the rate <b>indication</b>. Same triangle, feeds the indicated rate not the balance sheet. <a onclick="go('triangle')" style="cursor:pointer">Start →</a></div>
+    </div>
+  </div>
+  <details class="why"><summary>The full lifecycle (${lc.built}/${lc.total} stages built)</summary>
+  <table class="step-table" style="margin-top:8px"><thead><tr><th>Stage</th><th>What it answers</th><th>Status</th></tr></thead><tbody>
+  ${lc.stages.map(s=>`<tr><td><b>${s.n} · ${s.stage}</b></td><td>${s.answers}</td><td>${stbadge(s.status)}</td></tr>`).join('')}
+  </tbody></table></details>
   ${ABOUT}`);
 };
 
@@ -340,6 +384,39 @@ PAGE.estimates=async()=>{
   </tbody></table></div>${ABOUT}`);
 };
 
+PAGE.variability=async()=>{
+  const v=await API('/api/variability');
+  main(`<h1>Reserve ranges</h1><p class="sub">Best estimate is only half the answer — here's how uncertain it is.</p>
+  ${explain(`The board and the regulator increasingly ask "what's your best estimate AND how uncertain is it?" The coefficient of variation and percentiles (from Mack) turn the point estimate into a range — the input Solvency II needs for the risk margin and IFRS 17 for the risk adjustment.`)}
+  <div class="card"><table><thead><tr><th>LOB</th><th class="num">Best estimate</th><th class="num">Std error</th><th class="num">CoV</th><th class="num">75th pct</th><th class="num">95th pct</th></tr></thead><tbody>
+  ${v.rows.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.best_estimate)}</td><td class="num">${money(r.standard_error)}</td><td class="num">${(Number(r.coefficient_of_variation)*100).toFixed(1)}%</td><td class="num">${money(r.percentile_75)}</td><td class="num">${money(r.percentile_95)}</td></tr>`).join('')}
+  </tbody></table></div>${ABOUT}`);
+};
+
+PAGE.largeloss=async()=>{
+  const l=await API('/api/large-losses');
+  main(`<h1>Large-loss review</h1><p class="sub">Split attritional from large — the reason behind most factor overrides.</p>
+  ${explain(`Individual large claims distort mechanical development factors (the AY2023 anomaly is exactly this). Actuaries reserve large losses individually and remove them from the triangle used for factor selection. This step no one names but everyone does — and it's why the AY2023 factor gets overridden.`)}
+  <div class="card"><table><thead><tr><th>Claim</th><th>LOB</th><th class="num">AY</th><th class="num">Incurred</th><th class="num">Threshold</th><th>Treatment</th><th>Distorts factor</th></tr></thead><tbody>
+  ${l.rows.map(r=>`<tr><td class="mono">${r.claim_id}</td><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td class="num">${money(r.incurred)}</td><td class="num">${money(r.threshold)}</td><td><span class="pill pill-blue">${r.treatment.replace(/_/g,' ')}</span></td><td>${r.distorts_factor==='true'||r.distorts_factor===true?'<span class="pill pill-red">yes</span>':'—'}</td></tr>`).join('')}
+  </tbody></table></div>${ABOUT}`);
+};
+
+PAGE.movement=async()=>{
+  const rf=await API('/api/rollforward?lob=COMMERCIAL_PROPERTY');
+  const rows=rf.rows||[];
+  const money0=(n)=>(n>=0?'+':'')+money(n);
+  main(`<h1>Movement &amp; roll-forward</h1><p class="sub">"Why did reserves move this quarter?" — answered as data, not detective work.</p>
+  ${explain(`The single question every reserving committee asks. The reserve movement from last quarter to this is decomposed into drivers — expected run-off, experience (actual-vs-expected), assumption changes, large losses, expert judgement. What used to be a manual hunt across spreadsheets is here in one waterfall.`)}
+  <div class="card"><h2>Commercial Property — reserve walk</h2><div class="h-sub">Opening to closing, by driver.</div>
+    <table><thead><tr><th>Driver</th><th class="num">Amount</th></tr></thead><tbody>
+    ${rows.map(r=>{const drv=r.driver.replace(/_/g,' ');const lvl=(r.driver==='opening'||r.driver==='closing');
+      return `<tr${lvl?' style="font-weight:700;background:#f8fafc"':''}><td>${drv}</td><td class="num" style="color:${lvl?'var(--ink)':(r.amount>=0?'#dc2626':'#16a34a')}">${lvl?money(r.amount):money0(r.amount)}</td></tr>`;}).join('')}
+    </tbody></table>
+    <details class="why"><summary>How the AI helps here</summary><div>Ask the Workbench AI "why did Commercial Property reserves move?" — the Movement Explainer agent reads this roll-forward and narrates it in committee language. See Workbench AI.</div></details>
+  </div>${ABOUT}`);
+};
+
 PAGE.diagnostics=async()=>{
   const d=await API('/api/diagnostics');
   main(`<h1>Validation diagnostics</h1><p class="sub">Actual-vs-expected on a rolling cohort — the model-validation feedback loop.</p>
@@ -424,6 +501,83 @@ PAGE.genie=async()=>{
   ${explain(`A Databricks Genie space grounded on the reserving model. Ask in plain English — Genie writes governed SQL against the same certified tables the workbench uses, so the numbers match. Try "Which cohorts breached validation tolerance?" or "Total IBNR by line of business".`)}
   ${url?`<div class="card" style="padding:8px"><iframe src="${url}"></iframe></div>`:`<div class="card"><div class="load">Genie space not configured.</div></div>`}
   ${ABOUT}`);
+};
+
+PAGE.ai=async()=>{
+  main(`<h1>Workbench AI</h1><p class="sub">One question, routed to the right reserving specialist — real Claude, grounded on live tables.</p>
+  ${explain(`Several specialist agents work across the workbench (Senior Reserving Actuary, Movement Explainer, Data-Quality Investigator, Committee-Note Drafter). Ask a question here and a supervisor classifies it and routes to the right one — or pick a specialist directly. Every answer is grounded on the live reserving tables and logged to the audit trail. A second set of eyes; you stay in control.`)}
+  <div class="card"><h2>Ask the reserving AI</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <input id="q" placeholder="e.g. Why did Commercial Property reserves move? / What needs attention this close?" style="flex:1;min-width:300px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+      <button class="btn" id="askbtn">Ask</button>
+    </div>
+    <div style="margin-bottom:10px"><span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-right:8px">or a specialist:</span>
+      <span id="specs"></span></div>
+    <div id="aiout"></div>
+  </div>
+  <div class="card"><h2>The specialists</h2><div class="h-sub">Each is a governed FMAPI agent grounded on specific tables.</div>
+    <div id="specgrid"></div>
+  </div>${ABOUT}`);
+  // load specialist list from a probe call
+  const probe=await API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({specialist:'senior_reserving'})});
+  const specs=probe.specialists||[];
+  document.getElementById('specs').innerHTML=specs.map(s=>`<button class="btn ghost" style="background:#eef2ff;color:var(--blue);margin:2px 4px 2px 0;font-size:11.5px;padding:5px 10px" onclick="askSpecialist('${s.key}')">${s.name}</button>`).join('');
+  document.getElementById('specgrid').innerHTML=specs.map(s=>`<div style="padding:9px 0;border-bottom:1px solid var(--line)"><b>${s.name}</b> <span style="color:var(--mut);font-size:12.5px">— ${s.scope}</span></div>`).join('');
+  renderAI(probe);
+  document.getElementById('askbtn').onclick=()=>askAI(document.getElementById('q').value);
+  document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')askAI(e.target.value);});
+};
+async function askAI(q){if(!q||!q.trim())return;document.getElementById('aiout').innerHTML='<div class="load">Routing your question…</div>';
+  try{const r=await API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});renderAI(r);}catch(e){document.getElementById('aiout').innerHTML=`<div class="err">${e.message}</div>`;}}
+async function askSpecialist(k){document.getElementById('aiout').innerHTML='<div class="load">Asking…</div>';
+  try{const r=await API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({specialist:k})});renderAI(r);}catch(e){document.getElementById('aiout').innerHTML=`<div class="err">${e.message}</div>`;}}
+function renderAI(r){document.getElementById('aiout').innerHTML=`
+  <div style="margin-bottom:6px"><span class="pill pill-violet">${r.specialist_name}</span>
+    ${r.reason?`<span style="color:var(--mut);font-size:12px;margin-left:8px">routed: ${r.reason}${r.confidence?` (${Math.round(r.confidence*100)}%)`:''}</span>`:''}
+    ${r.cached?'<span class="pill pill-slate" style="margin-left:6px">cached</span>':'<span class="pill pill-green" style="margin-left:6px">live</span>'}</div>
+  <div class="brief"><span class="tag">${r.specialist_name} · ${r.model}</span>${(r.text||'').replace(/</g,'&lt;')}</div>`;}
+
+PAGE.governance=async()=>{
+  const g=await API('/api/governance');
+  const rec=g.reconciliation||{};
+  main(`<h1>Governance &amp; sign-off</h1><p class="sub">Every data point reconciled, every action logged, every model versioned.</p>
+  ${explain(`The governance spine. The triangle reconciles to the ledger to the penny; every selection, judgement, sign-off and agent call is logged with who/when/why; every method is a versioned UC model. Sign-off records the as-at data version so the whole basis is reproducible for the auditor — the actuary can put their name to the number and defend it.`)}
+  <div class="row">
+    <div class="tile"><div class="k">Triangle ↔ ledger reconciliation</div><div class="v sm" style="color:${rec.ties?'#16a34a':'#dc2626'}">${rec.ties?'✓ ties to the penny':'✗ break'}</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">${money(rec.triangle_paid)} = ${money(rec.ledger_paid)}</div></div>
+    <div class="tile"><div class="k">Actions logged</div><div class="v sm">${(g.audit||[]).length}+</div></div>
+    <div class="tile"><div class="k">Models versioned</div><div class="v sm">${(g.models||[]).length}</div></div>
+  </div>
+  <div class="card"><h2>Sign-off &amp; reproduce-as-at</h2><div class="h-sub">Put your name to the number. The data version makes it reproducible for the auditor.</div>
+    <table><thead><tr><th>LOB</th><th class="num">Signed estimate</th><th>Method</th><th>Data version</th><th>Status</th><th>By</th><th></th></tr></thead><tbody>
+    ${(g.signoff||[]).map(s=>`<tr><td>${s.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(s.signed_best_estimate)}</td><td>${s.reserving_method_code.replace(/_/g,' ')}</td><td class="mono" style="font-size:11px">${s.data_version}</td><td><span class="pill ${s.status_code==='APPROVED'?'pill-green':'pill-amber'}">${s.status_code==='APPROVED'?'signed':'pending'}</span></td><td>${s.signed_by||'—'}</td><td>${s.status_code==='APPROVED'?'':`<button class="btn" style="padding:5px 10px" onclick="signOff('${s.line_of_business_code}')">Sign off</button>`}</td></tr>`).join('')}
+    </tbody></table><span id="somsg" style="font-size:12.5px;color:var(--mut)"></span>
+  </div>
+  <div class="card"><h2>Model registry</h2><div class="h-sub">Every method is a versioned Unity Catalog model.</div>
+    <table><thead><tr><th>Method</th><th>UC model</th><th class="num">Version</th><th>Alias</th><th>Owner</th></tr></thead><tbody>
+    ${(g.models||[]).map(m=>`<tr><td>${m.reserving_method_code.replace(/_/g,' ')}</td><td class="mono">${m.uc_model_name.split('.').pop()}</td><td class="num">${m.model_version}</td><td><span class="pill pill-green">${m.alias||'—'}</span></td><td>${m.owner_role}</td></tr>`).join('')}
+    </tbody></table></div>
+  <div class="card"><h2>Audit trail — every action</h2><div class="h-sub">Append-only. Who, when, what.</div>
+    <table><thead><tr><th>When</th><th>Action</th><th>Object</th><th>Detail</th><th>By</th></tr></thead><tbody>
+    ${(g.audit||[]).map(e=>`<tr><td class="mono" style="font-size:11px">${(e.created_at||'').slice(0,19).replace('T',' ')}</td><td><span class="pill pill-slate">${e.event_type.replace(/_/g,' ')}</span></td><td class="mono" style="font-size:11px">${e.entity_id||'—'}</td><td style="color:var(--mut);font-size:12px">${(e.detail||'').slice(0,90)}</td><td>${e.actor}</td></tr>`).join('')}
+    </tbody></table></div>${ABOUT}`);
+}
+async function signOff(lob){const m=document.getElementById('somsg');m.textContent='Signing off '+lob+'…';
+  try{const r=await API('/api/signoff',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lob})});
+    if(r.ok){m.innerHTML=`<span style="color:#16a34a">✓ ${lob.replace(/_/g,' ')} signed off by ${r.signed_by}. Refreshing…</span>`;setTimeout(()=>PAGE.governance(),900);}else m.textContent=r.error;}
+  catch(e){m.textContent='sign-off failed: '+e.message;}}
+
+PAGE.learn=async()=>{
+  const l=await API('/api/learn');
+  main(`<h1>Learn — reserving on Databricks</h1><p class="sub">The process, the terms, and how the platform maps to them. ~8-minute read.</p>
+  ${explain(`A plain-language walk through the reserving process and how each step appears in this workbench — for the semi-technical actuary and for anyone new to reserving.`)}
+  ${l.panels.map(p=>`<div class="card"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);font-weight:700">Panel ${p.n}</div><h2 style="margin-top:2px">${p.title}</h2><div style="color:#334155;line-height:1.65;margin-top:6px">${p.body}</div></div>`).join('')}
+  <div class="card"><h2>Q&amp;A armour</h2><div class="h-sub">Deflections for the hard questions.</div>
+    <div style="color:var(--mut);font-size:12.5px;line-height:1.7">
+    <b style="color:var(--ink)">"Is the methodology certified?"</b> — No; it's illustrative, demonstrating the platform pattern. Your methods plug in as governed models; the workbench is methodology-agnostic.<br>
+    <b style="color:var(--ink)">"Our data isn't this clean."</b> — The triangle is a view; point it at your ledger (or federate to it) and it reconciles to whatever's there.<br>
+    <b style="color:var(--ink)">"Does this replace ResQ?"</b> — No. The selection step is a pluggable seam; keep your tool and let Databricks own the data, governance and downstream.<br>
+    <b style="color:var(--ink)">"Does the AI make the decision?"</b> — No. The AI drafts and surfaces; the actuary decides, and every decision is audit-trailed.</div>
+  </div>${ABOUT}`);
 };
 
 PAGE.assets=async()=>{

@@ -1,0 +1,70 @@
+kind: entity
+name: large_loss
+domain: reserving
+title: Large-Loss Review
+description: >
+  Individual large claims flagged for separate treatment in reserving. Large
+  losses distort mechanical development factors (the AY2023 anomaly is exactly
+  this), so actuaries split attritional from large: reserve large claims
+  individually and remove them from the triangle used for factor selection.
+  This is a core reserving step no one asks for by name but everyone does — and
+  it is the reason behind most factor overrides.
+grain: One row per large claim under review at a valuation date.
+tags:
+  project: reserving-workbench
+  layer: curated
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: large_loss_id
+    type: string
+    required: true
+    description: Identifier for the large-loss review row.
+    classification: internal
+  - name: claim_id
+    type: string
+    required: true
+    description: The underlying claim.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: Line of business.
+    classification: internal
+  - name: accident_year
+    type: integer
+    required: true
+    description: Accident year of the loss.
+    classification: internal
+  - name: incurred
+    type: decimal(18,2)
+    required: true
+    description: Incurred amount on the large claim.
+    classification: confidential
+  - name: threshold
+    type: decimal(18,2)
+    required: true
+    description: The large-loss threshold this claim exceeded.
+    classification: confidential
+  - name: treatment
+    type: string
+    required: true
+    description: How it is treated — 'reserved_individually' (removed from triangle) or 'in_triangle'.
+    classification: internal
+  - name: distorts_factor
+    type: boolean
+    required: true
+    description: Whether this loss materially distorts a development factor (drives an override).
+    classification: internal
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency.
+    classification: internal
+keys:
+  primary: [large_loss_id]
+owner: Chief Actuary
+quality:
+  - name: exceeds_threshold
+    rule: incurred >= threshold
+    description: A large loss must exceed the large-loss threshold.

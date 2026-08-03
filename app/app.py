@@ -278,6 +278,155 @@ def engines():
     return {"selections": rows, "counts": counts}
 
 
+# ------------------------------------------------------------------ landing / attention (Beat 2)
+@app.get("/api/attention")
+def attention():
+    """'What needs my attention today' — the close-week hook that pulls the actuary
+    straight to the anomaly, plus headline reserve KPIs and pending decisions."""
+    q = sql.query_many({
+        "breaches": (f"SELECT line_of_business_code, accident_year, standardised_residual "
+                     f"FROM {F('actual_vs_expected')} WHERE within_tolerance = false ORDER BY abs(standardised_residual) DESC"),
+        "pending_sel": (f"SELECT count(*) n FROM {F('selected_development_pattern')} WHERE status_code IN ('DRAFT','PENDING_APPROVAL')"),
+        "pending_signoff": (f"SELECT count(*) n FROM {F('reserve_signoff')} WHERE status_code = 'PENDING_APPROVAL'"),
+        "large": (f"SELECT count(*) n FROM {F('large_loss')} WHERE distorts_factor = true"),
+        "totals": (f"SELECT round(sum(ultimate_loss),0) ultimate, round(sum(ibnr),0) ibnr, round(sum(outstanding),0) outstanding "
+                   f"FROM {F('reserve_estimate')} WHERE reserving_method_code='CHAIN_LADDER'"),
+        "signoff": (f"SELECT line_of_business_code, status_code, signed_best_estimate FROM {F('reserve_signoff')} ORDER BY line_of_business_code"),
+    })
+    return {"breaches": q["breaches"],
+            "pending_selections": (q["pending_sel"][0]["n"] if q["pending_sel"] else 0),
+            "pending_signoffs": (q["pending_signoff"][0]["n"] if q["pending_signoff"] else 0),
+            "large_losses": (q["large"][0]["n"] if q["large"] else 0),
+            "totals": q["totals"][0] if q["totals"] else {}, "signoff": q["signoff"],
+            "valuation_date": config.VALUATION_DATE}
+
+
+# ------------------------------------------------------------------ Workbench AI (supervisor)
+@app.post("/api/ai/ask")
+def ai_ask(body: dict = None):
+    b = body or {}
+    return agents.ask(question=b.get("question"), specialist=b.get("specialist"))
+
+
+@app.post("/api/ai/cache/toggle")
+def ai_cache_toggle(body: dict = None):
+    config.USE_CACHE = bool((body or {}).get("on", not config.USE_CACHE))
+    return {"use_cache": config.USE_CACHE}
+
+
+@app.post("/api/ai/cache/warm")
+def ai_cache_warm():
+    return {"warmed": agents.warm_cache()}
+
+
+# ------------------------------------------------------------------ wider process: variability / large loss / roll-forward
+@app.get("/api/variability")
+def variability():
+    return {"rows": sql.query(
+        f"SELECT line_of_business_code, best_estimate, standard_error, coefficient_of_variation, "
+        f"percentile_75, percentile_95 FROM {F('reserve_variability')} ORDER BY coefficient_of_variation DESC")}
+
+
+@app.get("/api/large-losses")
+def large_losses():
+    return {"rows": sql.query(
+        f"SELECT large_loss_id, claim_id, line_of_business_code, accident_year, incurred, threshold, "
+        f"treatment, distorts_factor FROM {F('large_loss')} ORDER BY incurred DESC")}
+
+
+@app.get("/api/rollforward")
+def rollforward(lob: str = "COMMERCIAL_PROPERTY"):
+    return {"lob": lob, "rows": sql.query(
+        f"SELECT driver, amount, display_order FROM {F('reserve_rollforward')} "
+        f"WHERE line_of_business_code = '{sql.esc(lob)}' ORDER BY display_order")}
+
+
+# ------------------------------------------------------------------ governance panel
+@app.get("/api/governance")
+def governance():
+    q = sql.query_many({
+        "audit": (f"SELECT event_type, entity_type, entity_id, detail, actor, created_at "
+                  f"FROM {F('5_gov_audit_event')} ORDER BY created_at DESC LIMIT 40"),
+        "models": (f"SELECT reserving_method_code, uc_model_name, model_version, alias, owner_role "
+                   f"FROM {F('reserving_methodology')} ORDER BY reserving_method_code"),
+        "signoff": (f"SELECT line_of_business_code, signed_best_estimate, reserving_method_code, data_version, "
+                    f"status_code, signed_by, signed_at FROM {F('reserve_signoff')} ORDER BY line_of_business_code"),
+        "recon": (f"SELECT round(SUM(incremental_paid),2) tri FROM {F('loss_development')}"),
+        "recon_ledger": (f"SELECT round(SUM(amount),2) led FROM {F('1_raw_claim_transaction')} "
+                         f"WHERE claim_transaction_type_code IN ('INDEMNITY_PAYMENT','EXPENSE_PAYMENT','RECOVERY')"),
+    })
+    tri = float(q["recon"][0]["tri"]) if q["recon"] and q["recon"][0]["tri"] else 0
+    led = float(q["recon_ledger"][0]["led"]) if q["recon_ledger"] and q["recon_ledger"][0]["led"] else 0
+    return {"audit": q["audit"], "models": q["models"], "signoff": q["signoff"],
+            "reconciliation": {"triangle_paid": tri, "ledger_paid": led, "ties": abs(tri - led) < 1.0}}
+
+
+@app.post("/api/signoff")
+def signoff(body: dict):
+    """Sign off a line of business's reserves — the 'put my name on the number' action."""
+    lob = body.get("lob")
+    user = "chief.actuary@bricksurance.demo"
+    if not lob:
+        return {"ok": False, "error": "lob required"}
+    sql.query(f"UPDATE {F('reserve_signoff')} SET status_code='APPROVED', signed_by='{sql.esc(user)}', "
+              f"signed_at=current_timestamp() WHERE line_of_business_code='{sql.esc(lob)}'")
+    eid = "AE-SO-" + uuid.uuid4().hex[:8]
+    sql.query(f"INSERT INTO {F('5_gov_audit_event')} (event_id, event_type, entity_type, entity_id, detail, actor, created_at) "
+              f"VALUES ('{eid}', 'signed_off', 'signoff', 'SO-{sql.esc(lob[:4])}', 'Signed off {sql.esc(lob)} reserves', '{sql.esc(user)}', current_timestamp())")
+    return {"ok": True, "lob": lob, "signed_by": user}
+
+
+# ------------------------------------------------------------------ demo reset
+@app.post("/api/reset")
+def reset_demo():
+    """Restore the demo to a clean state: clear live selections, agent-query audit rows,
+    warm cache rows, and reset sign-offs to the seeded baseline (GL signed, rest pending)."""
+    actions = []
+    sql.query(f"DELETE FROM {F('selected_development_pattern')} WHERE selection_id LIKE 'SEL-LIVE-%'"); actions.append("cleared live selections")
+    sql.query(f"DELETE FROM {F('5_gov_audit_event')} WHERE event_type='agent_query' OR event_id LIKE 'AE-SO-%'"); actions.append("cleared demo audit rows")
+    sql.query(f"UPDATE {F('reserve_signoff')} SET status_code=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'APPROVED' ELSE 'PENDING_APPROVAL' END, "
+              f"signed_by=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'chief.actuary' ELSE NULL END"); actions.append("reset sign-offs to baseline")
+    return {"ok": True, "actions": actions}
+
+
+# ------------------------------------------------------------------ Learn
+LEARN = [
+    {"n": 1, "title": "Why reserving exists", "body":
+     "Reserving estimates the money an insurer must hold for claims that have happened but aren't fully paid — "
+     "the largest number on a P&C balance sheet. It feeds statutory accounts, the Solvency II SCR, IFRS 17 and "
+     "the capital model. Getting it wrong in either direction is a regulatory and commercial problem."},
+    {"n": 2, "title": "The triangle", "body":
+     "Losses are organised by accident year (row) and development lag (column): how a cohort's losses grow as "
+     "they mature. Here the triangle is a governed VIEW over the claim ledger — it reconciles to the penny and "
+     "can never drift, because there is no separately-stored copy."},
+    {"n": 3, "title": "Development factors & selection", "body":
+     "Age-to-age (loss-development) factors project each cohort to ultimate. The actuary reviews the empirical "
+     "factors, compares to the prior selection, and elects — overriding when a data anomaly (e.g. one late "
+     "large loss) distorts the mechanical pick. This selection is the core judgement, and it is audited."},
+    {"n": 4, "title": "Methods & uncertainty", "body":
+     "Chain-ladder, Bornhuetter-Ferguson, Mack, GLM and peer-comparison each project the ultimate; swapping "
+     "method writes a new estimate, never an overwrite. Mack and GLM also give a distribution — the coefficient "
+     "of variation and percentiles that become the Solvency II risk margin and IFRS 17 risk adjustment."},
+    {"n": 5, "title": "Validation & judgement", "body":
+     "Actual-vs-expected on a rolling cohort validates the methods against emerging experience; breaches are "
+     "flagged automatically. Expert judgements sit on top of the mechanical reserve, each audit-trailed with a "
+     "rationale, a magnitude-routed approval, and the QRT cells they touch."},
+    {"n": 6, "title": "Governance & sign-off", "body":
+     "Every data point is reconciled, every action is logged, every model is versioned. Sign-off records the "
+     "signed best estimate and the as-at data version, so the whole basis is reproducible for the auditor — "
+     "the actuary can put their name to the number and defend it."},
+    {"n": 7, "title": "The wider process & the seam", "body":
+     "Ingestion and DQ upstream; roll-forward, ranges, committee pack and the regulatory/capital handoff "
+     "downstream. And the engine seam: run the selection natively, or orchestrate an external tool (ResQ) — "
+     "the pick lands in the same governed table either way."},
+]
+
+
+@app.get("/api/learn")
+def learn():
+    return {"panels": LEARN}
+
+
 # ------------------------------------------------------------------ assets manifest (asset labelling)
 @app.get("/api/assets")
 def assets():

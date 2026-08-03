@@ -1,0 +1,77 @@
+kind: entity
+name: reserve_signoff
+domain: reserving
+title: Reserve Sign-Off
+description: >
+  The formal sign-off of a line of business's reserves for a valuation date —
+  the act of an actuary putting their name to the number that flows to the
+  balance sheet, Solvency II and IFRS 17. Records the signed best estimate, the
+  selection and method it rests on, who signed, and the as-at data version so the
+  whole basis is reproducible for the auditor. Sign-off with reproduce-as-at is
+  the "without fear" beat: the auditor asks "why", you click, you show.
+grain: One row per line of business per valuation date per sign-off.
+tags:
+  maturity: certified
+  project: reserving-workbench
+  layer: governance
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: signoff_id
+    type: string
+    required: true
+    description: Identifier for the sign-off.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: As-at date signed off.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: Line of business.
+    classification: internal
+  - name: signed_best_estimate
+    type: decimal(18,2)
+    required: true
+    description: The best-estimate ultimate signed off.
+    classification: confidential
+  - name: selection_id
+    type: string
+    required: false
+    description: The selected development pattern the sign-off rests on.
+    classification: internal
+  - name: reserving_method_code
+    code_set: reserving_method
+    required: true
+    description: The method the signed estimate uses.
+    classification: internal
+  - name: data_version
+    type: string
+    required: true
+    description: The as-at data version (Delta version / snapshot) for reproduce-as-at.
+    classification: internal
+  - name: status_code
+    code_set: judgement_status
+    required: true
+    description: Sign-off status (pending_approval / approved).
+    classification: internal
+  - name: signed_by
+    type: string
+    required: false
+    description: The actuary who signed off.
+    classification: internal
+  - name: signed_at
+    type: timestamp
+    required: false
+    description: When it was signed.
+    classification: internal
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency.
+    classification: internal
+keys:
+  primary: [signoff_id]
+owner: Chief Actuary
