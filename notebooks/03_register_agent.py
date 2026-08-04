@@ -65,15 +65,18 @@ class ReservingAgent(ChatAgent):
             ChatMessage(role=ChatMessageRole.USER, content=prompt)], max_tokens=750)
         c = r.choices[0]
         content = c.message.content
-        # sonnet-5 may return content as a list of blocks; flatten to text
+        # sonnet-5 returns content as a list of blocks (reasoning + text); keep only text blocks,
+        # coerce to str (reasoning blocks carry 'summary' as a list — must be skipped).
         if isinstance(content, list):
             parts = []
             for b in content:
-                if isinstance(b, dict):
-                    parts.append(b.get("text") or b.get("summary") or "")
-                else:
-                    parts.append(str(getattr(b, "text", "") or ""))
+                bd = b if isinstance(b, dict) else {}
+                t = bd.get("text")
+                if isinstance(t, str):
+                    parts.append(t)
             content = "".join(parts)
+        elif not isinstance(content, str):
+            content = str(content or "")
         content = content or ""
         usage = getattr(r, "usage", None)
         it = getattr(usage, "prompt_tokens", None) if usage else None
