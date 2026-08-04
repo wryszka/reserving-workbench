@@ -59,9 +59,13 @@ def main():
     com = q(f"DESCRIBE SCHEMA EXTENDED {FQ}")
     schema_comment = next((r[1] for r in com if r[0] == "Comment"), "")
     check("schema comment carries [reserving-workbench]", "[reserving-workbench]" in schema_comment)
-    # every table comment prefixed
+    # every table comment prefixed — excluding agent-framework auto-created payload/inference
+    # tables (agents.deploy makes e.g. reserving_agent_payload; Databricks owns those, not our model).
+    _AGENT_AUTO = ("_payload", "_payload_assessment_logs", "_inference")
     rows = q(f"SELECT table_name, comment FROM system.information_schema.tables WHERE table_catalog='{CAT}' AND table_schema='{SCH}'")
-    unlabelled = [r[0] for r in rows if not (r[1] or "").startswith("[reserving-workbench]")]
+    unlabelled = [r[0] for r in rows
+                  if not (r[1] or "").startswith("[reserving-workbench]")
+                  and not any(r[0].endswith(sfx) for sfx in _AGENT_AUTO)]
     check("every table/view comment prefixed [reserving-workbench]", not unlabelled,
           f"unlabelled: {unlabelled[:5]}" if unlabelled else "all labelled")
     # bxc_project tag on tables

@@ -36,26 +36,28 @@ def trace(surface, specialist_key, question, endpoint, served_by, confidence=Non
 
 
 def _invoke_endpoint(question, specialist):
-    """Invoke the registered reserving-agent serving endpoint. Returns dict or None if unavailable/cold."""
+    """Invoke the registered reserving-agent serving endpoint via the SDK (which carries the app
+    SP's OAuth auth — inside a Databricks App there is no static token to extract). Returns dict
+    or None if unavailable/cold, so the caller falls back to inline FMAPI."""
     ep = config.resolve_agent_endpoint()
     if not ep:
         return None
     try:
-        import requests
-        host = config.workspace_host()
-        tok = config.get_workspace_client().config.token
-        body = {"dataframe_records": [{"messages": [{"role": "user", "content": question or "brief the committee"}],
-                                       "custom_inputs": {"specialist": specialist} if specialist else {}}]}
-        r = requests.post(f"{host}/serving-endpoints/{ep}/invocations",
-                          headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"},
-                          json=body, timeout=60)
-        if r.status_code != 200:
+        w = config.get_workspace_client()
+        rec = {"messages": [{"role": "user", "content": question or "brief the committee"}]}
+        if specialist:
+            rec["custom_inputs"] = {"specialist": specialist}
+        resp = w.serving_endpoints.query(name=ep, dataframe_records=[rec])
+        preds = getattr(resp, "predictions", None)
+        if preds is None and hasattr(resp, "as_dict"):
+            preds = resp.as_dict().get("predictions")
+        pred = preds[0] if isinstance(preds, list) and preds else preds
+        if not isinstance(pred, dict):
             return None
-        data = r.json()
-        preds = data.get("predictions") or data
-        pred = preds[0] if isinstance(preds, list) else preds
         msgs = pred.get("messages") or []
         text = (msgs[0].get("content") if msgs and isinstance(msgs[0], dict) else "") or ""
+        if not text:
+            return None
         co = pred.get("custom_outputs") or {}
         return {"text": text, "endpoint": ep, "specialist_key": co.get("specialist_key"),
                 "specialist_name": co.get("specialist_name"), "confidence": co.get("confidence"),
