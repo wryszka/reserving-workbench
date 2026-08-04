@@ -204,6 +204,76 @@ def judgements():
     return {"judgements": rows}
 
 
+# --- expert judgement: raise / approve (the overlays-register pattern, made interactive) ---
+# Magnitude-routed approval authority (mirrors the Solvency II app).
+_APPROVAL_THRESHOLDS = [(10_000_000.0, "BOARD"), (1_000_000.0, "CHIEF_ACTUARY"), (0.0, "SENIOR_ACTUARY")]
+
+
+def _required_role(magnitude):
+    m = abs(float(magnitude or 0))
+    for thresh, role in _APPROVAL_THRESHOLDS:
+        if m >= thresh:
+            return role
+    return "SENIOR_ACTUARY"
+
+
+@app.post("/api/judgements/raise")
+def judgement_raise(body: dict):
+    """Raise a new expert judgement (maker). Status starts DRAFT, or PENDING_APPROVAL if submitted.
+    Approval role is routed by magnitude. Rationale must be substantive (>=20 chars). Audited."""
+    import json as _json
+    b = body or {}
+    lob = b.get("lob") or None
+    ay = b.get("accident_year")
+    cat = b.get("category_code", "EXPERT_JUDGEMENT_OTHER")
+    try:
+        mag = float(b.get("magnitude"))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "magnitude must be a number"}
+    if mag == 0:
+        return {"ok": False, "error": "a judgement with zero impact is not a judgement"}
+    rationale = (b.get("rationale") or "").strip()
+    if len(rationale) < 20:
+        return {"ok": False, "error": "rationale must be substantive (≥20 chars) — this is the audit narrative"}
+    submit = bool(b.get("submit"))
+    qrt = b.get("qrt_cells") or []
+    role = _required_role(mag)
+    jid = "EJ-LIVE-" + uuid.uuid4().hex[:8]
+    user = "reserving.actuary@bricksurance.demo"
+    now_expr = "current_timestamp()"
+    lob_sql = ("'" + sql.esc(lob) + "'") if lob else "NULL"
+    ay_sql = str(int(ay)) if ay not in (None, "", "null") else "NULL"
+    qrt_sql = "'" + sql.esc(_json.dumps(qrt)) + "'" if qrt else "NULL"
+    status = "PENDING_APPROVAL" if submit else "DRAFT"
+    cols = ("judgement_id, quarter, line_of_business_code, accident_year, category_code, magnitude, "
+            "currency_code, rationale, linked_qrt_cells, required_approval_role_code, status_code, "
+            "prior_judgement_id, author, created_at, approver, approved_at")
+    vals = (f"'{jid}', '2026-Q4', {lob_sql}, {ay_sql}, '{sql.esc(cat)}', {mag}, 'GBP', "
+            f"'{sql.esc(rationale)}', {qrt_sql}, '{role}', '{status}', NULL, '{sql.esc(user)}', "
+            f"{now_expr}, NULL, NULL")
+    sql.query(f"INSERT INTO {F('expert_judgement')} ({cols}) VALUES ({vals})")
+    eid = "AE-EJ-" + uuid.uuid4().hex[:8]
+    sql.query(f"INSERT INTO {F('5_gov_audit_event')} (event_id, event_type, entity_type, entity_id, detail, actor, created_at) "
+              f"VALUES ('{eid}', 'judgement_raised', 'judgement', '{jid}', 'Raised {sql.esc(cat)} judgement, {mag:.0f} GBP', '{sql.esc(user)}', {now_expr})")
+    return {"ok": True, "judgement_id": jid, "status": status, "required_approval_role": role, "author": user}
+
+
+@app.post("/api/judgements/approve")
+def judgement_approve(body: dict):
+    """Approve a pending judgement (checker). Records approver + timestamp. Audited."""
+    b = body or {}
+    jid = b.get("judgement_id")
+    if not jid:
+        return {"ok": False, "error": "judgement_id required"}
+    approver = "chief.actuary@bricksurance.demo"
+    sql.query(f"UPDATE {F('expert_judgement')} SET status_code='APPROVED', approver='{sql.esc(approver)}', "
+              f"approved_at=current_timestamp() WHERE judgement_id='{sql.esc(jid)}'")
+    eid = "AE-EJ-" + uuid.uuid4().hex[:8]
+    sql.query(f"INSERT INTO {F('5_gov_audit_event')} (event_id, event_type, entity_type, entity_id, detail, actor, created_at) "
+              f"VALUES ('{eid}', 'judgement_approved', 'judgement', '{sql.esc(jid)}', 'Approved judgement {sql.esc(jid)}', '{sql.esc(approver)}', current_timestamp())")
+    return {"ok": True, "judgement_id": jid, "approver": approver}
+
+
 @app.get("/api/lineage")
 def lineage(estimate_id: str):
     row = sql.query_one(f"SELECT {F('fn_reserve_to_qrt')}('{sql.esc(estimate_id)}') AS cells")
@@ -423,7 +493,8 @@ def reset_demo():
     warm cache rows, and reset sign-offs to the seeded baseline (GL signed, rest pending)."""
     actions = []
     sql.query(f"DELETE FROM {F('selected_development_pattern')} WHERE selection_id LIKE 'SEL-LIVE-%'"); actions.append("cleared live selections")
-    sql.query(f"DELETE FROM {F('5_gov_audit_event')} WHERE event_type='agent_query' OR event_id LIKE 'AE-SO-%'"); actions.append("cleared demo audit rows")
+    sql.query(f"DELETE FROM {F('expert_judgement')} WHERE judgement_id LIKE 'EJ-LIVE-%'"); actions.append("cleared live judgements")
+    sql.query(f"DELETE FROM {F('5_gov_audit_event')} WHERE event_type='agent_query' OR event_id LIKE 'AE-SO-%' OR event_id LIKE 'AE-EJ-%' OR event_id LIKE 'AE-ING-%'"); actions.append("cleared demo audit rows")
     sql.query(f"UPDATE {F('reserve_signoff')} SET status_code=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'APPROVED' ELSE 'PENDING_APPROVAL' END, "
               f"signed_by=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'chief.actuary' ELSE NULL END"); actions.append("reset sign-offs to baseline")
     return {"ok": True, "actions": actions}

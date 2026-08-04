@@ -512,16 +512,62 @@ PAGE.diagnostics=async()=>{
     </tbody></table></div>${ABOUT}`);
 };
 
+function renderJudgements(rows){
+  if(!rows||!rows.length) return '<div class="load">No judgements raised for this quarter yet.</div>';
+  return `<table><thead><tr><th>ID</th><th>LOB</th><th>Category</th><th class="num">Magnitude</th><th>Approval</th><th>Status</th><th>Rationale</th><th></th></tr></thead><tbody>
+  ${rows.map(x=>{const ap=x.status_code==='APPROVED';const pend=x.status_code==='PENDING_APPROVAL';
+    return `<tr><td class="mono" style="font-size:11px">${x.judgement_id}</td><td>${(x.line_of_business_code||'all').replace(/_/g,' ')}</td><td>${x.category_code.replace(/_/g,' ')}</td><td class="num">${money(x.magnitude)}</td><td><span class="pill pill-blue">${x.required_approval_role_code.replace(/_/g,' ')}</span></td><td><span class="pill ${ap?'pill-green':(pend?'pill-amber':'pill-slate')}">${x.status_code.replace(/_/g,' ').toLowerCase()}</span></td><td style="color:var(--mut);font-size:12px">${(x.rationale||'').slice(0,90)}</td><td>${pend?`<button class="btn" style="padding:5px 10px" onclick="approveJudgement('${x.judgement_id}')">Approve</button>`:''}</td></tr>`;}).join('')}
+  </tbody></table>`;
+}
 PAGE.judgements=async()=>{
   const j=await API('/api/judgements');
-  main(`<h1>Expert-judgement repository</h1><p class="sub">Every judgement audit-trailed with rationale, magnitude and the regulatory cells it touches.</p>
-  ${explain(`Actuarial judgements laid on top of the mechanical reserve. Each carries a signed magnitude, a substantive rationale, the QRT cells it flows into, and a magnitude-routed approval role (senior actuary / chief actuary / board). Judgements link to their predecessor, so the quarter-over-quarter story is visible.`)}
-  <div class="card"><table><thead><tr><th>ID</th><th>LOB</th><th>Category</th><th class="num">Magnitude</th><th>Approval</th><th>Status</th><th>QRT cells</th></tr></thead><tbody>
-  ${j.judgements.map(x=>`<tr><td class="mono">${x.judgement_id}</td><td>${(x.line_of_business_code||'all').replace(/_/g,' ')}</td><td>${x.category_code.replace(/_/g,' ')}</td><td class="num">${money(x.magnitude)}</td><td><span class="pill pill-blue">${x.required_approval_role_code.replace(/_/g,' ')}</span></td><td><span class="pill ${x.status_code==='APPROVED'?'pill-green':'pill-slate'}">${x.status_code}</span></td><td class="mono">${(x.qrt_cells||[]).join(', ')||'—'}</td></tr>`).join('')}
-  </tbody></table>
-  ${j.judgements.map(x=>`<div style="margin-top:8px;color:var(--mut);font-size:12.5px"><b style="color:var(--ink)" class="mono">${x.judgement_id}</b> — ${x.rationale}</div>`).join('')}
+  main(`<h1>Expert-judgement repository</h1><p class="sub">Raise a judgement, route it by magnitude, and approve it — every step audit-trailed.</p>
+  ${explain(`Actuarial judgements laid on top of the mechanical reserve. Raise one with a signed magnitude and a substantive rationale; the required approval authority is <b>routed by magnitude</b> (senior actuary &lt; £1m, chief actuary &lt; £10m, board above). A checker approves it, and it flows to the QRT cells it touches. Maker/checker, governed — the overlays register your regulator expects.`)}
+  <div class="card" style="border-color:#c7d2fe"><h2>Raise a judgement</h2><div class="h-sub">Maker step. Magnitude routes the approval authority automatically.</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+      <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Line of business</label>
+        <select id="ejlob" name="ejlob" aria-label="Line of business"><option value="">All</option><option value="COMMERCIAL_PROPERTY">Commercial Property</option><option value="COMMERCIAL_MOTOR">Commercial Motor</option><option value="GENERAL_LIABILITY">General Liability</option><option value="PROFESSIONAL_INDEMNITY">Professional Indemnity</option><option value="MARINE">Marine</option></select></div>
+      <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Category</label>
+        <select id="ejcat" name="ejcat" aria-label="Category"><option value="METHODOLOGY_JUDGEMENT">Methodology judgement</option><option value="ONE_OFF_EVENT">One-off event</option><option value="DATA_CORRECTION">Data correction</option><option value="TAIL_EXTENSION">Tail extension</option><option value="EXPERT_JUDGEMENT_OTHER">Other</option></select></div>
+      <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Magnitude (£, signed)</label>
+        <input id="ejmag" type="number" step="10000" placeholder="e.g. -620000" style="width:150px;padding:7px;border:1px solid var(--line);border-radius:8px"></div>
+      <div style="flex:1;min-width:160px"><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Routes to <span id="ejrole" style="color:var(--blue);font-weight:700"></span></label></div>
+    </div>
+    <div style="margin-top:12px">
+      <label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Rationale (≥20 chars — the audit narrative)</label>
+      <textarea id="ejrat" rows="2" placeholder="e.g. Late-reported large loss on CP AY2023 distorts the mechanical factor; held the prior pattern and reserved the large loss individually." style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+      <button class="btn" id="ejraise">Raise &amp; submit for approval</button>
+      <span id="ejmsg" style="font-size:12.5px;color:var(--mut)"></span>
+    </div>
+  </div>
+  <div class="card"><h2>Judgement register</h2><div class="h-sub">Pending judgements can be approved here (checker step).</div>
+    <div id="ejreg">${renderJudgements(j.judgements)}</div>
   </div>${ABOUT}`);
+  const magEl=document.getElementById('ejmag'), roleEl=document.getElementById('ejrole');
+  const showRole=()=>{const m=Math.abs(parseFloat(magEl.value)||0);roleEl.textContent=m>=10000000?'Board':(m>=1000000?'Chief Actuary':'Senior Actuary');};
+  magEl.oninput=showRole; showRole();
+  document.getElementById('ejraise').onclick=raiseJudgement;
 };
+async function raiseJudgement(ev){
+  const btn=ev.target, msg=document.getElementById('ejmsg');
+  const body={lob:document.getElementById('ejlob').value||null, category_code:document.getElementById('ejcat').value,
+    magnitude:document.getElementById('ejmag').value, rationale:document.getElementById('ejrat').value, submit:true};
+  btn.disabled=true; msg.textContent='Raising…';
+  try{const r=await API('/api/judgements/raise',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok){msg.innerHTML=`<span style="color:#dc2626">${r.error}</span>`;btn.disabled=false;return;}
+    msg.innerHTML=`<span style="color:#16a34a">✓ Raised ${r.judgement_id} — routed to ${r.required_approval_role.replace(/_/g,' ').toLowerCase()} for approval.</span>`;
+    document.getElementById('ejrat').value=''; document.getElementById('ejmag').value='';
+    const j=await API('/api/judgements'); document.getElementById('ejreg').innerHTML=renderJudgements(j.judgements);
+  }catch(e){msg.innerHTML=`<span style="color:#dc2626">Failed: ${e.message}</span>`;}
+  btn.disabled=false;
+}
+async function approveJudgement(id){
+  try{const r=await API('/api/judgements/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({judgement_id:id})});
+    if(r.ok){const j=await API('/api/judgements'); document.getElementById('ejreg').innerHTML=renderJudgements(j.judgements);}
+  }catch(e){}
+}
 
 PAGE.committee=async()=>{
   const c=await API('/api/committee');
