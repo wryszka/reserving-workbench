@@ -1,0 +1,81 @@
+kind: entity
+name: 5_ai_routing_trace
+domain: reserving
+title: AI Routing Trace
+description: >
+  Governance record of every AI call in the workbench — supervisor routing, each
+  specialist agent, the peer reviewer, and Genie. Records which endpoint served it,
+  the specialist chosen and why, token usage, whether it was cached, and the
+  question. This is how AI is governed here: every model interaction is auditable,
+  attributable and reproducible, the same standard as any other reserving action.
+grain: One row per AI call.
+tags:
+  maturity: certified
+  project: reserving-workbench
+  layer: governance
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: trace_id
+    type: string
+    required: true
+    description: Identifier (UUID) for the AI call.
+    classification: internal
+  - name: surface
+    type: string
+    required: true
+    description: Where the call came from — supervisor / specialist / peer_review / genie.
+    classification: internal
+  - name: specialist_key
+    type: string
+    required: false
+    description: The specialist chosen (senior_reserving / movement / data_quality / committee_note / reviewer).
+    classification: internal
+  - name: question
+    type: string
+    required: false
+    description: The user question or the prompt intent.
+    classification: internal
+  - name: endpoint
+    type: string
+    required: false
+    description: The serving endpoint or model that answered (the registered agent endpoint, or the FM endpoint on fallback).
+    classification: internal
+  - name: served_by
+    type: string
+    required: true
+    description: How it was served — agent_endpoint / fmapi_fallback / cache / genie.
+    classification: internal
+  - name: confidence
+    type: decimal(5,4)
+    required: false
+    description: Classifier confidence in the routing (where applicable).
+    classification: internal
+  - name: input_tokens
+    type: integer
+    required: false
+    description: Input tokens (where reported).
+    classification: internal
+  - name: output_tokens
+    type: integer
+    required: false
+    description: Output tokens (where reported).
+    classification: internal
+  - name: was_cached
+    type: boolean
+    required: true
+    description: Whether the answer came from the cache.
+    classification: internal
+  - name: created_at
+    type: timestamp
+    required: true
+    description: When the call happened.
+    classification: internal
+  - name: created_by
+    type: string
+    required: true
+    description: The user (or app SP) that made the call.
+    classification: internal
+keys:
+  primary: [trace_id]
+owner: Chief Actuary

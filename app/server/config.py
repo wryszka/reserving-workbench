@@ -20,6 +20,21 @@ HUB_APP_URL = os.getenv("HUB_APP_URL", "")
 VALUATION_DATE = os.getenv("VALUATION_DATE", "2026-12-31")
 ENTITY = os.getenv("ENTITY_NAME", "Bricksurance SE")
 PROJECT = "reserving-workbench"
+# Registered agent endpoint (resolved by substring — agents.deploy auto-names + truncates).
+AGENT_ENDPOINT_SUBSTR = os.getenv("AGENT_ENDPOINT_SUBSTR", "reserving")
+
+
+@lru_cache(maxsize=4)
+def resolve_agent_endpoint():
+    """Find the deployed reserving-agent serving endpoint by substring; '' if none yet."""
+    try:
+        for e in get_workspace_client().serving_endpoints.list():
+            n = e.name or ""
+            if AGENT_ENDPOINT_SUBSTR in n and ("agent" in n or "reserving_workbench" in n):
+                return n
+    except Exception:
+        pass
+    return ""
 
 
 def fqn(table: str) -> str:

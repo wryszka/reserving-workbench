@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 import datetime
 import uuid
 
-from server import agents, config, reserving, sql
+from server import agents, config, genie_api, reserving, sql
 
 app = FastAPI(title="Reserving Workbench — Bricksurance SE")
 F = config.fqn
@@ -419,6 +419,20 @@ def ai_cache_warm():
     return {"warmed": agents.warm_cache()}
 
 
+@app.post("/api/genie/ask")
+def genie_ask(body: dict):
+    """Ask Genie server-side via the Conversation API (no iframe). Returns answer + SQL + rows."""
+    return genie_api.ask((body or {}).get("question", ""))
+
+
+@app.get("/api/ai/status")
+def ai_status():
+    """Is the registered agent endpoint live? Drives the 'served by' badge honestly."""
+    ep = config.resolve_agent_endpoint()
+    return {"agent_endpoint": ep or None, "endpoint_live": bool(ep), "fm_endpoint": config.FM_ENDPOINT,
+            "genie_space_id": config.GENIE_SPACE_ID}
+
+
 @app.post("/api/ai/review-selection")
 def ai_review_selection(body: dict):
     """AI peer-review of the actuary's in-progress factor selection (the Triangle page)."""
@@ -464,10 +478,12 @@ def governance():
         "recon": (f"SELECT round(SUM(incremental_paid),2) tri FROM {F('loss_development')}"),
         "recon_ledger": (f"SELECT round(SUM(amount),2) led FROM {F('1_raw_claim_transaction')} "
                          f"WHERE claim_transaction_type_code IN ('INDEMNITY_PAYMENT','EXPENSE_PAYMENT','RECOVERY')"),
+        "ai": (f"SELECT surface, specialist_key, endpoint, served_by, was_cached, created_at "
+               f"FROM {F('5_ai_routing_trace')} ORDER BY created_at DESC LIMIT 25"),
     })
     tri = float(q["recon"][0]["tri"]) if q["recon"] and q["recon"][0]["tri"] else 0
     led = float(q["recon_ledger"][0]["led"]) if q["recon_ledger"] and q["recon_ledger"][0]["led"] else 0
-    return {"audit": q["audit"], "models": q["models"], "signoff": q["signoff"],
+    return {"audit": q["audit"], "models": q["models"], "signoff": q["signoff"], "ai_activity": q["ai"],
             "reconciliation": {"triangle_paid": tri, "ledger_paid": led, "ties": abs(tri - led) < 1.0}}
 
 

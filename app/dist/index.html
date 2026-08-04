@@ -649,9 +649,15 @@ PAGE.ai=async()=>{
   <div class="card"><h2>The specialists</h2><div class="h-sub">Each is a governed FMAPI agent grounded on specific tables.</div>
     <div id="specgrid"></div>
   </div>
-  <div class="card"><h2>Ask the Triangle — Genie</h2><div class="h-sub">Free-form natural-language analytics over the reserving tables (AI/BI Genie), for the self-serve question.</div>
-    ${CFG.genie_embed_url?`<div style="border:1px solid var(--line);border-radius:10px;overflow:hidden"><iframe src="${CFG.genie_embed_url}"></iframe></div>`:'<div class="load">Genie space not configured.</div>'}
+  <div class="card"><h2>Ask the Triangle — Genie</h2><div class="h-sub">Free-form natural-language analytics over the reserving tables via the Genie Conversation API (server-side — governed SQL, same tables, no embed).</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <input id="gq" placeholder="e.g. Total IBNR by line of business / cohorts that breached validation" style="flex:1;min-width:300px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+      <button class="btn" id="gaskbtn">Ask Genie</button>
+    </div>
+    <div id="gout"></div>
   </div>${ABOUT}`);
+  document.getElementById('gaskbtn').onclick=()=>askGenie(document.getElementById('gq').value);
+  document.getElementById('gq').addEventListener('keydown',e=>{if(e.key==='Enter')askGenie(e.target.value);});
   // load specialist list from a probe call
   const probe=await API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({specialist:'senior_reserving'})});
   const specs=probe.specialists||[];
@@ -665,11 +671,22 @@ async function askAI(q){if(!q||!q.trim())return;document.getElementById('aiout')
   try{const r=await API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});renderAI(r);}catch(e){document.getElementById('aiout').innerHTML=`<div class="err">${e.message}</div>`;}}
 async function askSpecialist(k){document.getElementById('aiout').innerHTML='<div class="load">Asking…</div>';
   try{const r=await API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({specialist:k})});renderAI(r);}catch(e){document.getElementById('aiout').innerHTML=`<div class="err">${e.message}</div>`;}}
+function servedPill(r){const s=r.served_by;
+  if(s==='agent_endpoint')return '<span class="pill pill-green" style="margin-left:6px">agent endpoint</span>';
+  if(s==='cache')return '<span class="pill pill-slate" style="margin-left:6px">cached</span>';
+  return '<span class="pill pill-amber" style="margin-left:6px">FMAPI fallback</span>';}
 function renderAI(r){document.getElementById('aiout').innerHTML=`
   <div style="margin-bottom:6px"><span class="pill pill-violet">${r.specialist_name}</span>
     ${r.reason?`<span style="color:var(--mut);font-size:12px;margin-left:8px">routed: ${r.reason}${r.confidence?` (${Math.round(r.confidence*100)}%)`:''}</span>`:''}
-    ${r.cached?'<span class="pill pill-slate" style="margin-left:6px">cached</span>':'<span class="pill pill-green" style="margin-left:6px">live</span>'}</div>
-  <div class="brief"><span class="tag">${r.specialist_name} · ${r.model}</span>${(r.text||'').replace(/</g,'&lt;')}</div>`;}
+    ${servedPill(r)}</div>
+  <div class="brief"><span class="tag">${r.specialist_name} · ${r.model||''}</span>${(r.text||'').replace(/</g,'&lt;')}</div>`;}
+async function askGenie(q){if(!q||!q.trim())return;document.getElementById('gout').innerHTML='<div class="load">Asking Genie (Conversation API)…</div>';
+  try{const r=await API('/api/genie/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+    let h=`<div class="brief"><span class="tag">Genie · Conversation API</span>${(r.answer||'').replace(/</g,'&lt;')}</div>`;
+    if(r.sql)h+=`<div class="mono" style="margin-top:8px;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:11.5px;white-space:pre-wrap">${r.sql.replace(/</g,'&lt;')}</div>`;
+    if(r.rows&&r.rows.length){h+=`<table style="margin-top:10px"><thead><tr>${(r.columns||[]).map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${r.rows.slice(0,10).map(row=>`<tr>${row.map(c=>`<td>${c==null?'':c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;}
+    document.getElementById('gout').innerHTML=h;
+  }catch(e){document.getElementById('gout').innerHTML=`<div class="err">${e.message}</div>`;}}
 
 PAGE.governance=async()=>{
   const g=await API('/api/governance');
@@ -695,7 +712,12 @@ PAGE.governance=async()=>{
     ${(g.audit||[]).map(e=>`<tr><td class="mono" style="font-size:11px">${(e.created_at||'').slice(0,19).replace('T',' ')}</td><td><span class="pill pill-slate">${e.event_type.replace(/_/g,' ')}</span></td><td class="mono" style="font-size:11px">${e.entity_id||'—'}</td><td style="color:var(--mut);font-size:12px">${(e.detail||'').slice(0,90)}</td><td>${e.actor}</td></tr>`).join('')}
     </tbody></table>
     <details class="why"><summary>Assets this workbench owns (asset labelling)</summary><div id="assetsblock" style="margin-top:8px"><span class="load">Loading…</span></div></details>
-    </div>${ABOUT}`);
+    </div>
+  <div class="card"><h2>AI activity — every model call, governed</h2><div class="h-sub">Each supervisor / specialist / peer-review / Genie call, with how it was served. AI is governed like any other action.</div>
+    <table><thead><tr><th>When</th><th>Surface</th><th>Specialist</th><th>Endpoint</th><th>Served by</th></tr></thead><tbody>
+    ${(g.ai_activity||[]).map(a=>{const sb=a.served_by;const pill=sb==='agent_endpoint'?'pill-green':(sb==='cache'?'pill-slate':(sb==='genie'?'pill-violet':'pill-amber'));
+      return `<tr><td class="mono" style="font-size:11px">${(a.created_at||'').slice(0,19).replace('T',' ')}</td><td>${a.surface}</td><td>${(a.specialist_key||'—').replace(/_/g,' ')}</td><td class="mono" style="font-size:11px">${(a.endpoint||'—')}</td><td><span class="pill ${pill}">${(sb||'').replace(/_/g,' ')}</span></td></tr>`;}).join('')||'<tr><td colspan="5" class="load">No AI calls yet this session.</td></tr>'}
+    </tbody></table></div>${ABOUT}`);
   try{const a=await API('/api/assets');
     document.getElementById('assetsblock').innerHTML=
       `<div style="margin-bottom:8px">${(a.tags||[]).map(t=>`<span class="pill pill-slate" style="margin:3px 5px 3px 0">${t.tag_name} = ${t.tag_value} (${t.n})</span>`).join('')}</div>`+

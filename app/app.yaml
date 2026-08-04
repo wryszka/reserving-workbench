@@ -15,5 +15,7 @@ env:
     value: "Bricksurance SE"
   - name: GENIE_SPACE_ID
     value: "01f18a8f41b816de883bd1a069353c7b"
+  - name: AGENT_ENDPOINT_SUBSTR
+    value: "reserving"
   - name: HUB_APP_URL
     value: "https://actuarial-workbench-7474656169654171.aws.databricksapps.com"

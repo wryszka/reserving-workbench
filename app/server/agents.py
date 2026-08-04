@@ -10,9 +10,59 @@ The supervisor classifies a free-text question and routes to one specialist.
 """
 import hashlib
 import json
+import uuid
 from . import config, sql
 
 F = config.fqn
+
+
+# --------------------------------------------------------------------- governance trace
+def trace(surface, specialist_key, question, endpoint, served_by, confidence=None,
+          it=None, ot=None, cached=False):
+    """Record every AI call in 5_ai_routing_trace for governance."""
+    try:
+        tid = uuid.uuid4().hex
+        q = sql.esc((question or "")[:2000])
+        sql.query(
+            f"INSERT INTO {F('5_ai_routing_trace')} (trace_id, surface, specialist_key, question, "
+            f"endpoint, served_by, confidence, input_tokens, output_tokens, was_cached, created_at, created_by) "
+            f"VALUES ('{tid}', '{sql.esc(surface)}', {('NULL' if not specialist_key else chr(39)+sql.esc(specialist_key)+chr(39))}, "
+            f"'{q}', {('NULL' if not endpoint else chr(39)+sql.esc(endpoint)+chr(39))}, '{sql.esc(served_by)}', "
+            f"{confidence if confidence is not None else 'NULL'}, {it if it is not None else 'NULL'}, "
+            f"{ot if ot is not None else 'NULL'}, {'true' if cached else 'false'}, current_timestamp(), "
+            f"'app-sp')")
+    except Exception:
+        pass
+
+
+def _invoke_endpoint(question, specialist):
+    """Invoke the registered reserving-agent serving endpoint. Returns dict or None if unavailable/cold."""
+    ep = config.resolve_agent_endpoint()
+    if not ep:
+        return None
+    try:
+        import requests
+        host = config.workspace_host()
+        tok = config.get_workspace_client().config.token
+        body = {"dataframe_records": [{"messages": [{"role": "user", "content": question or "brief the committee"}],
+                                       "custom_inputs": {"specialist": specialist} if specialist else {}}]}
+        r = requests.post(f"{host}/serving-endpoints/{ep}/invocations",
+                          headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"},
+                          json=body, timeout=60)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        preds = data.get("predictions") or data
+        pred = preds[0] if isinstance(preds, list) else preds
+        msgs = pred.get("messages") or []
+        text = (msgs[0].get("content") if msgs and isinstance(msgs[0], dict) else "") or ""
+        co = pred.get("custom_outputs") or {}
+        return {"text": text, "endpoint": ep, "specialist_key": co.get("specialist_key"),
+                "specialist_name": co.get("specialist_name"), "confidence": co.get("confidence"),
+                "reason": co.get("reason"), "model": co.get("model") or ep,
+                "it": co.get("input_tokens"), "ot": co.get("output_tokens")}
+    except Exception:
+        return None
 
 
 # --------------------------------------------------------------------- cache
@@ -175,7 +225,21 @@ def _prompt_for(key, facts):
 
 
 def ask(question=None, specialist=None):
-    """Supervisor entry: classify (unless a specialist is named) → run → return with routing trace."""
+    """Supervisor entry. Tries the REGISTERED reserving-agent serving endpoint first (Agent
+    Framework); falls back to inline FMAPI if the endpoint is cold/undeployed. Every call is
+    traced in 5_ai_routing_trace for governance, honestly tagged with how it was served."""
+    spec_list = [{"key": k, "name": v["name"], "scope": v["scope"]} for k, v in SPECIALISTS.items()]
+    # 1) try the registered agent endpoint (the real Databricks agent)
+    ep = _invoke_endpoint(question, specialist if specialist in SPECIALISTS else None)
+    if ep and ep.get("text"):
+        key = ep.get("specialist_key") or (specialist if specialist in SPECIALISTS else "senior_reserving")
+        trace("supervisor", key, question, ep.get("endpoint"), "agent_endpoint",
+              ep.get("confidence"), ep.get("it"), ep.get("ot"), False)
+        return {"specialist_key": key, "specialist_name": ep.get("specialist_name") or SPECIALISTS.get(key, {}).get("name", key),
+                "confidence": ep.get("confidence"), "reason": ep.get("reason") or "routed by the agent endpoint",
+                "text": ep["text"], "model": ep.get("model"), "cached": False,
+                "served_by": "agent_endpoint", "specialists": spec_list}
+    # 2) fallback: inline FMAPI (cache-first)
     facts = _facts()
     if specialist and specialist in SPECIALISTS:
         key, conf, reason = specialist, 1.0, "explicitly selected"
@@ -186,7 +250,8 @@ def ask(question=None, specialist=None):
     s = SPECIALISTS[key]
     prompt = _prompt_for(key, facts)
     r = _fm(s["system"], prompt, key, question or s["name"])
-    # log the agent call
+    served = "cache" if r.get("cached") else "fmapi_fallback"
+    trace("supervisor", key, question, config.FM_ENDPOINT, served, conf, cached=r.get("cached", False))
     try:
         det = sql.esc((question or s["name"])[:500])
         sql.query(f"INSERT INTO {F('5_gov_audit_event')} (event_id, event_type, entity_type, entity_id, detail, actor, created_at) "
@@ -195,7 +260,7 @@ def ask(question=None, specialist=None):
         pass
     return {"specialist_key": key, "specialist_name": s["name"], "confidence": conf, "reason": reason,
             "text": r["text"], "model": r["model"], "cached": r.get("cached", False),
-            "specialists": [{"key": k, "name": v["name"], "scope": v["scope"]} for k, v in SPECIALISTS.items()]}
+            "served_by": served, "specialists": spec_list}
 
 
 def warm_cache():
