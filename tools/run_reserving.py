@@ -355,6 +355,39 @@ def main():
         ["event_id", "event_type", "entity_type", "entity_id", "detail", "actor", "created_at"], ae_rows)
     print(f"5_gov_audit_event: {len(ae_rows)} rows")
 
+    # ---- ingestion: data feeds + DQ expectations ----
+    feeds = [
+        ("FEED-CLAIMS", "Claims — One Shield", "CLAIMS_CORE", 4679, 4600, "accepted", 98.5),
+        ("FEED-PREMIUM", "Premium — Discovery (federated)", "CLAIMS_CORE", 1720, 1700, "accepted", 100.0),
+        ("FEED-EXPOSURE", "Exposure — policy admin", "CLAIMS_CORE", 172, 172, "accepted", 100.0),
+        ("FEED-LARGELOSS", "Large-loss bordereau", "EXTERNAL_RESERVING_TOOL", 12, 12, "late", 91.7),
+    ]
+    feed_rows = [dict(feed_id=f, feed_name=n, source_system_code=s, valuation_date=VAL_DATE,
+        rows_received=rr, rows_expected=re_, arrived_at=now, status=st, dq_pass_pct=dq)
+        for f, n, s, rr, re_, st, dq in feeds]
+    overwrite(w, wid, "1_raw_data_feed",
+        ["feed_id", "feed_name", "source_system_code", "valuation_date", "rows_received",
+         "rows_expected", "arrived_at", "status", "dq_pass_pct"], feed_rows)
+    print(f"1_raw_data_feed: {len(feed_rows)} rows")
+
+    dq = [
+        ("FEED-CLAIMS", "Row count within 2% of prior period", "critical", True, 0, "4,679 vs 4,600 expected (+1.7%)"),
+        ("FEED-CLAIMS", "No negative indemnity paid", "critical", True, 0, "all payments non-negative"),
+        ("FEED-CLAIMS", "Accident year not in the future", "critical", True, 0, "max AY 2026"),
+        ("FEED-CLAIMS", "Claim id present and unique", "critical", True, 0, "no nulls, no dupes"),
+        ("FEED-CLAIMS", "Currency in {GBP,EUR,USD}", "warning", True, 0, "all GBP"),
+        ("FEED-PREMIUM", "Row count within 2% of prior period", "critical", True, 0, "within tolerance"),
+        ("FEED-PREMIUM", "Premium positive", "critical", True, 0, "all positive"),
+        ("FEED-EXPOSURE", "Policy id joins to claims", "warning", True, 0, "all matched"),
+        ("FEED-LARGELOSS", "Bordereau total ties to claims ledger", "critical", False, 1, "1 large loss (CLM-2023-ANOMALY) not yet in ledger — quarantined pending reconciliation"),
+        ("FEED-LARGELOSS", "Threshold field populated", "warning", True, 0, "all populated"),
+    ]
+    dq_rows = [dict(expectation_id=f"DQ-{i:03d}", feed_id=fid, expectation_name=nm, severity=sv,
+        passed=ps, failed_rows=fr, detail=dt) for i, (fid, nm, sv, ps, fr, dt) in enumerate(dq, 1)]
+    overwrite(w, wid, "1_raw_dq_expectation",
+        ["expectation_id", "feed_id", "expectation_name", "severity", "passed", "failed_rows", "detail"], dq_rows)
+    print(f"1_raw_dq_expectation: {len(dq_rows)} rows")
+
     # reconciliation gate
     bad = read_df(w, wid, f"""SELECT COUNT(*) n FROM {FQ}.reserve_estimate
         WHERE abs((paid_to_date + case_reserves + ibnr) - ultimate_loss) >= 1.0""")

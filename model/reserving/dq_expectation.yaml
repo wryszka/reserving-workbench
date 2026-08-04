@@ -1,0 +1,55 @@
+kind: entity
+name: 1_raw_dq_expectation
+domain: reserving
+title: Data-Quality Expectation
+description: >
+  The data-quality checks ("expectations") run on each ingested feed before it is
+  fit to reserve on — row-count reconciliation, no negative paids, accident year
+  not in the future, claim ids present, currency valid. Each expectation passes or
+  fails with a count; a failing critical expectation blocks acceptance of the feed.
+  This is the "is my data trustworthy?" gate every actuary wants but rarely has.
+grain: One row per expectation per feed per valuation date.
+tags:
+  project: reserving-workbench
+  layer: raw
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: expectation_id
+    type: string
+    required: true
+    description: Identifier for the expectation result.
+    classification: internal
+  - name: feed_id
+    type: string
+    required: true
+    description: The feed this expectation was run on.
+    classification: internal
+  - name: expectation_name
+    type: string
+    required: true
+    description: The check (e.g. 'row count within 2% of prior', 'no negative indemnity paid').
+    classification: internal
+  - name: severity
+    type: string
+    required: true
+    description: Severity — critical (blocks acceptance) or warning.
+    classification: internal
+  - name: passed
+    type: boolean
+    required: true
+    description: Whether the expectation passed.
+    classification: internal
+  - name: failed_rows
+    type: integer
+    required: true
+    description: Number of rows that failed the check (0 if passed).
+    classification: internal
+  - name: detail
+    type: string
+    required: false
+    description: Human-readable detail of the result.
+    classification: internal
+keys:
+  primary: [expectation_id]
+owner: Chief Actuary

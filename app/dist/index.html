@@ -85,6 +85,13 @@
   .lin .node.on{border-color:var(--green);background:var(--greenbg)} .lin .a{color:var(--mut);font-size:16px}
   iframe{width:100%;height:680px;border:0;border-radius:10px}
   .step-table td:nth-child(2){white-space:normal}
+  .doors{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .door{border:1px solid var(--line);border-radius:10px;padding:14px 15px;cursor:pointer;background:#fff;transition:box-shadow .12s,transform .12s}
+  .door:hover{box-shadow:0 4px 16px rgba(15,23,42,.08);transform:translateY(-1px)}
+  .door .dn{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);font-weight:700}
+  .door .dt{font-size:14.5px;font-weight:700;margin-top:3px}
+  .door .dd{font-size:12px;color:var(--mut);margin-top:5px;line-height:1.5}
+  .door .dgo{font-size:12px;font-weight:700;color:var(--blue);margin-top:9px}
 </style>
 </head>
 <body>
@@ -96,6 +103,9 @@
     </div>
     <div class="nav" id="nav"></div>
     <div class="side-foot">
+      <a onclick="go('learn')" id="learnTile" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;border:1px solid rgba(52,211,153,.25);background:rgba(52,211,153,.08);color:#a7f3d0;cursor:pointer;margin-bottom:10px;text-decoration:none">
+        <span style="font-size:15px">🎓</span><span><span style="font-weight:700;font-size:12px;display:block;line-height:1.2">Learn</span><span style="font-size:10px;color:#6ee7b7">How reserving works</span></span>
+      </a>
       <div style="display:flex;gap:6px;margin-bottom:8px">
         <button id="cacheBtn" onclick="toggleCache()" style="flex:1;font-size:10.5px;font-weight:700;padding:6px;border-radius:7px;border:1px solid rgba(52,211,153,.4);background:rgba(52,211,153,.12);color:#34d399;cursor:pointer">AI: cached</button>
         <button onclick="resetDemo()" style="flex:1;font-size:10.5px;font-weight:700;padding:6px;border-radius:7px;border:1px solid rgba(148,163,184,.3);background:rgba(148,163,184,.1);color:#cbd5e1;cursor:pointer">Reset demo</button>
@@ -113,34 +123,27 @@ const fmt=(n)=> n==null||n===''?'—':Number(n).toLocaleString('en-GB',{maximumF
 const money=(n)=> n==null||n===''?'—':'£'+fmt(n);
 let CFG={};
 
-const PAGES=[
-  ["overview","Today — close cockpit","▤"],
-  ["triangle","Triangle & LDF selection","△"],
-  ["methodology","Methodology library","▦"],
-  ["estimates","Reserve estimates","∑"],
-  ["variability","Reserve ranges","∿"],
-  ["largeloss","Large-loss review","◎"],
-  ["diagnostics","Validation diagnostics","◫"],
-  ["movement","Movement & roll-forward","⇅"],
-  ["judgements","Expert judgement","⚖"],
-  ["committee","Committee","◆"],
-  ["ai","Workbench AI","✦"],
-  ["genie","Ask the Triangle","✦"],
-  ["engines","External engines (ResQ)","⚙"],
-  ["governance","Governance & sign-off","⬡"],
-  ["learn","Learn","✎"],
-  ["assets","Assets","▦"],
+// grouped navigation — a landing "Today", then the actuarial workflow in 4 sections.
+// Dashboards merged: methods (methodology+estimates+ranges), diagnostics (validation+movement+large-loss),
+// ai (workbench AI + Genie), governance (+assets). ~10 destinations in 4 groups.
+const NAV=[
+  {section:null, items:[["overview","Today","▤"]]},
+  {section:"Prepare", items:[["ingestion","Ingestion & data quality","⇩"],["triangle","Triangle & selection","△"]]},
+  {section:"Analyse", items:[["methods","Methods & estimates","∑"],["diagnostics","Diagnostics","◫"]]},
+  {section:"Decide", items:[["judgements","Expert judgement","⚖"],["committee","Committee","◆"],["governance","Governance & sign-off","⬡"]]},
+  {section:"AI & platform", items:[["ai","Workbench AI","✦"],["engines","External engines (ResQ)","⚙"]]},
 ];
-// nav section boundaries (after which key a section header is inserted)
-const NAV_SECTIONS={overview:"Reserving process", ai:"AI & governance"};
+const PAGES=NAV.flatMap(g=>g.items);
 let CURRENT="overview", LOB="COMMERCIAL_PROPERTY";
 
 function renderNav(){
-  const nav=document.getElementById('nav'); nav.innerHTML='<div class="nav-section">Reserving process</div>';
-  PAGES.forEach(([id,label,ic])=>{
-    if(NAV_SECTIONS[id]&&id!=='overview'){const s=document.createElement('div');s.className='nav-section';s.textContent=NAV_SECTIONS[id];nav.appendChild(s);}
-    const a=document.createElement('a'); a.className=(id===CURRENT?'active':'');
-    a.innerHTML=`<span class="ic">${ic}</span> ${label}`; a.onclick=()=>go(id); nav.appendChild(a);
+  const nav=document.getElementById('nav'); nav.innerHTML='';
+  NAV.forEach(g=>{
+    if(g.section){const s=document.createElement('div');s.className='nav-section';s.textContent=g.section;nav.appendChild(s);}
+    g.items.forEach(([id,label,ic])=>{
+      const a=document.createElement('a'); a.className=(id===CURRENT?'active':'');
+      a.innerHTML=`<span class="ic">${ic}</span> ${label}`; a.onclick=()=>go(id); nav.appendChild(a);
+    });
   });
 }
 function go(id){CURRENT=id;renderNav();route();}
@@ -190,14 +193,24 @@ PAGE.overview=async()=>{
       <button class="btn" style="padding:5px 11px" onclick="go('triangle')">Review →</button></div></div>`).join('')||'<div style="color:var(--green)">Nothing outside tolerance — clean close.</div>'}
     ${a.large_losses>0?`<div style="margin-top:10px;color:var(--mut);font-size:12.5px">${a.large_losses} large loss flagged for individual treatment (distorts a factor).</div>`:''}
   </div>
+  <div class="card"><h2>The close, end to end</h2><div class="h-sub">Four steps, one governed flow. Jump in anywhere.</div>
+    <div class="doors">
+      ${[["ingestion","1 · Prepare","Ingestion & data quality","Land and quality-check every feed before you reserve on it.","#2563eb"],
+         ["triangle","2 · Select","Triangle & selection","Review factors, override the anomaly, elect — with an AI peer review.","#2563eb"],
+         ["diagnostics","3 · Analyse","Methods, ranges & diagnostics","Estimates, uncertainty, validation and the movement story.","#6d28d9"],
+         ["governance","4 · Sign off","Governance & sign-off","Reconcile, audit, and put your name to the number — reproducibly.","#16a34a"]
+      ].map(d=>`<div class="door" onclick="go('${d[0]}')" style="border-top:3px solid ${d[4]}">
+        <div class="dn">${d[1]}</div><div class="dt">${d[2]}</div><div class="dd">${d[3]}</div><div class="dgo">Open →</div></div>`).join('')}
+    </div>
+  </div>
   <div class="row">
     <div class="card" style="flex:1;min-width:280px"><h2>Sign-off status</h2><div class="h-sub">Where each line stands for this close.</div>
       <table><thead><tr><th>Line of business</th><th class="num">Best estimate</th><th>Status</th></tr></thead><tbody>
       ${(a.signoff||[]).map(s=>`<tr><td>${s.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(s.signed_best_estimate)}</td><td><span class="pill ${s.status_code==='APPROVED'?'pill-green':'pill-amber'}">${s.status_code==='APPROVED'?'signed':'pending'}</span></td></tr>`).join('')}
       </tbody></table></div>
-    <div class="card" style="flex:1;min-width:280px"><h2>Two ways in</h2><div class="h-sub">The same triangle machinery, two teams.</div>
-      <div style="padding:10px 0;border-bottom:1px solid var(--line)"><b>Reserving actuary</b> — book the reserve: select factors, validate, judge, sign off. <a onclick="go('triangle')" style="cursor:pointer">Start →</a></div>
-      <div style="padding:10px 0"><b>Pricing analyst</b> — develop losses to ultimate for the rate <b>indication</b>. Same triangle, feeds the indicated rate not the balance sheet. <a onclick="go('triangle')" style="cursor:pointer">Start →</a></div>
+    <div class="card" style="flex:1;min-width:280px"><h2>Two teams, one triangle</h2><div class="h-sub">The same machinery, framed for each.</div>
+      <div style="padding:10px 0;border-bottom:1px solid var(--line)"><b>Reserving actuary</b> — book the reserve: select factors, validate, judge, sign off.</div>
+      <div style="padding:10px 0"><b>Pricing analyst</b> — develop losses to ultimate for the rate <b>indication</b>: same triangle, feeds the indicated rate, not the balance sheet.</div>
     </div>
   </div>
   <details class="why"><summary>The full lifecycle (${lc.built}/${lc.total} stages built)</summary>
@@ -206,6 +219,30 @@ PAGE.overview=async()=>{
   </tbody></table></details>
   ${ABOUT}`);
 };
+
+PAGE.ingestion=async()=>{
+  const d=await API('/api/ingestion');
+  const feeds=d.feeds||[]; const exp=d.expectations||[];
+  const statusPill=(s)=>({accepted:'pill-green',arrived:'pill-blue',late:'pill-amber',quarantined:'pill-red'}[s]||'pill-slate');
+  main(`<h1>Ingestion &amp; data quality</h1><p class="sub">The front door. Every source landed and quality-checked before you reserve on it.</p>
+  ${explain(`Everyone struggles with this: loss data lands late and dirty. Here each feed's arrival, row count and data-quality score are visible before any reserving work. Data-quality "expectations" pass or fail per feed; a failing <b>critical</b> check quarantines the feed and blocks acceptance until an actuary resolves it. Accepting a feed is a human-in-the-loop action, and it's audited.`)}
+  <div class="card"><h2>Source feeds — Q4 close</h2><div class="h-sub">Federation to Discovery for premium; One Shield for claims. Accept a clean feed into the reserving mart.</div>
+    <table><thead><tr><th>Feed</th><th>Source</th><th class="num">Rows</th><th class="num">DQ pass</th><th>Status</th><th></th></tr></thead><tbody>
+    ${feeds.map(f=>{const dq=Number(f.dq_pass_pct); return `<tr><td><b>${f.feed_name}</b></td><td class="mono" style="font-size:11px">${f.source_system_code}</td><td class="num">${fmt(f.rows_received)}${f.rows_expected?`<span style="color:var(--mut)"> / ${fmt(f.rows_expected)}</span>`:''}</td><td class="num" style="color:${dq>=99?'#16a34a':(dq>=95?'#d97706':'#dc2626')}">${dq.toFixed(1)}%</td><td><span class="pill ${statusPill(f.status)}">${f.status}</span></td><td>${f.status==='accepted'?'':`<button class="btn" style="padding:5px 11px" onclick="acceptFeed('${f.feed_id}')">Accept</button>`}</td></tr>`;}).join('')}
+    </tbody></table><span id="ingmsg" style="font-size:12.5px;color:var(--mut)"></span>
+  </div>
+  <div class="card"><h2>Data-quality expectations</h2><div class="h-sub">The checks each feed must pass. A failing critical check blocks acceptance.</div>
+    <table><thead><tr><th>Feed</th><th>Expectation</th><th>Severity</th><th class="num">Failed rows</th><th>Result</th><th>Detail</th></tr></thead><tbody>
+    ${exp.map(e=>{const ok=(e.passed===true||e.passed==='true'); return `<tr><td class="mono" style="font-size:11px">${e.feed_id.replace('FEED-','')}</td><td>${e.expectation_name}</td><td><span class="pill ${e.severity==='critical'?'pill-red':'pill-slate'}">${e.severity}</span></td><td class="num">${e.failed_rows}</td><td><span class="pill ${ok?'pill-green':'pill-red'}">${ok?'pass':'FAIL'}</span></td><td style="color:var(--mut);font-size:12px">${e.detail||''}</td></tr>`;}).join('')}
+    </tbody></table>
+    <details class="why"><summary>The narrative thread</summary><div>The large-loss bordereau fails a critical check — CLM-2023-ANOMALY isn't yet in the claims ledger, so it's quarantined. That same late large loss is what distorts the AY2023 development factor on the Triangle page. Ingestion, selection and governance are one connected story.</div></details>
+  </div>${ABOUT}`);
+};
+async function acceptFeed(id){const m=document.getElementById('ingmsg');m.textContent='Accepting '+id+'…';
+  try{const r=await API('/api/ingestion/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({feed_id:id})});
+    if(r.ok){m.innerHTML=`<span style="color:#16a34a">✓ ${id} accepted by ${r.by}. Refreshing…</span>`;setTimeout(()=>PAGE.ingestion(),800);}
+    else m.innerHTML=`<span style="color:#dc2626">${r.error}</span>`;}
+  catch(e){m.textContent='accept failed: '+e.message;}}
 
 // live state for the decision module (per page load)
 let SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, overrides:{}, empirical:{}, applied:{}, lags:[], overrode:false};
@@ -268,10 +305,12 @@ PAGE.triangle=async()=>{
       <label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Rationale <span id="ratreq" style="color:var(--red);display:none">(required for an override)</span></label>
       <textarea id="rationale" name="rationale" aria-label="Rationale" rows="2" placeholder="e.g. Held the prior 12–24m factor: AY2023 empirical spike is one late-reported large loss, reserved individually." style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
     </div>
-    <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn" id="elect">Elect &amp; save selection</button>
+      <button class="btn" id="reviewbtn" style="background:#ede9fe;color:#6d28d9">🔍 AI peer review</button>
       <span id="electmsg" style="font-size:12.5px;color:var(--mut)"></span>
     </div>
+    <div id="reviewout" style="margin-top:12px"></div>
   </div>
 
   <div class="card"><h2>Selection audit trail</h2>
@@ -288,6 +327,7 @@ PAGE.triangle=async()=>{
   document.getElementById('tail').onchange=(e)=>{SEL.tail=parseFloat(e.target.value)||1.01;recompute(false);};
   document.getElementById('resetf').onclick=()=>{SEL.overrides={};recompute(true);};
   document.getElementById('elect').onclick=doElect;
+  document.getElementById('reviewbtn').onclick=doReview;
   recompute(true);   // initial compute fills the factor inputs
 };
 
@@ -364,6 +404,39 @@ async function doElect(ev){
   btn.disabled=false;
 }
 
+async function doReview(ev){
+  const btn=ev.target, out=document.getElementById('reviewout');
+  const proposed=SEL.lags.map(l=>{const inp=document.querySelector(`.fin[data-lag="${l}"]`);return parseFloat(inp.value);});
+  const empirical=SEL.lags.map(l=>SEL.empirical[l]);
+  const rationale=document.getElementById('rationale').value;
+  btn.disabled=true; out.innerHTML='<div class="load">The peer reviewer is checking your selection…</div>';
+  try{
+    const r=await API('/api/ai/review-selection',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lob:LOB,proposed_factors:proposed,empirical_factors:empirical,prior_factors:[],overrode:SEL.overrode,rationale})});
+    out.innerHTML=`<div class="brief"><span class="tag">${r.specialist_name} · ${r.model}${r.cached?' · cached':''}</span>${(r.text||'').replace(/</g,'&lt;')}</div>`;
+  }catch(e){out.innerHTML=`<div class="err">Review failed: ${e.message}</div>`;}
+  btn.disabled=false;
+}
+
+PAGE.methods=async()=>{
+  const [m,e,v]=await Promise.all([API('/api/methodology'),API('/api/estimates'),API('/api/variability')]);
+  main(`<h1>Methods &amp; estimates</h1><p class="sub">The methodology library, the reserve estimates it produces, and the uncertainty around them.</p>
+  ${explain(`Each method is a governed Unity Catalog model; swapping method writes a new estimate, never an overwrite, so every basis is comparable. Estimates reconcile to the penny (paid + case + IBNR = ultimate). The ranges (Mack CoV / percentiles) turn the point estimate into the distribution Solvency II and IFRS 17 need.`)}
+  <div class="card"><h2>Methodology library</h2><div class="h-sub">Each method registered + versioned in Unity Catalog.</div>
+  <table><thead><tr><th>Method</th><th>UC model</th><th class="num">Ver</th><th>Alias</th><th>Distribution</th><th>Owner</th></tr></thead><tbody>
+  ${m.methods.map(x=>`<tr><td><b>${x.reserving_method_code.replace(/_/g,' ')}</b></td><td class="mono">${x.uc_model_name.split('.').pop()}</td><td class="num">${x.model_version}</td><td><span class="pill pill-green">${x.alias||'—'}</span></td><td>${x.produces_distribution==='true'||x.produces_distribution===true?'✓':'—'}</td><td>${x.owner_role}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="card"><h2>Reserve estimates</h2><div class="h-sub">Per accident year × method — reconciling to the penny.</div>
+  <table><thead><tr><th>LOB</th><th class="num">AY</th><th>Method</th><th class="num">Paid</th><th class="num">Ultimate</th><th class="num">IBNR</th><th class="num">Std err</th></tr></thead><tbody>
+  ${e.estimates.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td>${r.reserving_method_code.replace(/_/g,' ')}</td><td class="num">${money(r.paid_to_date)}</td><td class="num">${money(r.ultimate_loss)}</td><td class="num">${money(r.ibnr)}</td><td class="num">${r.ultimate_std_error?money(r.ultimate_std_error):'—'}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="card"><h2>Reserve ranges</h2><div class="h-sub">Best estimate AND how uncertain — the input for SII risk margin / IFRS 17 risk adjustment.</div>
+  <table><thead><tr><th>LOB</th><th class="num">Best estimate</th><th class="num">Std error</th><th class="num">CoV</th><th class="num">75th</th><th class="num">95th</th></tr></thead><tbody>
+  ${v.rows.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.best_estimate)}</td><td class="num">${money(r.standard_error)}</td><td class="num">${(Number(r.coefficient_of_variation)*100).toFixed(1)}%</td><td class="num">${money(r.percentile_75)}</td><td class="num">${money(r.percentile_95)}</td></tr>`).join('')}
+  </tbody></table></div>
+  ${ABOUT}`);
+};
+
 PAGE.methodology=async()=>{
   const m=await API('/api/methodology');
   main(`<h1>Methodology library</h1><p class="sub">Every reserving method registered in Unity Catalog and governed identically.</p>
@@ -418,13 +491,25 @@ PAGE.movement=async()=>{
 };
 
 PAGE.diagnostics=async()=>{
-  const d=await API('/api/diagnostics');
-  main(`<h1>Validation diagnostics</h1><p class="sub">Actual-vs-expected on a rolling cohort — the model-validation feedback loop.</p>
-  ${explain(`For each cohort, what the prior valuation expected to emerge vs what actually did. The standardised residual scales the variance by its expected error; beyond ±2.5 breaches tolerance (<span style="color:#dc2626;font-weight:700">flagged</span>) and needs an actuary's eye — how the workbench validates its own methods.`)}
-  <div class="row"><div class="tile"><div class="k">Cohorts breaching tolerance</div><div class="v">${(d.breaches&&d.breaches.breaches)||0}</div></div></div>
-  <div class="card"><table><thead><tr><th>LOB</th><th class="num">AY</th><th class="num">Expected</th><th class="num">Actual</th><th class="num">Variance</th><th class="num">Std resid</th><th>Status</th></tr></thead><tbody>
-  ${d.actual_vs_expected.map(r=>{const ok=r.within_tolerance==='true'||r.within_tolerance===true;return `<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td class="num">${money(r.expected_emergence)}</td><td class="num">${money(r.actual_emergence)}</td><td class="num">${money(r.variance)}</td><td class="num">${Number(r.standardised_residual).toFixed(2)}</td><td><span class="pill ${ok?'pill-green':'pill-red'}">${ok?'within':'BREACH'}</span></td></tr>`;}).join('')}
-  </tbody></table></div>${ABOUT}`);
+  const [d,rf,l]=await Promise.all([API('/api/diagnostics'),API('/api/rollforward?lob=COMMERCIAL_PROPERTY'),API('/api/large-losses')]);
+  const money0=(n)=>(n>=0?'+':'')+money(n);
+  main(`<h1>Diagnostics</h1><p class="sub">Validate the methods, explain the movement, and separate the large losses.</p>
+  ${explain(`Three checks in one place. <b>Actual-vs-expected</b> validates the methods against emerging experience — breaches beyond ±2.5 are flagged. <b>Roll-forward</b> answers "why did reserves move?" by driver. <b>Large-loss review</b> separates the individual claims that distort factors (and drive overrides) from attritional experience.`)}
+  <div class="row"><div class="tile"><div class="k">Cohorts breaching tolerance</div><div class="v">${(d.breaches&&d.breaches.breaches)||0}</div></div>
+    <div class="tile"><div class="k">Large losses flagged</div><div class="v">${(l.rows||[]).length}</div></div></div>
+  <div class="card"><h2>Actual-vs-expected validation</h2><div class="h-sub">Prior expectation vs what emerged; the residual flags what needs an actuary's eye.</div>
+    <table><thead><tr><th>LOB</th><th class="num">AY</th><th class="num">Expected</th><th class="num">Actual</th><th class="num">Variance</th><th class="num">Std resid</th><th>Status</th></tr></thead><tbody>
+    ${d.actual_vs_expected.map(r=>{const ok=r.within_tolerance==='true'||r.within_tolerance===true;return `<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td class="num">${money(r.expected_emergence)}</td><td class="num">${money(r.actual_emergence)}</td><td class="num">${money(r.variance)}</td><td class="num">${Number(r.standardised_residual).toFixed(2)}</td><td><span class="pill ${ok?'pill-green':'pill-red'}">${ok?'within':'BREACH'}</span></td></tr>`;}).join('')}
+    </tbody></table></div>
+  <div class="card"><h2>Movement &amp; roll-forward — Commercial Property</h2><div class="h-sub">"Why did reserves move?" by driver.</div>
+    <table><thead><tr><th>Driver</th><th class="num">Amount</th></tr></thead><tbody>
+    ${(rf.rows||[]).map(r=>{const lvl=(r.driver==='opening'||r.driver==='closing');return `<tr${lvl?' style="font-weight:700;background:#f8fafc"':''}><td>${r.driver.replace(/_/g,' ')}</td><td class="num" style="color:${lvl?'var(--ink)':(r.amount>=0?'#dc2626':'#16a34a')}">${lvl?money(r.amount):money0(r.amount)}</td></tr>`;}).join('')}
+    </tbody></table>
+    <div style="margin-top:8px;color:var(--mut);font-size:12px">Ask the Movement Explainer agent to narrate this — see Workbench AI.</div></div>
+  <div class="card"><h2>Large-loss review</h2><div class="h-sub">Reserve large claims individually; remove them from the triangle used for selection.</div>
+    <table><thead><tr><th>Claim</th><th>LOB</th><th class="num">AY</th><th class="num">Incurred</th><th class="num">Threshold</th><th>Treatment</th><th>Distorts factor</th></tr></thead><tbody>
+    ${(l.rows||[]).map(r=>`<tr><td class="mono">${r.claim_id}</td><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td class="num">${money(r.incurred)}</td><td class="num">${money(r.threshold)}</td><td><span class="pill pill-blue">${r.treatment.replace(/_/g,' ')}</span></td><td>${r.distorts_factor==='true'||r.distorts_factor===true?'<span class="pill pill-red">yes</span>':'—'}</td></tr>`).join('')}
+    </tbody></table></div>${ABOUT}`);
 };
 
 PAGE.judgements=async()=>{
@@ -517,6 +602,9 @@ PAGE.ai=async()=>{
   </div>
   <div class="card"><h2>The specialists</h2><div class="h-sub">Each is a governed FMAPI agent grounded on specific tables.</div>
     <div id="specgrid"></div>
+  </div>
+  <div class="card"><h2>Ask the Triangle — Genie</h2><div class="h-sub">Free-form natural-language analytics over the reserving tables (AI/BI Genie), for the self-serve question.</div>
+    ${CFG.genie_embed_url?`<div style="border:1px solid var(--line);border-radius:10px;overflow:hidden"><iframe src="${CFG.genie_embed_url}"></iframe></div>`:'<div class="load">Genie space not configured.</div>'}
   </div>${ABOUT}`);
   // load specialist list from a probe call
   const probe=await API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({specialist:'senior_reserving'})});
@@ -559,7 +647,14 @@ PAGE.governance=async()=>{
   <div class="card"><h2>Audit trail — every action</h2><div class="h-sub">Append-only. Who, when, what.</div>
     <table><thead><tr><th>When</th><th>Action</th><th>Object</th><th>Detail</th><th>By</th></tr></thead><tbody>
     ${(g.audit||[]).map(e=>`<tr><td class="mono" style="font-size:11px">${(e.created_at||'').slice(0,19).replace('T',' ')}</td><td><span class="pill pill-slate">${e.event_type.replace(/_/g,' ')}</span></td><td class="mono" style="font-size:11px">${e.entity_id||'—'}</td><td style="color:var(--mut);font-size:12px">${(e.detail||'').slice(0,90)}</td><td>${e.actor}</td></tr>`).join('')}
-    </tbody></table></div>${ABOUT}`);
+    </tbody></table>
+    <details class="why"><summary>Assets this workbench owns (asset labelling)</summary><div id="assetsblock" style="margin-top:8px"><span class="load">Loading…</span></div></details>
+    </div>${ABOUT}`);
+  try{const a=await API('/api/assets');
+    document.getElementById('assetsblock').innerHTML=
+      `<div style="margin-bottom:8px">${(a.tags||[]).map(t=>`<span class="pill pill-slate" style="margin:3px 5px 3px 0">${t.tag_name} = ${t.tag_value} (${t.n})</span>`).join('')}</div>`+
+      `<div style="color:var(--mut);font-size:12px">${a.tables.length} governed objects in <span class="mono">${a.catalog}.${a.schema}</span>, all carrying the <span class="mono">[reserving-workbench]</span> comment + bxc_ tags. gen1 → gen2 is a single tag flip.</div>`;
+  }catch(e){}
 }
 async function signOff(lob){const m=document.getElementById('somsg');m.textContent='Signing off '+lob+'…';
   try{const r=await API('/api/signoff',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lob})});

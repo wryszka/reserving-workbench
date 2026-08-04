@@ -1,0 +1,66 @@
+kind: entity
+name: 1_raw_data_feed
+domain: reserving
+title: Data Feed (Ingestion)
+description: >
+  The source feeds a reserving close depends on — claims, premium, exposure,
+  reference — with their arrival status, row counts and where they came from.
+  This is the ingestion control surface: an actuary sees at a glance whether the
+  data they need has landed, is late, or is quarantined, before any reserving
+  work begins. Everyone struggles with this; it is the first thing a reserving
+  actuary looks at on the Monday of close.
+grain: One row per source feed per valuation date.
+tags:
+  project: reserving-workbench
+  layer: raw
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: feed_id
+    type: string
+    required: true
+    description: Identifier for the feed.
+    classification: internal
+  - name: feed_name
+    type: string
+    required: true
+    description: Business name of the feed (e.g. 'Claims — One Shield', 'Premium — Discovery').
+    classification: internal
+  - name: source_system_code
+    code_set: source_system
+    required: true
+    description: The system the feed comes from.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: The close the feed is for.
+    classification: internal
+  - name: rows_received
+    type: integer
+    required: true
+    description: Row count received.
+    classification: internal
+  - name: rows_expected
+    type: integer
+    required: false
+    description: Row count expected (from the prior period / control total).
+    classification: internal
+  - name: arrived_at
+    type: timestamp
+    required: false
+    description: When the feed landed; null if not yet arrived.
+    classification: internal
+  - name: status
+    type: string
+    required: true
+    description: Feed status — arrived / late / quarantined / accepted.
+    classification: internal
+  - name: dq_pass_pct
+    type: decimal(5,2)
+    required: false
+    description: Percentage of data-quality expectations passed.
+    classification: internal
+keys:
+  primary: [feed_id]
+owner: Chief Actuary

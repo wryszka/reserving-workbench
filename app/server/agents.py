@@ -117,6 +117,17 @@ SPECIALISTS = {
                    "and selections, write a short, professional committee note: decision, rationale, "
                    "quantified impact, and the basis. Ready for an actuary to edit, not to author from scratch."),
     },
+    "reviewer": {
+        "name": "Reserving Peer Reviewer",
+        "scope": "Independently reviews the actuary's own factor selection / overlay — a second set of eyes.",
+        "triggers": "review, check, second opinion, sense check, is this reasonable, peer review, challenge",
+        "system": ("You are an independent reserving peer reviewer for Bricksurance SE — a senior actuary "
+                   "giving a colleague a second opinion on THEIR selection or overlay. Be constructive and "
+                   "specific: (1) does the selected pattern look reasonable vs the empirical and prior? "
+                   "(2) is any override justified and adequately documented? (3) what would you challenge or "
+                   "ask for before sign-off? Cite figures. End with a one-line verdict: SUPPORT / SUPPORT WITH "
+                   "CONDITIONS / CHALLENGE. You advise; the actuary decides."),
+    },
 }
 
 CLASSIFIER_SYSTEM = (
@@ -194,6 +205,25 @@ def warm_cache():
         prompt = _prompt_for(key, facts)
         _fm(s["system"], prompt, key, s["name"]); n += 1
     return n
+
+
+def review_selection(lob, proposed_factors, empirical_factors, prior_factors, overrode, rationale):
+    """The peer-reviewer agent applied to a specific in-progress selection — the
+    'AI reviews the actuary's decision' beat. Live, grounded on the actual numbers
+    the actuary is looking at, not a canned table."""
+    prompt = (
+        f"Line of business: {lob}. The actuary is selecting loss-development factors.\n"
+        f"Empirical (volume-weighted) factors: {json.dumps(empirical_factors)}\n"
+        f"Prior approved selection: {json.dumps(prior_factors)}\n"
+        f"Actuary's PROPOSED factors: {json.dumps(proposed_factors)}\n"
+        f"Overrode empirical? {'yes' if overrode else 'no'}. "
+        f"Rationale given: {rationale or '(none)'}\n\n"
+        f"Review their selection as an independent peer. Flag any factor that departs materially from both "
+        f"the empirical and the prior without documentation. Give your verdict.")
+    r = _fm(SPECIALISTS["reviewer"]["system"], prompt, "reviewer",
+            f"review {lob} selection")
+    return {"specialist_name": SPECIALISTS["reviewer"]["name"], "text": r["text"],
+            "model": r["model"], "cached": r.get("cached", False)}
 
 
 # back-compat: the committee page's brief button

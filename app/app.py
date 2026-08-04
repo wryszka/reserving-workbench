@@ -278,6 +278,36 @@ def engines():
     return {"selections": rows, "counts": counts}
 
 
+# ------------------------------------------------------------------ ingestion (the front door)
+@app.get("/api/ingestion")
+def ingestion():
+    q = sql.query_many({
+        "feeds": (f"SELECT feed_id, feed_name, source_system_code, rows_received, rows_expected, "
+                  f"status, dq_pass_pct FROM {F('1_raw_data_feed')} ORDER BY feed_name"),
+        "dq": (f"SELECT feed_id, expectation_name, severity, passed, failed_rows, detail "
+               f"FROM {F('1_raw_dq_expectation')} ORDER BY feed_id, severity DESC, passed"),
+    })
+    return {"feeds": q["feeds"], "expectations": q["dq"]}
+
+
+@app.post("/api/ingestion/accept")
+def ingestion_accept(body: dict):
+    """Human-in-the-loop: accept a feed into the reserving mart. Blocked if a critical
+    expectation is failing (the actuary must resolve the quarantine first). Audited."""
+    feed = body.get("feed_id"); user = "reserving.actuary@bricksurance.demo"
+    if not feed:
+        return {"ok": False, "error": "feed_id required"}
+    crit = sql.query_one(f"SELECT count(*) n FROM {F('1_raw_dq_expectation')} "
+                         f"WHERE feed_id='{sql.esc(feed)}' AND severity='critical' AND passed=false")
+    if crit and int(crit["n"]) > 0:
+        return {"ok": False, "error": f"{crit['n']} critical data-quality check(s) failing — resolve the quarantine before accepting."}
+    sql.query(f"UPDATE {F('1_raw_data_feed')} SET status='accepted' WHERE feed_id='{sql.esc(feed)}'")
+    eid = "AE-ING-" + uuid.uuid4().hex[:8]
+    sql.query(f"INSERT INTO {F('5_gov_audit_event')} (event_id, event_type, entity_type, entity_id, detail, actor, created_at) "
+              f"VALUES ('{eid}', 'feed_accepted', 'feed', '{sql.esc(feed)}', 'Accepted feed into the reserving mart', '{sql.esc(user)}', current_timestamp())")
+    return {"ok": True, "feed_id": feed, "by": user}
+
+
 # ------------------------------------------------------------------ landing / attention (Beat 2)
 @app.get("/api/attention")
 def attention():
@@ -317,6 +347,16 @@ def ai_cache_toggle(body: dict = None):
 @app.post("/api/ai/cache/warm")
 def ai_cache_warm():
     return {"warmed": agents.warm_cache()}
+
+
+@app.post("/api/ai/review-selection")
+def ai_review_selection(body: dict):
+    """AI peer-review of the actuary's in-progress factor selection (the Triangle page)."""
+    b = body or {}
+    return agents.review_selection(
+        b.get("lob", "COMMERCIAL_PROPERTY"), b.get("proposed_factors") or [],
+        b.get("empirical_factors") or [], b.get("prior_factors") or [],
+        bool(b.get("overrode")), b.get("rationale") or "")
 
 
 # ------------------------------------------------------------------ wider process: variability / large loss / roll-forward
