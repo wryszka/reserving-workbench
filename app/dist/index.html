@@ -92,6 +92,21 @@
   .door .dt{font-size:14.5px;font-weight:700;margin-top:3px}
   .door .dd{font-size:12px;color:var(--mut);margin-top:5px;line-height:1.5}
   .door .dgo{font-size:12px;font-weight:700;color:var(--blue);margin-top:9px}
+  /* Workbench AI cards */
+  .supcard{background:linear-gradient(135deg,#f5f3ff,#fff);border:2px solid #ddd6fe;border-radius:14px;padding:20px;max-width:560px;margin:0 auto 18px;text-align:center}
+  .supcard .eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--violet);font-weight:800}
+  .supcard h3{font-size:20px;font-weight:800;color:#4c1d95;margin:4px 0 0}
+  .supcard p{font-size:12.5px;color:#5b21b6;line-height:1.6;margin:8px 0 0}
+  .supcard .ep{margin-top:12px;padding-top:10px;border-top:1px solid #ddd6fe;font-size:11px;color:var(--violet)}
+  .agrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+  .acard{border:2px solid var(--line);border-radius:12px;padding:14px;background:#fff;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:box-shadow .12s,transform .12s,border-color .12s}
+  .acard:hover{box-shadow:0 4px 16px rgba(15,23,42,.08);transform:translateY(-1px);border-color:var(--blue4)}
+  .acard .ah{display:flex;align-items:flex-start;gap:8px}
+  .acard .ai{font-size:18px;line-height:1} .acard .an{font-weight:700;font-size:14.5px;flex:1;line-height:1.2}
+  .acard .abadge{font-size:8.5px;text-transform:uppercase;letter-spacing:.1em;font-weight:800;padding:2px 6px;border-radius:5px;border:1px solid var(--line);color:var(--mut);background:#f8fafc}
+  .acard .as{font-size:12.5px;color:var(--mut);line-height:1.5;flex:1}
+  .acard .af{font-size:10.5px;color:#8a94a3;border-top:1px solid var(--line);padding-top:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .acard .ago{font-size:11.5px;font-weight:700;color:var(--violet)}
 </style>
 </head>
 <body>
@@ -634,38 +649,55 @@ PAGE.genie=async()=>{
   ${ABOUT}`);
 };
 
+const SPEC_META={
+  senior_reserving:{icon:'◆',where:'triangle · estimates · judgements'},
+  movement:{icon:'⇅',where:'reserve_rollforward'},
+  data_quality:{icon:'◫',where:'actual_vs_expected'},
+  committee_note:{icon:'✎',where:'judgements · estimates'},
+  reviewer:{icon:'🔍',where:'selected_development_pattern'},
+};
 PAGE.ai=async()=>{
-  main(`<h1>Workbench AI</h1><p class="sub">One question, routed to the right reserving specialist — real Claude, grounded on live tables.</p>
-  ${explain(`Several specialist agents work across the workbench (Senior Reserving Actuary, Movement Explainer, Data-Quality Investigator, Committee-Note Drafter). Ask a question here and a supervisor classifies it and routes to the right one — or pick a specialist directly. Every answer is grounded on the live reserving tables and logged to the audit trail. A second set of eyes; you stay in control.`)}
-  <div class="card"><h2>Ask the reserving AI</h2>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-      <input id="q" placeholder="e.g. Why did Commercial Property reserves move? / What needs attention this close?" style="flex:1;min-width:300px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-      <button class="btn" id="askbtn">Ask</button>
+  const [probe,st]=await Promise.all([
+    API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({specialist:'senior_reserving'})}),
+    API('/api/ai/status').catch(()=>({})),
+  ]);
+  const specs=probe.specialists||[];
+  const ep=st.agent_endpoint; const live=st.endpoint_live;
+  main(`<h1>Workbench AI</h1><p class="sub">One supervisor, ${specs.length} specialists, one Genie — every call grounded on live tables and audited.</p>
+  ${explain(`Type a question and the <b>supervisor</b> classifies it and dispatches to the right specialist; or open a specialist directly from its tile. Answers are grounded on the live reserving tables and every call is written to the governance audit trail. The AI drafts and reviews — you decide.`)}
+  <div class="supcard">
+    <div class="eyebrow">Workbench AI · Supervisor</div>
+    <h3>Ask the reserving AI</h3>
+    <p>A single Foundation-Model call classifies your question against the specialist catalogue, dispatches to the right one, and writes the routing decision to the audit log.</p>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <input id="q" placeholder="e.g. Why did Commercial Property reserves move this close?" style="flex:1;padding:9px 12px;border:1px solid #ddd6fe;border-radius:8px;font-size:13px">
+      <button class="btn" id="askbtn" style="background:var(--violet)">Ask</button>
     </div>
-    <div style="margin-bottom:10px"><span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-right:8px">or a specialist:</span>
-      <span id="specs"></span></div>
-    <div id="aiout"></div>
+    <div class="ep">${live?`Serving endpoint: <span class="mono">${ep}</span> · live`:'Serving endpoint provisioning — answers fall back to Foundation Model API / cache (shown per answer)'}</div>
   </div>
-  <div class="card"><h2>The specialists</h2><div class="h-sub">Each is a governed FMAPI agent grounded on specific tables.</div>
-    <div id="specgrid"></div>
+  <div id="aiout" style="margin-bottom:18px"></div>
+  <div class="card"><h2>The specialists</h2><div class="h-sub">Each a governed agent grounded on specific tables. Click a tile to run it.</div>
+    <div class="agrid" id="agrid"></div>
+    <div style="margin-top:12px;font-size:12px;color:var(--mut)">Live routing activity → <a onclick="go('governance')" style="cursor:pointer">Governance &amp; sign-off → AI activity</a></div>
   </div>
-  <div class="card"><h2>Ask the Triangle — Genie</h2><div class="h-sub">Free-form natural-language analytics over the reserving tables via the Genie Conversation API (server-side — governed SQL, same tables, no embed).</div>
+  <div class="card"><h2>Ask the Triangle — Genie</h2><div class="h-sub">Natural-language analytics over the reserving tables via the Genie Conversation API (server-side — governed SQL, no embed).</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <input id="gq" placeholder="e.g. Total IBNR by line of business / cohorts that breached validation" style="flex:1;min-width:300px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
       <button class="btn" id="gaskbtn">Ask Genie</button>
     </div>
     <div id="gout"></div>
   </div>${ABOUT}`);
-  document.getElementById('gaskbtn').onclick=()=>askGenie(document.getElementById('gq').value);
-  document.getElementById('gq').addEventListener('keydown',e=>{if(e.key==='Enter')askGenie(e.target.value);});
-  // load specialist list from a probe call
-  const probe=await API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({specialist:'senior_reserving'})});
-  const specs=probe.specialists||[];
-  document.getElementById('specs').innerHTML=specs.map(s=>`<button class="btn ghost" style="background:#eef2ff;color:var(--blue);margin:2px 4px 2px 0;font-size:11.5px;padding:5px 10px" onclick="askSpecialist('${s.key}')">${s.name}</button>`).join('');
-  document.getElementById('specgrid').innerHTML=specs.map(s=>`<div style="padding:9px 0;border-bottom:1px solid var(--line)"><b>${s.name}</b> <span style="color:var(--mut);font-size:12.5px">— ${s.scope}</span></div>`).join('');
-  renderAI(probe);
+  // specialist tiles
+  document.getElementById('agrid').innerHTML=specs.map(s=>{const m=SPEC_META[s.key]||{icon:'✦',where:'live tables'};
+    return `<div class="acard" onclick="askSpecialist('${s.key}')">
+      <div class="ah"><span class="ai">${m.icon}</span><span class="an">${s.name}</span><span class="abadge">agent</span></div>
+      <div class="as">${s.scope}</div>
+      <div class="af">reads: ${m.where}</div>
+      <div class="ago">Ask this specialist →</div></div>`;}).join('');
   document.getElementById('askbtn').onclick=()=>askAI(document.getElementById('q').value);
   document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')askAI(e.target.value);});
+  document.getElementById('gaskbtn').onclick=()=>askGenie(document.getElementById('gq').value);
+  document.getElementById('gq').addEventListener('keydown',e=>{if(e.key==='Enter')askGenie(e.target.value);});
 };
 async function askAI(q){if(!q||!q.trim())return;document.getElementById('aiout').innerHTML='<div class="load">Routing your question…</div>';
   try{const r=await API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});renderAI(r);}catch(e){document.getElementById('aiout').innerHTML=`<div class="err">${e.message}</div>`;}}
