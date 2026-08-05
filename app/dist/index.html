@@ -98,15 +98,25 @@
   .supcard h3{font-size:20px;font-weight:800;color:#4c1d95;margin:4px 0 0}
   .supcard p{font-size:12.5px;color:#5b21b6;line-height:1.6;margin:8px 0 0}
   .supcard .ep{margin-top:12px;padding-top:10px;border-top:1px solid #ddd6fe;font-size:11px;color:var(--violet)}
-  .agrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
-  .acard{border:2px solid var(--line);border-radius:12px;padding:14px;background:#fff;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:box-shadow .12s,transform .12s,border-color .12s}
-  .acard:hover{box-shadow:0 4px 16px rgba(15,23,42,.08);transform:translateY(-1px);border-color:var(--blue4)}
+  .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:900px){.agrid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:600px){.agrid{grid-template-columns:1fr}}
+  .acard{border:1px solid var(--line);border-left-width:4px;border-radius:12px;padding:14px;background:#fff;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:box-shadow .12s,transform .12s}
+  .acard:hover{box-shadow:0 4px 16px rgba(15,23,42,.10);transform:translateY(-1px)}
   .acard .ah{display:flex;align-items:flex-start;gap:8px}
-  .acard .ai{font-size:18px;line-height:1} .acard .an{font-weight:700;font-size:14.5px;flex:1;line-height:1.2}
-  .acard .abadge{font-size:8.5px;text-transform:uppercase;letter-spacing:.1em;font-weight:800;padding:2px 6px;border-radius:5px;border:1px solid var(--line);color:var(--mut);background:#f8fafc}
-  .acard .as{font-size:12.5px;color:var(--mut);line-height:1.5;flex:1}
-  .acard .af{font-size:10.5px;color:#8a94a3;border-top:1px solid var(--line);padding-top:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  .acard .ago{font-size:11.5px;font-weight:700;color:var(--violet)}
+  .acard .ai{font-size:18px;line-height:1;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .acard .an{font-weight:700;font-size:14px;flex:1;line-height:1.25}
+  .acard .abadge{font-size:8px;text-transform:uppercase;letter-spacing:.1em;font-weight:800;padding:2px 6px;border-radius:5px}
+  .acard .as{font-size:12px;color:var(--mut);line-height:1.5;flex:1}
+  .acard .af{font-size:10px;color:#8a94a3;border-top:1px solid var(--line);padding-top:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .acard .ago{font-size:11.5px;font-weight:700}
+  /* per-tile colour tones */
+  .t-violet{border-left-color:#6d28d9}.t-violet .ai{background:#ede9fe;color:#6d28d9}.t-violet .abadge{background:#ede9fe;color:#6d28d9}.t-violet .ago{color:#6d28d9}
+  .t-blue{border-left-color:#2563eb}.t-blue .ai{background:#dbeafe;color:#1d4ed8}.t-blue .abadge{background:#dbeafe;color:#1d4ed8}.t-blue .ago{color:#1d4ed8}
+  .t-emerald{border-left-color:#16a34a}.t-emerald .ai{background:#dcfce7;color:#15803d}.t-emerald .abadge{background:#dcfce7;color:#15803d}.t-emerald .ago{color:#15803d}
+  .t-amber{border-left-color:#d97706}.t-amber .ai{background:#fef3c7;color:#b45309}.t-amber .abadge{background:#fef3c7;color:#b45309}.t-amber .ago{color:#b45309}
+  .t-cyan{border-left-color:#0891b2}.t-cyan .ai{background:#cffafe;color:#0e7490}.t-cyan .abadge{background:#cffafe;color:#0e7490}.t-cyan .ago{color:#0e7490}
+  .t-rose{border-left-color:#e11d48}.t-rose .ai{background:#ffe4e6;color:#be123c}.t-rose .abadge{background:#ffe4e6;color:#be123c}.t-rose .ago{color:#be123c}
 </style>
 </head>
 <body>
@@ -650,11 +660,11 @@ PAGE.genie=async()=>{
 };
 
 const SPEC_META={
-  senior_reserving:{icon:'◆',where:'triangle · estimates · judgements'},
-  movement:{icon:'⇅',where:'reserve_rollforward'},
-  data_quality:{icon:'◫',where:'actual_vs_expected'},
-  committee_note:{icon:'✎',where:'judgements · estimates'},
-  reviewer:{icon:'🔍',where:'selected_development_pattern'},
+  senior_reserving:{icon:'◆',where:'triangle · estimates · judgements',tone:'violet'},
+  movement:{icon:'⇅',where:'reserve_rollforward',tone:'blue'},
+  data_quality:{icon:'◫',where:'actual_vs_expected',tone:'amber'},
+  committee_note:{icon:'✎',where:'judgements · estimates',tone:'emerald'},
+  reviewer:{icon:'🔍',where:'selected_development_pattern',tone:'rose'},
 };
 PAGE.ai=async()=>{
   const [probe,st]=await Promise.all([
@@ -676,29 +686,39 @@ PAGE.ai=async()=>{
     <div class="ep">${live?`Serving endpoint: <span class="mono">${ep}</span> · live`:'Serving endpoint provisioning — answers fall back to Foundation Model API / cache (shown per answer)'}</div>
   </div>
   <div id="aiout" style="margin-bottom:18px"></div>
-  <div class="card"><h2>The specialists</h2><div class="h-sub">Each a governed agent grounded on specific tables. Click a tile to run it.</div>
+  <div class="card"><h2>The specialists</h2><div class="h-sub">Each a governed agent grounded on specific tables. Click a tile to run it — Genie handles free-form questions across all of them.</div>
     <div class="agrid" id="agrid"></div>
     <div style="margin-top:12px;font-size:12px;color:var(--mut)">Live routing activity → <a onclick="go('governance')" style="cursor:pointer">Governance &amp; sign-off → AI activity</a></div>
   </div>
-  <div class="card"><h2>Ask the Triangle — Genie</h2><div class="h-sub">Natural-language analytics over the reserving tables via the Genie Conversation API (server-side — governed SQL, no embed).</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-      <input id="gq" placeholder="e.g. Total IBNR by line of business / cohorts that breached validation" style="flex:1;min-width:300px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-      <button class="btn" id="gaskbtn">Ask Genie</button>
-    </div>
-    <div id="gout"></div>
-  </div>${ABOUT}`);
-  // specialist tiles
-  document.getElementById('agrid').innerHTML=specs.map(s=>{const m=SPEC_META[s.key]||{icon:'✦',where:'live tables'};
-    return `<div class="acard" onclick="askSpecialist('${s.key}')">
+  <div id="gout" style="margin-top:2px"></div>${ABOUT}`);
+  // 6 tiles = 5 specialists + Genie (3×2 grid), each coloured; Genie opens an inline ask box.
+  const tiles=specs.map(s=>{const m=SPEC_META[s.key]||{icon:'✦',where:'live tables',tone:'blue'};
+    return `<div class="acard t-${m.tone}" onclick="askSpecialist('${s.key}')">
       <div class="ah"><span class="ai">${m.icon}</span><span class="an">${s.name}</span><span class="abadge">agent</span></div>
       <div class="as">${s.scope}</div>
       <div class="af">reads: ${m.where}</div>
-      <div class="ago">Ask this specialist →</div></div>`;}).join('');
+      <div class="ago">Ask this specialist →</div></div>`;});
+  tiles.push(`<div class="acard t-cyan" onclick="openGenie()">
+      <div class="ah"><span class="ai">✦</span><span class="an">Ask the Triangle — Genie</span><span class="abadge">genie</span></div>
+      <div class="as">Free-form natural-language questions across all the reserving tables — governed SQL via the Genie Conversation API (server-side, no embed).</div>
+      <div class="af">reads: all reserving tables</div>
+      <div class="ago">Ask Genie →</div></div>`);
+  document.getElementById('agrid').innerHTML=tiles.join('');
   document.getElementById('askbtn').onclick=()=>askAI(document.getElementById('q').value);
   document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')askAI(e.target.value);});
+};
+function openGenie(){
+  const out=document.getElementById('gout');
+  out.innerHTML=`<div class="card" style="border-color:#a5f3fc"><h2>Ask the Triangle — Genie</h2><div class="h-sub">Natural-language over the reserving tables via the Genie Conversation API (server-side — governed SQL).</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <input id="gq" placeholder="e.g. Total IBNR by line of business / cohorts that breached validation" style="flex:1;min-width:300px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+      <button class="btn" id="gaskbtn" style="background:#0891b2">Ask Genie</button>
+    </div><div id="ginner"></div></div>`;
+  out.scrollIntoView({behavior:'smooth',block:'nearest'});
   document.getElementById('gaskbtn').onclick=()=>askGenie(document.getElementById('gq').value);
   document.getElementById('gq').addEventListener('keydown',e=>{if(e.key==='Enter')askGenie(e.target.value);});
-};
+  document.getElementById('gq').focus();
+}
 async function askAI(q){if(!q||!q.trim())return;document.getElementById('aiout').innerHTML='<div class="load">Routing your question…</div>';
   try{const r=await API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});renderAI(r);}catch(e){document.getElementById('aiout').innerHTML=`<div class="err">${e.message}</div>`;}}
 async function askSpecialist(k){document.getElementById('aiout').innerHTML='<div class="load">Asking…</div>';
@@ -712,13 +732,14 @@ function renderAI(r){document.getElementById('aiout').innerHTML=`
     ${r.reason?`<span style="color:var(--mut);font-size:12px;margin-left:8px">routed: ${r.reason}${r.confidence?` (${Math.round(r.confidence*100)}%)`:''}</span>`:''}
     ${servedPill(r)}</div>
   <div class="brief"><span class="tag">${r.specialist_name} · ${r.model||''}</span>${(r.text||'').replace(/</g,'&lt;')}</div>`;}
-async function askGenie(q){if(!q||!q.trim())return;document.getElementById('gout').innerHTML='<div class="load">Asking Genie (Conversation API)…</div>';
+async function askGenie(q){if(!q||!q.trim())return;const tgt=document.getElementById('ginner')||document.getElementById('gout');
+  tgt.innerHTML='<div class="load">Asking Genie (Conversation API)…</div>';
   try{const r=await API('/api/genie/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
     let h=`<div class="brief"><span class="tag">Genie · Conversation API</span>${(r.answer||'').replace(/</g,'&lt;')}</div>`;
     if(r.sql)h+=`<div class="mono" style="margin-top:8px;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:11.5px;white-space:pre-wrap">${r.sql.replace(/</g,'&lt;')}</div>`;
     if(r.rows&&r.rows.length){h+=`<table style="margin-top:10px"><thead><tr>${(r.columns||[]).map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${r.rows.slice(0,10).map(row=>`<tr>${row.map(c=>`<td>${c==null?'':c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;}
-    document.getElementById('gout').innerHTML=h;
-  }catch(e){document.getElementById('gout').innerHTML=`<div class="err">${e.message}</div>`;}}
+    tgt.innerHTML=h;
+  }catch(e){(document.getElementById('ginner')||document.getElementById('gout')).innerHTML=`<div class="err">${e.message}</div>`;}}
 
 PAGE.governance=async()=>{
   const g=await API('/api/governance');
