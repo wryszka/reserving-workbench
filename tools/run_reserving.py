@@ -159,12 +159,17 @@ def main():
                         reserve_estimate_id=f"RES-2026-{lob[:4]}-{ay}-CH",
                         development_period=(k+1-lag), expected_payment=round(incp, 2), currency_code="GBP"))
                 cc = nxt
-            # AvE latest step
-            lags = sorted(pt[ay])
-            if len(lags) >= 2:
-                last, prev = lags[-1], lags[-2]
-                actual = pt[ay][last]-pt[ay][prev]; expected = pt[ay][prev]*(f.get(prev, 1.0)-1.0)
-                var = actual-expected; serr2 = abs(expected)*0.15 or 1.0
+            # Actual-vs-expected on the FIRST development step (0->1) — where factor-selection risk
+            # is highest and where a late large loss shows up. Expected uses the MEDIAN individual
+            # factor for the line (robust to a single outlier year), so clean cohorts sit near zero
+            # and an anomalous cohort (AY2023 CP, which developed far ABOVE the norm) shows a large
+            # POSITIVE residual — the residual sign now matches "developed high, flagged".
+            if 0 in pt[ay] and 1 in pt[ay] and pt[ay][0]:
+                indiv0 = sorted((pt[a][1]/pt[a][0]) for a in pt if 0 in pt[a] and 1 in pt[a] and pt[a][0])
+                median_f0 = indiv0[len(indiv0)//2] if indiv0 else f.get(0, 1.0)
+                actual = pt[ay][1] - pt[ay][0]
+                expected = pt[ay][0] * (median_f0 - 1.0)
+                var = actual - expected; serr2 = abs(expected)*0.15 or 1.0
                 ave.append(dict(ave_id=f"AVE-2026-{lob[:4]}-{ay}", validation_period="2026",
                     reserving_method_code="CHAIN_LADDER", line_of_business_code=lob, accident_year=ay,
                     expected_emergence=round(expected, 2), actual_emergence=round(actual, 2),

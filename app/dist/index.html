@@ -221,7 +221,7 @@ PAGE.overview=async()=>{
   <div class="card"><h2>The close, end to end</h2><div class="h-sub">Four steps, one governed flow. Jump in anywhere.</div>
     <div class="doors">
       ${[["ingestion","1 · Prepare","Ingestion & data quality","Land and quality-check every feed before you reserve on it.","#2563eb"],
-         ["triangle","2 · Select","Triangle & selection","Review factors, override the anomaly, elect — with an AI peer review.","#2563eb"],
+         ["triangle","2 · Select","Triangle & selection","Review factors, override the anomaly, and select — with an AI peer review.","#2563eb"],
          ["diagnostics","3 · Analyse","Methods, ranges & diagnostics","Estimates, uncertainty, validation and the movement story.","#6d28d9"],
          ["governance","4 · Sign off","Governance & sign-off","Reconcile, audit, and put your name to the number — reproducibly.","#16a34a"]
       ].map(d=>`<div class="door" onclick="go('${d[0]}')" style="border-top:3px solid ${d[4]}">
@@ -291,16 +291,16 @@ PAGE.triangle=async()=>{
   SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, overrides:{}, empirical:{}, applied:{}, lags:t.development_lags.slice(0,-1), overrode:false};
 
   main(`<h1>Triangle &amp; loss-development-factor selection</h1>
-  <p class="sub">Review the triangle, choose an averaging basis, override any factor, and elect — the decision is recorded and reserves recompute live.</p>
+  <p class="sub">Review the triangle, choose an averaging basis, override any factor, and select — the decision is recorded and reserves recompute live.</p>
   <div style="margin-bottom:14px">Line of business: <select id="lob" name="lob" aria-label="Line of business">${lobOpts}</select></div>
-  ${explain(`The upper-left (shaded) cells are observed cumulative paid. The <b>decision module</b> below lets you pick how factors are averaged, <b>edit any factor</b> (e.g. override the anomalous AY2023 step), and <b>elect</b> — the ultimate/IBNR recompute live and your decision is written back as a new audited selection row. This is the stop-and-override moment a black-box SQL script can't offer.`)}
+  ${explain(`The upper-left (shaded) cells are observed <b>cumulative paid</b> losses. The <b>decision module</b> below lets you pick how factors are averaged, <b>edit any factor</b> (e.g. override the anomalous AY2023 step), and <b>select</b> — the ultimate/IBNR recompute live and your decision is written back as a new audited selection row. Note the volume-weighted 12→24m factor (1.899) is dragged up by the single 3.63 outlier year; the 1.667 you'd hold is roughly the average with that year excluded. This is the stop-and-override moment a black-box script can't offer.`)}
   <div class="card"><h2>Cumulative paid triangle</h2><div class="h-sub">Derived live from the claim ledger (loss_development) — reconciles to the penny.</div>
     <table class="tri"><thead>${head}</thead><tbody>${body}</tbody></table></div>
   <div class="card"><h2>Individual age-to-age factors by accident year</h2><div class="h-sub">The diagnostic behind the selection: a single red cell is the reason to override.</div>
     <table class="tri"><thead>${head}</thead><tbody>${indiv}</tbody></table></div>
 
   <div class="card" style="border-color:#c7d2fe"><h2>Decision module — select development factors</h2>
-  <div class="h-sub">Change the basis or edit a factor; the reserve recomputes live. Then elect and save.</div>
+  <div class="h-sub">Change the basis or edit a factor; the reserve recomputes live. Then select and save.</div>
     <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
       <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Averaging basis</label>
         <select id="basis" name="basis" aria-label="Averaging basis">
@@ -331,7 +331,7 @@ PAGE.triangle=async()=>{
       <textarea id="rationale" name="rationale" aria-label="Rationale" rows="2" placeholder="e.g. Held the prior 12–24m factor: AY2023 empirical spike is one late-reported large loss, reserved individually." style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn" id="elect">Elect &amp; save selection</button>
+      <button class="btn" id="elect">Select &amp; save</button>
       <button class="btn" id="reviewbtn" style="background:#ede9fe;color:#6d28d9">🔍 AI peer review</button>
       <span id="electmsg" style="font-size:12.5px;color:var(--mut)"></span>
     </div>
@@ -339,7 +339,7 @@ PAGE.triangle=async()=>{
   </div>
 
   <div class="card"><h2>Selection audit trail</h2>
-  <div class="h-sub">Every election recorded: who, when, source, why. New selection = new row; the prior is never overwritten.</div>
+  <div class="h-sub">Every selection recorded: who, when, source, why. New selection = new row; the prior is never overwritten.</div>
     <div id="audit">${renderAudit(sels)}</div>
     <details class="why"><summary>Why does this matter?</summary><div>Pricing actuaries develop losses to ultimate for rate indications; reserving actuaries for booked reserves — the same triangle machinery. The override moment (holding a prior pattern when a data anomaly distorts the empirical factor) is exactly the human-in-the-loop control a black-box SQL script cannot offer, and every decision is audit-trailed here.</div></details>
   </div>
@@ -449,13 +449,13 @@ PAGE.methods=async()=>{
   ${explain(`Each method is a governed Unity Catalog model; swapping method writes a new estimate, never an overwrite, so every basis is comparable. Estimates reconcile to the penny (paid + case + IBNR = ultimate). The ranges (Mack CoV / percentiles) turn the point estimate into the distribution Solvency II and IFRS 17 need.`)}
   <div class="card"><h2>Methodology library</h2><div class="h-sub">Each method registered + versioned in Unity Catalog.</div>
   <table><thead><tr><th>Method</th><th>UC model</th><th class="num">Ver</th><th>Alias</th><th>Distribution</th><th>Owner</th></tr></thead><tbody>
-  ${m.methods.map(x=>`<tr><td><b>${x.reserving_method_code.replace(/_/g,' ')}</b></td><td class="mono">${x.uc_model_name.split('.').pop()}</td><td class="num">${x.model_version}</td><td><span class="pill pill-green">${x.alias||'—'}</span></td><td>${x.produces_distribution==='true'||x.produces_distribution===true?'✓':'—'}</td><td>${x.owner_role}</td></tr>`).join('')}
+  ${m.methods.map(x=>`<tr><td><b>${methodName(x.reserving_method_code)}</b></td><td class="mono">${x.uc_model_name.split('.').pop()}</td><td class="num">${x.model_version}</td><td><span class="pill pill-green">${x.alias||'—'}</span></td><td>${x.produces_distribution==='true'||x.produces_distribution===true?'✓':'—'}</td><td>${x.owner_role}</td></tr>`).join('')}
   </tbody></table></div>
   <div class="card"><h2>Reserve estimates</h2><div class="h-sub">Per accident year × method — reconciling to the penny.</div>
   <table><thead><tr><th>LOB</th><th class="num">AY</th><th>Method</th><th class="num">Paid</th><th class="num">Ultimate</th><th class="num">IBNR</th><th class="num">Std err</th></tr></thead><tbody>
-  ${e.estimates.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td>${r.reserving_method_code.replace(/_/g,' ')}</td><td class="num">${money(r.paid_to_date)}</td><td class="num">${money(r.ultimate_loss)}</td><td class="num">${money(r.ibnr)}</td><td class="num">${r.ultimate_std_error?money(r.ultimate_std_error):'—'}</td></tr>`).join('')}
+  ${e.estimates.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td>${methodName(r.reserving_method_code)}</td><td class="num">${money(r.paid_to_date)}</td><td class="num">${money(r.ultimate_loss)}</td><td class="num">${money(r.ibnr)}</td><td class="num">${r.ultimate_std_error?money(r.ultimate_std_error):'—'}</td></tr>`).join('')}
   </tbody></table></div>
-  <div class="card"><h2>Reserve ranges</h2><div class="h-sub">Best estimate AND how uncertain — the input for SII risk margin / IFRS 17 risk adjustment.</div>
+  <div class="card"><h2>Reserve ranges</h2><div class="h-sub">Best estimate and how uncertain it is — uncertainty that informs the Solvency II risk margin and the IFRS 17 risk adjustment.</div>
   <table><thead><tr><th>LOB</th><th class="num">Best estimate</th><th class="num">Std error</th><th class="num">CoV</th><th class="num">75th</th><th class="num">95th</th></tr></thead><tbody>
   ${v.rows.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.best_estimate)}</td><td class="num">${money(r.standard_error)}</td><td class="num">${(Number(r.coefficient_of_variation)*100).toFixed(1)}%</td><td class="num">${money(r.percentile_75)}</td><td class="num">${money(r.percentile_95)}</td></tr>`).join('')}
   </tbody></table></div>
@@ -465,11 +465,11 @@ PAGE.methods=async()=>{
 PAGE.methodology=async()=>{
   const m=await API('/api/methodology');
   main(`<h1>Methodology library</h1><p class="sub">Every reserving method registered in Unity Catalog and governed identically.</p>
-  ${explain(`Each method (chain-ladder, Bornhuetter-Ferguson, Mack, GLM, peer-comparison) is a governed UC model with a version and a production alias — swapping method produces a new estimate row, never an overwrite. "Distribution" marks the stochastic methods that feed reserve uncertainty (SII risk margin / IFRS 17 risk adjustment).`)}
+  ${explain(`Each method (chain-ladder, Bornhuetter-Ferguson, Mack, GLM, benchmark) is version-controlled and registered in Unity Catalog with a live "production" version — swapping method produces a new estimate row, never an overwrite. "Distribution" marks the stochastic methods (Mack, GLM) whose uncertainty informs the Solvency II risk margin and the IFRS 17 risk adjustment.`)}
   <div class="card"><table><thead><tr><th>Method</th><th>UC model</th><th class="num">Version</th><th>Alias</th><th>Distribution</th><th>Owner</th></tr></thead><tbody>
-  ${m.methods.map(x=>`<tr><td><b>${x.reserving_method_code.replace(/_/g,' ')}</b></td><td class="mono">${x.uc_model_name.split('.').pop()}</td><td class="num">${x.model_version}</td><td><span class="pill pill-green">${x.alias||'—'}</span></td><td>${x.produces_distribution==='true'||x.produces_distribution===true?'✓':'—'}</td><td>${x.owner_role}</td></tr>`).join('')}
+  ${m.methods.map(x=>`<tr><td><b>${methodName(x.reserving_method_code)}</b></td><td class="mono">${x.uc_model_name.split('.').pop()}</td><td class="num">${x.model_version}</td><td><span class="pill pill-green">${x.alias||'—'}</span></td><td>${x.produces_distribution==='true'||x.produces_distribution===true?'✓':'—'}</td><td>${x.owner_role}</td></tr>`).join('')}
   </tbody></table>
-  ${m.methods.map(x=>`<div style="margin-top:8px;color:var(--mut);font-size:12.5px"><b style="color:var(--ink)">${x.reserving_method_code.replace(/_/g,' ')}</b> — ${x.summary}</div>`).join('')}
+  ${m.methods.map(x=>`<div style="margin-top:8px;color:var(--mut);font-size:12.5px"><b style="color:var(--ink)">${methodName(x.reserving_method_code)}</b> — ${x.summary}</div>`).join('')}
   </div>${ABOUT}`);
 };
 
@@ -478,14 +478,14 @@ PAGE.estimates=async()=>{
   main(`<h1>Reserve estimates</h1><p class="sub">Ultimate, IBNR and outstanding per accident year and method — reconciling to the penny.</p>
   ${explain(`One row per accident year × method. paid + case + IBNR = ultimate by construction. Mack carries a standard error (uncertainty), widening for the greenest accident years. Methods sit side by side because each basis is auditable.`)}
   <div class="card"><table><thead><tr><th>LOB</th><th class="num">AY</th><th>Method</th><th class="num">Paid</th><th class="num">Case</th><th class="num">Ultimate</th><th class="num">IBNR</th><th class="num">Std err</th></tr></thead><tbody>
-  ${e.estimates.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td>${r.reserving_method_code.replace(/_/g,' ')}</td><td class="num">${money(r.paid_to_date)}</td><td class="num">${money(r.case_reserves)}</td><td class="num">${money(r.ultimate_loss)}</td><td class="num">${money(r.ibnr)}</td><td class="num">${r.ultimate_std_error?money(r.ultimate_std_error):'—'}</td></tr>`).join('')}
+  ${e.estimates.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td>${methodName(r.reserving_method_code)}</td><td class="num">${money(r.paid_to_date)}</td><td class="num">${money(r.case_reserves)}</td><td class="num">${money(r.ultimate_loss)}</td><td class="num">${money(r.ibnr)}</td><td class="num">${r.ultimate_std_error?money(r.ultimate_std_error):'—'}</td></tr>`).join('')}
   </tbody></table></div>${ABOUT}`);
 };
 
 PAGE.variability=async()=>{
   const v=await API('/api/variability');
   main(`<h1>Reserve ranges</h1><p class="sub">Best estimate is only half the answer — here's how uncertain it is.</p>
-  ${explain(`The board and the regulator increasingly ask "what's your best estimate AND how uncertain is it?" The coefficient of variation and percentiles (from Mack) turn the point estimate into a range — the input Solvency II needs for the risk margin and IFRS 17 for the risk adjustment.`)}
+  ${explain(`The board and the regulator increasingly ask "what's your best estimate, and how uncertain is it?" The coefficient of variation and percentiles (from Mack) turn the point estimate into a range — the uncertainty that informs the Solvency II risk margin and the IFRS 17 risk adjustment.`)}
   <div class="card"><table><thead><tr><th>LOB</th><th class="num">Best estimate</th><th class="num">Std error</th><th class="num">CoV</th><th class="num">75th pct</th><th class="num">95th pct</th></tr></thead><tbody>
   ${v.rows.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.best_estimate)}</td><td class="num">${money(r.standard_error)}</td><td class="num">${(Number(r.coefficient_of_variation)*100).toFixed(1)}%</td><td class="num">${money(r.percentile_75)}</td><td class="num">${money(r.percentile_95)}</td></tr>`).join('')}
   </tbody></table></div>${ABOUT}`);
@@ -659,6 +659,8 @@ PAGE.genie=async()=>{
   ${ABOUT}`);
 };
 
+const METHOD_NAME={CHAIN_LADDER:'Chain-ladder',BORNHUETTER_FERGUSON:'Bornhuetter-Ferguson',EXPECTED_LOSS_RATIO:'Expected loss ratio',MACK:'Mack',GLM:'GLM',PEER_COMPARISON:'Benchmark (peer pattern)'};
+const methodName=(c)=>METHOD_NAME[c]||(c||'').replace(/_/g,' ');
 const SPEC_META={
   senior_reserving:{icon:'◆',where:'triangle · estimates · judgements',tone:'violet'},
   movement:{icon:'⇅',where:'reserve_rollforward',tone:'blue'},
@@ -753,12 +755,12 @@ PAGE.governance=async()=>{
   </div>
   <div class="card"><h2>Sign-off &amp; reproduce-as-at</h2><div class="h-sub">Put your name to the number. The data version makes it reproducible for the auditor.</div>
     <table><thead><tr><th>LOB</th><th class="num">Signed estimate</th><th>Method</th><th>Data version</th><th>Status</th><th>By</th><th></th></tr></thead><tbody>
-    ${(g.signoff||[]).map(s=>`<tr><td>${s.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(s.signed_best_estimate)}</td><td>${s.reserving_method_code.replace(/_/g,' ')}</td><td class="mono" style="font-size:11px">${s.data_version}</td><td><span class="pill ${s.status_code==='APPROVED'?'pill-green':'pill-amber'}">${s.status_code==='APPROVED'?'signed':'pending'}</span></td><td>${s.signed_by||'—'}</td><td>${s.status_code==='APPROVED'?'':`<button class="btn" style="padding:5px 10px" onclick="signOff('${s.line_of_business_code}')">Sign off</button>`}</td></tr>`).join('')}
+    ${(g.signoff||[]).map(s=>`<tr><td>${s.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(s.signed_best_estimate)}</td><td>${methodName(s.reserving_method_code)}</td><td class="mono" style="font-size:11px">${s.data_version}</td><td><span class="pill ${s.status_code==='APPROVED'?'pill-green':'pill-amber'}">${s.status_code==='APPROVED'?'signed':'pending'}</span></td><td>${s.signed_by||'—'}</td><td>${s.status_code==='APPROVED'?'':`<button class="btn" style="padding:5px 10px" onclick="signOff('${s.line_of_business_code}')">Sign off</button>`}</td></tr>`).join('')}
     </tbody></table><span id="somsg" style="font-size:12.5px;color:var(--mut)"></span>
   </div>
   <div class="card"><h2>Model registry</h2><div class="h-sub">Every method is a versioned Unity Catalog model.</div>
     <table><thead><tr><th>Method</th><th>UC model</th><th class="num">Version</th><th>Alias</th><th>Owner</th></tr></thead><tbody>
-    ${(g.models||[]).map(m=>`<tr><td>${m.reserving_method_code.replace(/_/g,' ')}</td><td class="mono">${m.uc_model_name.split('.').pop()}</td><td class="num">${m.model_version}</td><td><span class="pill pill-green">${m.alias||'—'}</span></td><td>${m.owner_role}</td></tr>`).join('')}
+    ${(g.models||[]).map(m=>`<tr><td>${methodName(m.reserving_method_code)}</td><td class="mono">${m.uc_model_name.split('.').pop()}</td><td class="num">${m.model_version}</td><td><span class="pill pill-green">${m.alias||'—'}</span></td><td>${m.owner_role}</td></tr>`).join('')}
     </tbody></table></div>
   <div class="card"><h2>Audit trail — every action</h2><div class="h-sub">Append-only. Who, when, what.</div>
     <table><thead><tr><th>When</th><th>Action</th><th>Object</th><th>Detail</th><th>By</th></tr></thead><tbody>
