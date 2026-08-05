@@ -61,6 +61,31 @@ attributes:
     required: false
     description: Percentage of data-quality expectations passed.
     classification: internal
+  - name: sla_due_at
+    type: timestamp
+    required: false
+    description: >
+      When the feed was contractually due for this close. Arrival against SLA is
+      what makes 'the data landed late' a measured fact with an owner rather than
+      a recurring complaint.
+    classification: internal
+  - name: months_expected
+    type: integer
+    required: false
+    description: Months of history the feed should carry for this close.
+    classification: internal
+  - name: months_present
+    type: integer
+    required: false
+    description: >
+      Months actually present. A gap here is a completeness failure that would
+      otherwise show up much later as an inexplicably light development cell.
+    classification: internal
+  - name: data_domain
+    type: string
+    required: false
+    description: The data domain this feed belongs to, for the data sign-off gate.
+    classification: internal
 keys:
   primary: [feed_id]
 owner: Chief Actuary

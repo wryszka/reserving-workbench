@@ -6,11 +6,20 @@ _POOL = ThreadPoolExecutor(max_workers=8)
 
 
 def query(statement: str):
-    """Return list[dict] rows. Values come back as strings from the API — cast in callers."""
+    """Return list[dict] rows. Values come back as strings from the API — cast in callers.
+
+    Raises on a failed statement. This matters for writes: a silently-swallowed
+    failure (a missing MODIFY grant, say) would let a writeback endpoint report
+    success while nothing changed, which is worse than an error mid-demo.
+    """
     w = config.get_workspace_client()
     resp = w.statement_execution.execute_statement(
         statement=statement, warehouse_id=config.WAREHOUSE_ID,
         catalog=config.CATALOG, schema=config.SCHEMA, wait_timeout="50s")
+    state = resp.status.state.value if (resp.status and resp.status.state) else "UNKNOWN"
+    if state != "SUCCEEDED":
+        msg = (resp.status.error.message if (resp.status and resp.status.error) else state)
+        raise RuntimeError(f"SQL {state}: {msg}")
     result = resp.result
     if result is None or result.data_array is None:
         return []

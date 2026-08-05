@@ -1,0 +1,87 @@
+kind: entity
+name: 1_raw_ingestion_reconciliation
+domain: reserving
+title: Ingestion Reconciliation Control
+description: >
+  Control totals reconciling each ingested feed to its independent source of
+  record - claims paid movements to the general ledger, premium to the premium
+  ledger, case reserves to the claims system's own control report. This is the
+  reconciliation reserving teams do by hand in a spreadsheet every quarter and
+  the single largest source of lost days in a close: the triangle does not tie to
+  the GL, and nobody can say why. Making the control a governed table means the
+  break is quantified, owned and dated before any actuarial work starts, instead
+  of being discovered at sign-off.
+grain: One row per reconciliation control per feed per valuation date.
+tags:
+  project: reserving-workbench
+  layer: raw
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: reconciliation_id
+    type: string
+    required: true
+    description: Identifier for the reconciliation control result.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: The close the control was run for.
+    classification: internal
+  - name: feed_id
+    type: string
+    required: true
+    description: The feed being reconciled.
+    classification: internal
+  - name: control_name
+    type: string
+    required: true
+    description: >
+      What is being reconciled (e.g. 'Claims paid movements to general ledger',
+      'Premium earned to premium ledger').
+    classification: internal
+  - name: source_of_truth
+    type: string
+    required: true
+    description: The independent system the feed is reconciled against.
+    classification: internal
+  - name: feed_amount
+    type: decimal(18,2)
+    required: true
+    description: The control total as measured in the ingested feed.
+    classification: internal
+  - name: source_amount
+    type: decimal(18,2)
+    required: true
+    description: The control total as measured in the source of truth.
+    classification: internal
+  - name: difference
+    type: decimal(18,2)
+    required: true
+    description: feed_amount minus source_amount. Zero is a clean tie.
+    classification: internal
+  - name: tolerance
+    type: decimal(18,2)
+    required: true
+    description: The absolute break the control tolerates before it fails.
+    classification: internal
+  - name: ties
+    type: boolean
+    required: true
+    description: Whether the difference is inside tolerance.
+    classification: internal
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the control totals.
+    classification: internal
+  - name: explanation
+    type: string
+    required: false
+    description: >
+      Where a break is known and accepted, the reason and the owner working it -
+      an explained break is a control, an unexplained one is a risk.
+    classification: internal
+keys:
+  primary: [reconciliation_id]
+owner: Chief Actuary

@@ -1,0 +1,83 @@
+kind: entity
+name: 1_raw_data_signoff
+domain: reserving
+title: Data Sign-Off Gate
+description: >
+  The data owner's attestation that the data for a close is fit to reserve on -
+  a formal "data accepted for 2026-Q4" state, recorded per data domain with who
+  attested, when, and against which control evidence. Most reserving teams start
+  work on data nobody has approved and find out later that it moved underneath
+  them. This gate separates two different jobs that are usually conflated: the
+  data owner attests the data is complete and reconciled; the actuary then makes
+  actuarial judgements on top of an attested base. It is the upstream twin of the
+  reserve sign-off at the other end of the process.
+grain: One row per data domain per valuation date.
+tags:
+  project: reserving-workbench
+  layer: raw
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: data_signoff_id
+    type: string
+    required: true
+    description: Identifier for the data sign-off.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: The close being attested.
+    classification: internal
+  - name: data_domain
+    type: string
+    required: true
+    description: >
+      The data domain attested (e.g. 'Claims', 'Premium & exposure',
+      'Large losses & bordereaux').
+    classification: internal
+  - name: owner_role
+    type: string
+    required: true
+    description: The role accountable for attesting this domain.
+    classification: internal
+  - name: feeds_covered
+    type: integer
+    required: true
+    description: How many feeds the attestation covers.
+    classification: internal
+  - name: controls_passing
+    type: integer
+    required: true
+    description: Reconciliation and data-quality controls passing at attestation.
+    classification: internal
+  - name: controls_total
+    type: integer
+    required: true
+    description: Controls in scope for this domain.
+    classification: internal
+  - name: status_code
+    type: string
+    required: true
+    description: >
+      Attestation state - BLOCKED (a critical control is failing), PENDING
+      (controls clean, awaiting the owner), or ACCEPTED (attested; actuarial work
+      may begin).
+    classification: internal
+  - name: attested_by
+    type: string
+    required: false
+    description: Who attested the data; null until accepted.
+    classification: internal
+  - name: attested_at
+    type: timestamp
+    required: false
+    description: When the attestation was recorded.
+    classification: internal
+  - name: note
+    type: string
+    required: false
+    description: The attestation note - what was accepted, and with what caveats.
+    classification: internal
+keys:
+  primary: [data_signoff_id]
+owner: Chief Actuary

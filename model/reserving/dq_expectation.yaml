@@ -30,6 +30,15 @@ attributes:
     required: true
     description: The check (e.g. 'row count within 2% of prior', 'no negative indemnity paid').
     classification: internal
+  - name: dq_dimension_code
+    code_set: dq_dimension
+    required: false
+    description: >
+      Which Solvency II data-quality dimension the check evidences - accuracy,
+      completeness or appropriateness. Because reserving feeds the technical
+      provisions, tagging the dimension makes the check suite directly usable as
+      Article 19 data-quality evidence instead of an engineering artefact.
+    classification: internal
   - name: severity
     type: string
     required: true

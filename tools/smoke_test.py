@@ -55,6 +55,54 @@ def main():
     cells = q(f"SELECT {FQ}.fn_reserve_to_qrt('RES-2026-COMM-2023-CH')")[0][0]
     check("reserve→QRT lineage function returns cells", bool(cells), str(cells))
 
+    print("\nIngestion control surface (the 'trust the data' front door):")
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.`1_raw_data_movement`")[0][0])
+    check("data movement since prior close populated", n > 0, f"{n} rows")
+    # the narrative row: the backdated large loss that restates a reported cell
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.`1_raw_data_movement` "
+              f"WHERE movement_type_code='BACKDATED_TRANSACTION' AND affects_reported_triangle")[0][0])
+    check("backdated transaction restating a reported cell present", n >= 1, f"{n} rows")
+    # reopens must be REAL in the ledger, not asserted downstream
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.`1_raw_data_movement` WHERE movement_type_code='REOPENED'")[0][0])
+    check("reopened claims present in the movement diff", n >= 1, f"{n} cohort rows")
+    # the claims-to-ledger control must actually tie, or the demo's core claim is false
+    row = q(f"SELECT ties, difference FROM {FQ}.`1_raw_ingestion_reconciliation` "
+            f"WHERE reconciliation_id='REC-CLAIMS-GL'")
+    check("claims paid reconciliation ties to the penny",
+          bool(row) and str(row[0][0]).lower() == "true", f"difference={row[0][1] if row else 'missing'}")
+    # ... and exactly one break should exist, explained (the bordereau)
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.`1_raw_ingestion_reconciliation` "
+              f"WHERE ties=false AND explanation IS NOT NULL")[0][0])
+    check("the one reconciliation break is explained and owned", n >= 1, f"{n} explained break(s)")
+    # the data sign-off gate must have a genuinely BLOCKED domain to demo the refusal
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.`1_raw_data_signoff` WHERE status_code='BLOCKED'")[0][0])
+    check("data sign-off gate has a blocked domain (the refusal beat)", n >= 1, f"{n} blocked")
+    # DQ checks carry their Solvency II dimension (Article 19 evidence, not just tests)
+    n = int(q(f"SELECT COUNT(DISTINCT dq_dimension_code) FROM {FQ}.`1_raw_dq_expectation` "
+              f"WHERE dq_dimension_code IS NOT NULL")[0][0])
+    check("DQ checks tagged with all 3 Solvency II dimensions", n == 3, f"{n} dimensions")
+    # the silent triangle-breaker
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.`1_raw_class_mapping` WHERE changed_since_prior")[0][0])
+    check("a class-mapping change is flagged", n >= 1, f"{n} changed")
+    # completeness/timeliness must be populated, or tab 5 is empty on screen
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.`1_raw_data_feed` "
+              f"WHERE months_expected IS NOT NULL AND sla_due_at IS NOT NULL")[0][0])
+    check("feeds carry completeness + SLA fields", n >= 1, f"{n} feeds")
+
+    print("\nMethodology models (the 'registered and version-controlled' claim):")
+    # every method the app indexes must EXIST as a UC model, or the claim is a label
+    indexed = {r[0] for r in q(f"SELECT uc_model_name FROM {FQ}.reserving_methodology")}
+    try:
+        existing = {m.full_name for m in w.registered_models.list(catalog_name=CAT, schema_name=SCH)}
+        missing = sorted(indexed - existing)
+        check("every indexed method exists as a UC registered model", not missing,
+              f"missing: {missing[:4]}" if missing else f"{len(indexed)} models")
+    except Exception as e:
+        check("every indexed method exists as a UC registered model", False, f"registry error: {e}")
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.reserving_methodology "
+              f"WHERE reserving_method_code='INHOUSE_FREQUENCY_SEVERITY'")[0][0])
+    check("customer's own model registered as a first-class method", n == 1, f"{n} rows")
+
     print("\nAsset labelling (enforced):")
     com = q(f"DESCRIBE SCHEMA EXTENDED {FQ}")
     schema_comment = next((r[1] for r in com if r[0] == "Comment"), "")

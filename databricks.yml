@@ -64,4 +64,6 @@ resources:
     reserving_workbench_app:
       name: reserving-workbench
       description: "Reserving Workbench — governed actuarial reserving for Bricksurance SE (methodology library, validation, expert judgement, LDF selection, reserve→QRT lineage)."
-      source_code_path: ../app
+      # relative to this file (repo root) — NOT ../app, which resolves outside the
+      # bundle sync root and fails with "path is not contained in sync root path"
+      source_code_path: ./app

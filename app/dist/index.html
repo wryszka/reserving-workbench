@@ -92,6 +92,19 @@
   .door .dt{font-size:14.5px;font-weight:700;margin-top:3px}
   .door .dd{font-size:12px;color:var(--mut);margin-top:5px;line-height:1.5}
   .door .dgo{font-size:12px;font-weight:700;color:var(--blue);margin-top:9px}
+  /* control tabs (ingestion) — one idea at a time on a big screen */
+  .tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:18px}
+  @media(max-width:1000px){.tabs{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:620px){.tabs{grid-template-columns:repeat(2,1fr)}}
+  .tab{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;cursor:pointer;transition:box-shadow .12s,border-color .12s,transform .12s}
+  .tab:hover{box-shadow:0 3px 12px rgba(15,23,42,.07);transform:translateY(-1px)}
+  .tab.on{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue) inset;background:#f5f9ff}
+  .tab .ti{font-size:15px;color:var(--mut);flex-shrink:0}
+  .tab.on .ti{color:var(--blue)}
+  .tab .tl{display:block;font-size:12px;font-weight:700;line-height:1.25}
+  .tab.on .tl{color:var(--blue7)}
+  .tab .tn{display:block;font-size:10.5px;color:var(--mut);margin-top:1px}
   /* Workbench AI cards */
   .supcard{background:linear-gradient(135deg,#f5f3ff,#fff);border:2px solid #ddd6fe;border-radius:14px;padding:20px;max-width:560px;margin:0 auto 18px;text-align:center}
   .supcard .eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--violet);font-weight:800}
@@ -145,7 +158,8 @@
 <script>
 const API=(p,o)=>fetch(p,o).then(async r=>{if(!r.ok){throw new Error('HTTP '+r.status+' on '+p);}return r.json();});
 const fmt=(n)=> n==null||n===''?'—':Number(n).toLocaleString('en-GB',{maximumFractionDigits:0});
-const money=(n)=> n==null||n===''?'—':'£'+fmt(n);
+// negative money reads as -£1,234 not £-1,234
+const money=(n)=> n==null||n===''?'—':(Number(n)<0?'-£'+fmt(Math.abs(Number(n))):'£'+fmt(n));
 let CFG={};
 
 // grouped navigation — a landing "Today", then the actuarial workflow in 4 sections.
@@ -153,10 +167,10 @@ let CFG={};
 // ai (workbench AI + Genie), governance (+assets). ~10 destinations in 4 groups.
 const NAV=[
   {section:null, items:[["overview","Today","▤"]]},
-  {section:"Prepare", items:[["ingestion","Ingestion & data quality","⇩"],["triangle","Triangle & selection","△"]]},
+  {section:"Prepare", items:[["ingestion","Ingestion & data controls","⇩"],["triangle","Triangle & selection","△"]]},
   {section:"Analyse", items:[["methods","Methods & estimates","∑"],["diagnostics","Diagnostics","◫"]]},
   {section:"Decide", items:[["judgements","Expert judgement","⚖"],["committee","Committee","◆"],["governance","Governance & sign-off","⬡"]]},
-  {section:"AI & platform", items:[["ai","Workbench AI","✦"],["engines","External engines (ResQ)","⚙"]]},
+  {section:"AI & platform", items:[["ai","Workbench AI","✦"],["engines","Engines & your models","⚙"]]},
 ];
 const PAGES=NAV.flatMap(g=>g.items);
 let CURRENT="overview", LOB="COMMERCIAL_PROPERTY";
@@ -200,30 +214,54 @@ PAGE.overview=async()=>{
   const [a,lc]=await Promise.all([API('/api/attention'),API('/api/lifecycle')]);
   const t=a.totals||{};
   const stbadge=(s)=> s==='built'?'<span class="pill pill-green">built</span>':'<span class="pill pill-amber">next</span>';
-  const topBreach=(a.breaches||[])[0];
+  const book=a.book||[]; const gate=a.data_gate||[];
+  const blocked=gate.filter(g=>g.status_code==='BLOCKED').length;
+  const attested=gate.filter(g=>g.status_code==='ACCEPTED').length;
+  // one row per line of business, ranked by how much it needs an actuary — the
+  // answer to "we run 30+ classes, does this scale?"
+  const flagCell=(n,tone,title)=> Number(n)>0
+    ? `<span class="pill pill-${tone}" title="${title}">${n}</span>`
+    : '<span style="color:#cbd5e1">—</span>';
   main(`<h1>Today — Q4 close cockpit</h1>
-  <p class="sub">Valuation ${a.valuation_date}. What needs your attention this close.</p>
-  ${explain(`This is the reserving actuary's Monday-morning view of close week. The triangle is already built and reconciling — no weekend in Excel. The platform points you at the one cohort that needs judgment, tracks what's still pending, and carries the whole process (data · engines · agents · governance) end to end, the same shape as the pricing workbench.`)}
+  <p class="sub">Valuation ${a.valuation_date}. Where the book needs you this close.</p>
+  ${explain(`The reserving actuary's Monday morning. The triangle is already built and reconciling to the ledger — no weekend in Excel, no <span class="mono">_v7_FINAL.xlsx</span>. The platform ranks the <b>whole book</b> by what needs a human: data that restated, cohorts that failed validation, mappings that moved, selections still open. You spend the quarter on judgement, not on assembling the numbers.`)}
   <div class="row">
     <div class="tile"><div class="k">Best-estimate ultimate</div><div class="v">${money(t.ultimate)}</div></div>
     <div class="tile"><div class="k">IBNR</div><div class="v">${money(t.ibnr)}</div></div>
-    <div class="tile"><div class="k">Pending selections</div><div class="v">${a.pending_selections}</div></div>
-    <div class="tile"><div class="k">Pending sign-offs</div><div class="v">${a.pending_signoffs}</div></div>
+    <div class="tile" style="${blocked?'border-color:#fecaca;background:#fffbfb':''}">
+      <div class="k">Data accepted for this close</div>
+      <div class="v sm" style="color:${blocked?'#dc2626':'#16a34a'}">${attested}/${gate.length} domains</div>
+      <div style="color:var(--mut);font-size:11.5px;margin-top:4px">${blocked?`${blocked} blocked — a control is failing`:'all attested by the data owner'}</div></div>
+    <div class="tile"><div class="k">Open decisions</div><div class="v sm">${Number(a.pending_selections)+Number(a.pending_signoffs)}</div>
+      <div style="color:var(--mut);font-size:11.5px;margin-top:4px">${a.pending_selections} selection · ${a.pending_signoffs} sign-off</div></div>
   </div>
-  <div class="card" style="border-color:#fecaca;background:#fffbfb"><h2>⚠ Needs your attention</h2>
-  <div class="h-sub">The platform flagged these — you didn't have to eyeball 40 triangles.</div>
-    ${(a.breaches||[]).map(b=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)">
-      <div><b>${b.line_of_business_code.replace(/_/g,' ')} — AY ${b.accident_year}</b> <span style="color:var(--mut)">breached actual-vs-expected validation</span></div>
-      <div style="display:flex;gap:12px;align-items:center"><span class="pill pill-red">resid ${Number(b.standardised_residual).toFixed(2)}</span>
-      <button class="btn" style="padding:5px 11px" onclick="go('triangle')">Review →</button></div></div>`).join('')||'<div style="color:var(--green)">Nothing outside tolerance — clean close.</div>'}
-    ${a.large_losses>0?`<div style="margin-top:10px;color:var(--mut);font-size:12.5px">${a.large_losses} large loss flagged for individual treatment (distorts a factor).</div>`:''}
+  <div class="card" style="border-color:#c7d2fe"><h2>The book — every line, ranked by what needs you</h2>
+  <div class="h-sub">You didn't eyeball 40 triangles; the platform read them all and sorted them. Click a line to work it.</div>
+    <table><thead><tr><th>Line of business</th><th class="num">Ultimate</th><th class="num">IBNR</th>
+      <th class="num" title="Cohorts that failed actual-vs-expected validation">Validation</th>
+      <th class="num" title="Claims whose movement restated an already-reported cell">Restated</th>
+      <th class="num" title="Class mappings that changed since the prior close">Mapping</th>
+      <th class="num" title="Large losses distorting a development factor">Large loss</th>
+      <th>Sign-off</th><th></th></tr></thead><tbody>
+    ${book.map(r=>{const br=Number(r.breaches||0);
+      return `<tr${br?' style="background:#fffbfb"':''}>
+      <td><b>${r.lob.replace(/_/g,' ')}</b>${br?' <span class="pill pill-red" style="font-size:9.5px">needs review</span>':''}</td>
+      <td class="num">${money(r.ultimate)}</td><td class="num">${money(r.ibnr)}</td>
+      <td class="num">${flagCell(br,'red','cohorts outside tolerance'+(r.worst_resid?` (worst residual ${Number(r.worst_resid).toFixed(1)})`:''))}</td>
+      <td class="num">${flagCell(r.restating_claims,'amber','claims restating an already-reported cell')}</td>
+      <td class="num">${flagCell(r.mapping_changes,'amber','class mappings changed since the prior close')}</td>
+      <td class="num">${flagCell(r.large_losses,'blue','large losses distorting a factor')}</td>
+      <td><span class="pill ${r.signoff_status==='APPROVED'?'pill-green':'pill-amber'}">${r.signoff_status==='APPROVED'?'signed':'pending'}</span></td>
+      <td><button class="btn" style="padding:4px 10px;font-size:11.5px" onclick="LOB='${r.lob}';go('triangle')">Work it →</button></td></tr>`;}).join('')}
+    </tbody></table>
+    <details class="why"><summary>Where does each flag come from?</summary><div><b>Validation</b> — actual-vs-expected on the first development step, flagged beyond ±2.5 standardised residuals. <b>Restated</b> — claims whose movement since the prior close changed a triangle cell that was already reported (backdated transactions and reopens). <b>Mapping</b> — source-class mappings that moved between reserving classes since the prior close. <b>Large loss</b> — individual claims above threshold that distort a mechanical factor. Every flag is a query over a governed table, not a spreadsheet someone maintains — so this view works the same at 5 classes or 50.</div></details>
   </div>
-  <div class="card"><h2>The close, end to end</h2><div class="h-sub">Four steps, one governed flow. Jump in anywhere.</div>
+  <div class="card"><h2>The close, end to end</h2><div class="h-sub">Four doors, one governed flow. Jump in anywhere.</div>
     <div class="doors">
-      ${[["ingestion","1 · Prepare","Ingestion & data quality","Land and quality-check every feed before you reserve on it.","#2563eb"],
-         ["triangle","2 · Select","Triangle & selection","Review factors, override the anomaly, and select — with an AI peer review.","#2563eb"],
-         ["diagnostics","3 · Analyse","Methods, ranges & diagnostics","Estimates, uncertainty, validation and the movement story.","#6d28d9"],
-         ["governance","4 · Sign off","Governance & sign-off","Reconcile, audit, and put your name to the number — reproducibly.","#16a34a"]
+      ${[["ingestion","1 · Trust the data","Ingestion & data controls","What changed, does it reconcile, has the owner signed it off.","#2563eb"],
+         ["triangle","2 · Make the judgement","Triangle & selection","Review factors, override the anomaly, select — with an AI second pair of eyes.","#2563eb"],
+         ["diagnostics","3 · Explain the movement","Diagnostics & roll-forward","Why did reserves move — a decomposition, not a weekend.","#6d28d9"],
+         ["governance","4 · Sign off & reproduce","Governance & sign-off","Put your name to the number; reproduce it as-at, months later.","#16a34a"]
       ].map(d=>`<div class="door" onclick="go('${d[0]}')" style="border-top:3px solid ${d[4]}">
         <div class="dn">${d[1]}</div><div class="dt">${d[2]}</div><div class="dd">${d[3]}</div><div class="dgo">Open →</div></div>`).join('')}
     </div>
@@ -245,29 +283,239 @@ PAGE.overview=async()=>{
   ${ABOUT}`);
 };
 
+// ---- Ingestion & data controls -------------------------------------------------
+// The "trust the data" front door. Six controls in the order a real close asks
+// them, each on its own tab so a big-screen audience sees one idea at a time
+// instead of six stacked tables.
+const MOVE_LABEL={NEW_CLAIM:'New claims notified',REOPENED:'Reopened claims',
+  REVALUED_UP:'Case reserves strengthened',REVALUED_DOWN:'Case reserves released',
+  BACKDATED_TRANSACTION:'Backdated transactions',CLOSED:'Claims closed'};
+const DIM_TONE={ACCURACY:'blue',COMPLETENESS:'violet',APPROPRIATENESS:'amber'};
+let ING={tab:'movement', data:null};
+
 PAGE.ingestion=async()=>{
-  const d=await API('/api/ingestion');
-  const feeds=d.feeds||[]; const exp=d.expectations||[];
-  const statusPill=(s)=>({accepted:'pill-green',arrived:'pill-blue',late:'pill-amber',quarantined:'pill-red'}[s]||'pill-slate');
-  main(`<h1>Ingestion &amp; data quality</h1><p class="sub">The front door. Every source landed and quality-checked before you reserve on it.</p>
-  ${explain(`Everyone struggles with this: loss data lands late and dirty. Here each feed's arrival, row count and data-quality score are visible before any reserving work. Data-quality "expectations" pass or fail per feed; a failing <b>critical</b> check quarantines the feed and blocks acceptance until an actuary resolves it. Accepting a feed is a human-in-the-loop action, and it's audited.`)}
-  <div class="card"><h2>Source feeds — Q4 close</h2><div class="h-sub">Federation to Discovery for premium; One Shield for claims. Accept a clean feed into the reserving mart.</div>
-    <table><thead><tr><th>Feed</th><th>Source</th><th class="num">Rows</th><th class="num">DQ pass</th><th>Status</th><th></th></tr></thead><tbody>
-    ${feeds.map(f=>{const dq=Number(f.dq_pass_pct); return `<tr><td><b>${f.feed_name}</b></td><td class="mono" style="font-size:11px">${f.source_system_code}</td><td class="num">${fmt(f.rows_received)}${f.rows_expected?`<span style="color:var(--mut)"> / ${fmt(f.rows_expected)}</span>`:''}</td><td class="num" style="color:${dq>=99?'#16a34a':(dq>=95?'#d97706':'#dc2626')}">${dq.toFixed(1)}%</td><td><span class="pill ${statusPill(f.status)}">${f.status}</span></td><td>${f.status==='accepted'?'':`<button class="btn" style="padding:5px 11px" onclick="acceptFeed('${f.feed_id}')">Accept</button>`}</td></tr>`;}).join('')}
-    </tbody></table><span id="ingmsg" style="font-size:12.5px;color:var(--mut)"></span>
+  ING.data=await API('/api/ingestion');
+  const d=ING.data;
+  const feeds=d.feeds||[], exp=d.expectations||[], rec=d.reconciliation||[];
+  const gate=d.data_signoff||[];
+  const critFails=exp.filter(e=>e.severity==='critical'&&!(e.passed===true||e.passed==='true')).length;
+  const recBreaks=rec.filter(r=>!(r.ties===true||r.ties==='true')).length;
+  const lateFeeds=feeds.filter(f=>f.sla_due_at&&f.arrived_at&&f.arrived_at>f.sla_due_at).length;
+  const incomplete=feeds.filter(f=>Number(f.months_present||0)<Number(f.months_expected||0)).length;
+  const mapChanges=(d.mapping||[]).filter(m=>m.changed_since_prior===true||m.changed_since_prior==='true').length;
+  const blocked=gate.filter(g=>g.status_code==='BLOCKED').length;
+  const accepted=gate.filter(g=>g.status_code==='ACCEPTED').length;
+  const net=d.movement_net||{};
+  const restatingClaims=(d.movement_restating||[]).reduce((a,r)=>a+Number(r.claim_count||0),0);
+
+  const TABS=[
+    ['movement','1 · What changed',`${fmt(net.claims)} movements`,'⇄'],
+    ['recon','2 · Reconciliation',`${recBreaks?recBreaks+' break':'all tie'}`,'⚖'],
+    ['gate','3 · Data sign-off',`${accepted}/${gate.length} attested`,'✓'],
+    ['dq','4 · Quality checks',`${critFails?critFails+' critical':'all pass'}`,'◫'],
+    ['feeds','5 · Feeds & timeliness',`${lateFeeds?lateFeeds+' late':'on time'}`,'⇩'],
+    ['mapping','6 · Class mapping',`${mapChanges?mapChanges+' changed':'unchanged'}`,'⇉'],
+  ];
+
+  main(`<h1>Ingestion &amp; data controls</h1>
+  <p class="sub">Before a single factor is selected: what changed, does it reconcile, and has the data owner signed it off.</p>
+  ${explain(`The 90% of reserving nobody demos. Six controls, in the order a real close asks them — <b>what moved in my data since last quarter</b>, <b>does it reconcile to the ledger</b>, <b>has the data owner attested it</b>, <b>which quality checks passed</b> (tagged with the Solvency II data-quality dimension, because reserving feeds the technical provisions), <b>is every month present and on time</b>, and <b>did any class mapping change</b>. Each is a governed table, not a spreadsheet: the reconciliation is real arithmetic against the claim ledger, and the sign-off gate refuses to attest while a critical control is red.`)}
+  <div class="row">
+    <div class="tile" style="border-color:${blocked?'#fecaca':'#bbf7d0'};background:${blocked?'#fffbfb':'#f8fdf9'}">
+      <div class="k">Data accepted for this close</div>
+      <div class="v sm" style="color:${blocked?'#dc2626':'#16a34a'}">${accepted} of ${gate.length} domains</div>
+      <div style="color:var(--mut);font-size:11.5px;margin-top:4px">${blocked?`${blocked} blocked by a failing control`:'all domains attested'}</div></div>
+    <div class="tile"><div class="k">Claims that moved since Q3</div><div class="v sm">${fmt(net.claims)}</div>
+      <div style="color:var(--mut);font-size:11.5px;margin-top:4px">net ${money(net.net)} across ${net.lobs} lines</div></div>
+    <div class="tile" style="${restatingClaims?'border-color:#fed7aa;background:#fffbf5':''}">
+      <div class="k">Restating already-reported cells</div>
+      <div class="v sm" style="color:${restatingClaims?'#d97706':'#16a34a'}">${fmt(restatingClaims)}</div>
+      <div style="color:var(--mut);font-size:11.5px;margin-top:4px">${restatingClaims?'last quarter’s numbers moved':'no restatement'}</div></div>
+    <div class="tile"><div class="k">Controls failing</div>
+      <div class="v sm" style="color:${(critFails+recBreaks)?'#dc2626':'#16a34a'}">${critFails+recBreaks}</div>
+      <div style="color:var(--mut);font-size:11.5px;margin-top:4px">${critFails} critical check · ${recBreaks} reconciliation</div></div>
   </div>
-  <div class="card"><h2>Data-quality expectations</h2><div class="h-sub">The checks each feed must pass. A failing critical check blocks acceptance.</div>
-    <table><thead><tr><th>Feed</th><th>Expectation</th><th>Severity</th><th class="num">Failed rows</th><th>Result</th><th>Detail</th></tr></thead><tbody>
-    ${exp.map(e=>{const ok=(e.passed===true||e.passed==='true'); return `<tr><td class="mono" style="font-size:11px">${e.feed_id.replace('FEED-','')}</td><td>${e.expectation_name}</td><td><span class="pill ${e.severity==='critical'?'pill-red':'pill-slate'}">${e.severity}</span></td><td class="num">${e.failed_rows}</td><td><span class="pill ${ok?'pill-green':'pill-red'}">${ok?'pass':'FAIL'}</span></td><td style="color:var(--mut);font-size:12px">${e.detail||''}</td></tr>`;}).join('')}
-    </tbody></table>
-    <details class="why"><summary>The narrative thread</summary><div>The large-loss bordereau fails a critical check — CLM-2023-ANOMALY isn't yet in the claims ledger, so it's quarantined. That same late large loss is what distorts the AY2023 development factor on the Triangle page. Ingestion, selection and governance are one connected story.</div></details>
-  </div>${ABOUT}`);
+  <div class="tabs" id="ingtabs">
+    ${TABS.map(([id,label,note,ic])=>`<div class="tab ${id===ING.tab?'on':''}" onclick="ingTab('${id}')">
+      <span class="ti">${ic}</span><span><span class="tl">${label}</span><span class="tn">${note}</span></span></div>`).join('')}
+  </div>
+  <div id="ingbody"></div>${ABOUT}`);
+  ingRender();
 };
+function ingTab(t){ING.tab=t;
+  document.querySelectorAll('#ingtabs .tab').forEach(el=>el.classList.remove('on'));
+  const idx=['movement','recon','gate','dq','feeds','mapping'].indexOf(t);
+  const els=document.querySelectorAll('#ingtabs .tab'); if(els[idx])els[idx].classList.add('on');
+  ingRender();}
+
+function ingRender(){
+  const d=ING.data, body=document.getElementById('ingbody'); if(!body)return;
+  body.innerHTML=({movement:ingMovement,recon:ingRecon,gate:ingGate,dq:ingDq,feeds:ingFeeds,mapping:ingMapping}[ING.tab]||ingMovement)(d);
+  if(ING.tab==='gate') wireGate();
+  if(ING.tab==='feeds') wireFeeds();
+}
+
+// 1 · the data diff — the first question of every close
+function ingMovement(d){
+  const byType=d.movement_by_type||[], rest=d.movement_restating||[];
+  const max=Math.max(...byType.map(r=>Math.abs(Number(r.amount||0))),1);
+  return `<div class="card"><h2>What changed in my data since last quarter</h2>
+  <div class="h-sub">Movement from the 30 Sep close to this one, by type — derived from the claim ledger, not a hand-built comparison.</div>
+    <table><thead><tr><th>Movement</th><th class="num">Claims</th><th class="num">Incurred impact</th><th style="width:38%"></th></tr></thead><tbody>
+    ${byType.map(r=>{const amt=Number(r.amount||0),pos=amt>=0,w=Math.abs(amt)/max*100;
+      return `<tr><td><b>${MOVE_LABEL[r.movement_type_code]||r.movement_type_code.replace(/_/g,' ')}</b></td>
+      <td class="num">${fmt(r.claims)}</td>
+      <td class="num" style="color:${pos?'#dc2626':'#16a34a'}">${pos?'+':''}${money(amt)}</td>
+      <td><div style="background:#f1f5f9;border-radius:4px;height:9px;position:relative"><div style="position:absolute;left:0;top:0;height:9px;border-radius:4px;width:${w}%;background:${pos?'#f87171':'#4ade80'}"></div></div></td></tr>`;}).join('')}
+    </tbody></table>
+    <div style="margin-top:12px;color:var(--mut);font-size:12.5px">Net movement <b style="color:var(--ink)">${money((d.movement_net||{}).net)}</b> — the number the chief actuary asks about before anyone opens a triangle.</div>
+  </div>
+  <div class="card" style="border-color:#fed7aa;background:#fffbf5"><h2>⚠ Movements that restate an already-reported cell</h2>
+  <div class="h-sub">These changed a triangle cell that was reported — and signed off — last quarter. The restatement you need to be told about, not discover.</div>
+    <table><thead><tr><th>Line of business</th><th class="num">AY</th><th>Movement</th><th class="num">Claims</th><th class="num">Impact</th></tr></thead><tbody>
+    ${rest.map(r=>{const amt=Number(r.amount||0),hero=r.movement_type_code==='BACKDATED_TRANSACTION';
+      return `<tr${hero?' style="background:#fff7ed;font-weight:600"':''}><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td>
+      <td><span class="pill ${hero?'pill-red':'pill-amber'}">${(MOVE_LABEL[r.movement_type_code]||r.movement_type_code).toLowerCase()}</span></td>
+      <td class="num">${fmt(r.claim_count)}</td><td class="num" style="color:${amt>=0?'#dc2626':'#16a34a'}">${amt>=0?'+':''}${money(amt)}</td></tr>`;}).join('')||'<tr><td colspan="5" class="load">Nothing restated — a clean quarter.</td></tr>'}
+    </tbody></table>
+    <details class="why"><summary>Why this is the beat that matters</summary><div>The top row is the AY2023 Commercial Property loss: <b>£1.05m posted this quarter but dated into 2023</b> — a cohort that was closed, reported and signed off. It is the single cause of the 3.63× development factor you'll see on the triangle, and this screen finds it in seconds, from the data, before any actuarial judgement is made. In a spreadsheet close, this is discovered in week three, if at all.</div></details>
+  </div>`;
+}
+
+// 2 · reconciliation at ingestion — "I never fight the GL again"
+function ingRecon(d){
+  const rec=d.reconciliation||[];
+  return `<div class="card"><h2>Reconciliation to the source of record</h2>
+  <div class="h-sub">Every feed tied to an independent system before any reserving work — the days most closes lose.</div>
+    <table><thead><tr><th>Control</th><th>Reconciled against</th><th class="num">Feed</th><th class="num">Source</th><th class="num">Difference</th><th>Result</th></tr></thead><tbody>
+    ${rec.map(r=>{const ties=(r.ties===true||r.ties==='true');
+      return `<tr${ties?'':' style="background:var(--redbg)"'}><td><b>${r.control_name}</b></td>
+      <td style="color:var(--mut);font-size:12px">${r.source_of_truth}</td>
+      <td class="num">${money(r.feed_amount)}</td><td class="num">${money(r.source_amount)}</td>
+      <td class="num" style="color:${ties?'#16a34a':'#dc2626'};font-weight:${ties?'400':'700'}">${money(r.difference)}</td>
+      <td><span class="pill ${ties?'pill-green':'pill-red'}">${ties?'ties':'BREAK'}</span></td></tr>`;}).join('')}
+    </tbody></table>
+    ${rec.filter(r=>r.explanation).map(r=>`<div style="margin-top:12px;background:var(--ambbg);border:1px solid #fde68a;border-radius:8px;padding:11px 14px;font-size:12.5px;color:#92400e"><b>${r.control_name}</b> — ${r.explanation}</div>`).join('')}
+    <details class="why"><summary>What am I actually looking at?</summary><div>The claims controls are <b>real arithmetic</b>: the feed total is summed from the claim ledger this workbench derives its triangle from, so "ties to the penny" is a computation you could re-run, not a label. The one break is explained and owned — <i>an explained break is a control; an unexplained one is a risk</i>. And because the triangle is a view over the same ledger, the reconciliation holds all the way through to sign-off. There is no <span class="mono">_v7_FINAL.xlsx</span> in this picture.</div></details>
+  </div>`;
+}
+
+// 3 · the data sign-off gate — the control that separates data from judgement
+function ingGate(d){
+  const gate=d.data_signoff||[];
+  const pill=(s)=>s==='ACCEPTED'?'pill-green':(s==='BLOCKED'?'pill-red':'pill-amber');
+  return `<div class="card"><h2>Data sign-off gate — is this data fit to reserve on?</h2>
+  <div class="h-sub">The data owner attests per domain. Actuarial work starts on attested data, not on whatever landed.</div>
+    <table><thead><tr><th>Data domain</th><th>Owner</th><th class="num">Feeds</th><th class="num">Controls</th><th>State</th><th>Attested by</th><th></th></tr></thead><tbody>
+    ${gate.map(g=>{const st=g.status_code,ok=st==='ACCEPTED',bl=st==='BLOCKED';
+      const cp=Number(g.controls_passing||0),ct=Number(g.controls_total||0);
+      return `<tr${bl?' style="background:var(--redbg)"':''}><td><b>${g.data_domain}</b></td>
+      <td style="color:var(--mut);font-size:12px">${g.owner_role}</td><td class="num">${g.feeds_covered}</td>
+      <td class="num" style="color:${cp===ct?'#16a34a':'#dc2626'}">${cp}/${ct}</td>
+      <td><span class="pill ${pill(st)}">${st.toLowerCase()}</span></td>
+      <td style="font-size:12px">${g.attested_by||'—'}</td>
+      <td>${ok?'':`<button class="btn gatebtn" data-domain="${g.data_domain}" style="padding:5px 11px;${bl?'background:#94a3b8':''}">Attest data</button>`}</td></tr>`;}).join('')}
+    </tbody></table><div id="gatemsg" style="font-size:12.5px;color:var(--mut);margin-top:8px"></div>
+    <div style="margin-top:14px">
+    ${gate.filter(g=>g.note).map(g=>`<div style="border-left:3px solid ${g.status_code==='BLOCKED'?'#dc2626':(g.status_code==='ACCEPTED'?'#16a34a':'#d97706')};background:#f8fafc;border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:8px;font-size:12.5px"><b>${g.data_domain}</b> <span style="color:var(--mut)">— ${g.note}</span></div>`).join('')}
+    </div>
+    <details class="why"><summary>Try it: the gate is a real gate</summary><div>Click <b>Attest data</b> on <b>Large losses &amp; bordereaux</b> — it is <b>refused</b>, and it names the failing control. The state isn't a flag someone set; it's computed from the reconciliation and quality checks, so nobody can attest data while a critical control is red. Attest <b>Premium &amp; exposure</b> instead and it succeeds, records who attested it, and writes to the audit trail. This is the upstream twin of the reserve sign-off at the far end of the process — two different jobs, usually conflated: the data owner says <i>the data is right</i>, the actuary then says <i>the judgement is mine</i>.</div></details>
+  </div>`;
+}
+function wireGate(){
+  document.querySelectorAll('.gatebtn').forEach(b=>b.onclick=()=>attestData(b.dataset.domain));
+}
+async function attestData(domain){
+  const m=document.getElementById('gatemsg'); m.textContent='Attesting '+domain+'…';
+  try{const r=await API('/api/ingestion/attest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data_domain:domain})});
+    if(r.ok){m.innerHTML=`<span style="color:#16a34a">✓ ${domain} attested by ${r.by} — recorded in the audit trail. Refreshing…</span>`;
+      setTimeout(()=>PAGE.ingestion(),900);}
+    else m.innerHTML=`<span style="color:#dc2626">⛔ Refused — ${r.error}</span>`;}
+  catch(e){m.innerHTML=`<span style="color:#dc2626">Attestation failed: ${e.message}</span>`;}
+}
+
+// 4 · DQ checks, grouped by the Solvency II data-quality dimension
+function ingDq(d){
+  const exp=d.expectations||[];
+  const dims=['ACCURACY','COMPLETENESS','APPROPRIATENESS'];
+  const group={}; exp.forEach(e=>{(group[e.dq_dimension_code||'OTHER']=group[e.dq_dimension_code||'OTHER']||[]).push(e);});
+  const card=(dim)=>{const rows=group[dim]||[]; if(!rows.length)return '';
+    const fails=rows.filter(e=>!(e.passed===true||e.passed==='true')).length;
+    return `<div class="card"><h2><span class="pill pill-${DIM_TONE[dim]||'slate'}" style="font-size:11px;vertical-align:middle">${dim.toLowerCase()}</span>
+      &nbsp;${rows.length-fails} of ${rows.length} passing</h2>
+    <div class="h-sub">${{ACCURACY:'Free from material error and reconciling to source.',COMPLETENESS:'Every period, cohort and claim present — nothing silently missing.',APPROPRIATENESS:'Relevant to the estimate and consistently defined over time.'}[dim]||''}</div>
+      <table><thead><tr><th>Check</th><th>Feed</th><th>Severity</th><th class="num">Failed</th><th>Result</th><th>Detail</th></tr></thead><tbody>
+      ${rows.map(e=>{const ok=(e.passed===true||e.passed==='true');
+        return `<tr${ok?'':' style="background:var(--redbg)"'}><td>${e.expectation_name}</td>
+        <td class="mono" style="font-size:11px">${e.feed_id.replace('FEED-','')}</td>
+        <td><span class="pill ${e.severity==='critical'?'pill-red':'pill-slate'}">${e.severity}</span></td>
+        <td class="num">${e.failed_rows}</td><td><span class="pill ${ok?'pill-green':'pill-red'}">${ok?'pass':'FAIL'}</span></td>
+        <td style="color:var(--mut);font-size:12px">${e.detail||''}</td></tr>`;}).join('')}
+      </tbody></table></div>`;};
+  return `<div class="explain" style="background:linear-gradient(90deg,#eff6ff,#f5f3ff)"><b>Why these three groups?</b> Solvency II requires the data behind the technical provisions to be <b>accurate, complete and appropriate</b>, evidenced per source. Reserving feeds the technical provisions directly — so tagging every check with its dimension turns an engineering test suite into the data-quality evidence your regulator already asks for.</div>
+  ${dims.map(card).join('')}`;
+}
+
+// 5 · feeds: completeness & timeliness
+function ingFeeds(d){
+  const feeds=d.feeds||[];
+  const statusPill=(s)=>({accepted:'pill-green',arrived:'pill-blue',late:'pill-amber',quarantined:'pill-red'}[s]||'pill-slate');
+  return `<div class="card"><h2>Source feeds — arrival, completeness, quality</h2>
+  <div class="h-sub">Federated to Discovery for premium; One Shield for claims. Late against SLA and missing months are measured facts with an owner, not recurring complaints.</div>
+    <table><thead><tr><th>Feed</th><th>Domain</th><th class="num">Rows</th><th class="num">Months</th><th>Arrival vs SLA</th><th class="num">DQ pass</th><th>Status</th><th></th></tr></thead><tbody>
+    ${feeds.map(f=>{const dq=Number(f.dq_pass_pct);
+      const late=f.sla_due_at&&f.arrived_at&&f.arrived_at>f.sla_due_at;
+      const mp=Number(f.months_present||0),me=Number(f.months_expected||0),gap=me&&mp<me;
+      return `<tr><td><b>${f.feed_name}</b><div class="mono" style="font-size:10.5px;color:var(--mut)">${f.source_system_code}</div></td>
+      <td style="font-size:12px;color:var(--mut)">${f.data_domain||'—'}</td>
+      <td class="num">${fmt(f.rows_received)}${f.rows_expected?`<span style="color:var(--mut)"> / ${fmt(f.rows_expected)}</span>`:''}</td>
+      <td class="num" style="color:${gap?'#d97706':'#16a34a'}">${mp}/${me}${gap?' ⚠':''}</td>
+      <td>${late?'<span class="pill pill-amber">late</span>':'<span class="pill pill-green">on time</span>'}</td>
+      <td class="num" style="color:${dq>=99?'#16a34a':(dq>=95?'#d97706':'#dc2626')}">${dq.toFixed(1)}%</td>
+      <td><span class="pill ${statusPill(f.status)}">${f.status}</span></td>
+      <td>${f.status==='accepted'?'':`<button class="btn feedbtn" data-feed="${f.feed_id}" style="padding:5px 11px">Accept</button>`}</td></tr>`;}).join('')}
+    </tbody></table><div id="ingmsg" style="font-size:12.5px;color:var(--mut);margin-top:8px"></div>
+    <details class="why"><summary>Try it: acceptance is blocked, not warned</summary><div>The large-loss bordereau is <b>quarantined</b> — its reconciliation to the claims ledger is broken. Click <b>Accept</b> and the platform refuses: you cannot reserve on data that hasn't passed its checks. Note what is <i>not</i> quarantined: the raw £1.05m loss is already in the ledger (that's why AY2023 develops high) — what's held here is the <b>correcting bordereau entry</b>, waiting to tie.</div></details>
+  </div>`;
+}
+function wireFeeds(){
+  document.querySelectorAll('.feedbtn').forEach(b=>b.onclick=()=>acceptFeed(b.dataset.feed));
+}
 async function acceptFeed(id){const m=document.getElementById('ingmsg');m.textContent='Accepting '+id+'…';
   try{const r=await API('/api/ingestion/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({feed_id:id})});
     if(r.ok){m.innerHTML=`<span style="color:#16a34a">✓ ${id} accepted by ${r.by}. Refreshing…</span>`;setTimeout(()=>PAGE.ingestion(),800);}
-    else m.innerHTML=`<span style="color:#dc2626">${r.error}</span>`;}
+    else m.innerHTML=`<span style="color:#dc2626">⛔ Blocked — ${r.error}</span>`;}
   catch(e){m.textContent='accept failed: '+e.message;}}
+
+// 6 · mapping control — the silent triangle-breaker
+function ingMapping(d){
+  const rows=d.mapping||[];
+  const changed=rows.filter(m=>m.changed_since_prior===true||m.changed_since_prior==='true');
+  return `${changed.length?`<div class="card" style="border-color:#fecaca;background:#fffbfb"><h2>⚠ ${changed.length} class mapping changed since the prior close</h2>
+  <div class="h-sub">Nothing looks wrong, every control ties — but a cohort's history has moved between reserving classes.</div>
+    ${changed.map(m=>`<div style="padding:10px 0;border-bottom:1px solid var(--line)">
+      <div><span class="mono">${m.source_class_code}</span> <b>${m.source_class_label}</b></div>
+      <div style="margin-top:6px;font-size:12.5px">
+        <span class="pill pill-slate">${(m.prior_line_of_business_code||'').replace(/_/g,' ')}</span>
+        <span style="color:var(--mut);margin:0 6px">→</span>
+        <span class="pill pill-red">${m.line_of_business_code.replace(/_/g,' ')}</span>
+        <span style="color:var(--mut);margin-left:8px">${fmt(m.claim_count)} claims affected</span></div>
+      ${m.change_reason?`<div style="color:var(--mut);font-size:12.5px;margin-top:6px">${m.change_reason}</div>`:''}
+    </div>`).join('')}
+    <details class="why"><summary>Why this is the one nobody sees coming</summary><div>A changed mapping is the classic triangle-breaker: the data is accurate, complete and reconciled, and <b>both</b> affected patterns still break — because history moved between classes. No factor diagnostic will ever explain it, so teams spend a week on archaeology. Holding the mapping as governed, versioned data with last quarter's value alongside turns that week into this row.</div></details>
+  </div>`:''}
+  <div class="card"><h2>Source class → reserving class</h2>
+  <div class="h-sub">How each source system code maps into the class the triangle is built on, with the prior close's mapping for comparison.</div>
+    <table><thead><tr><th>Source class</th><th>Description</th><th>Reserving class</th><th>Prior close</th><th class="num">Claims</th><th></th></tr></thead><tbody>
+    ${rows.map(m=>{const ch=(m.changed_since_prior===true||m.changed_since_prior==='true');
+      return `<tr${ch?' style="background:var(--redbg)"':''}><td class="mono" style="font-size:11.5px">${m.source_class_code}</td>
+      <td style="font-size:12.5px">${m.source_class_label}</td>
+      <td>${m.line_of_business_code.replace(/_/g,' ')}</td>
+      <td style="color:var(--mut)">${(m.prior_line_of_business_code||'').replace(/_/g,' ')}</td>
+      <td class="num">${fmt(m.claim_count)}</td>
+      <td>${ch?'<span class="pill pill-red">changed</span>':''}</td></tr>`;}).join('')}
+    </tbody></table></div>`;
+}
 
 // live state for the decision module (per page load)
 let SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, overrides:{}, empirical:{}, applied:{}, lags:[], overrode:false};
@@ -534,8 +782,50 @@ PAGE.diagnostics=async()=>{
   <div class="card"><h2>Large-loss review</h2><div class="h-sub">Reserve large claims individually; remove them from the triangle used for selection.</div>
     <table><thead><tr><th>Claim</th><th>LOB</th><th class="num">AY</th><th class="num">Incurred</th><th class="num">Threshold</th><th>Treatment</th><th>Distorts factor</th></tr></thead><tbody>
     ${(l.rows||[]).map(r=>`<tr><td class="mono">${r.claim_id}</td><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td class="num">${money(r.incurred)}</td><td class="num">${money(r.threshold)}</td><td><span class="pill pill-blue">${r.treatment.replace(/_/g,' ')}</span></td><td>${r.distorts_factor==='true'||r.distorts_factor===true?'<span class="pill pill-red">yes</span>':'—'}</td></tr>`).join('')}
-    </tbody></table></div>${ABOUT}`);
+    </tbody></table></div>
+  <div class="card" style="border-color:#a5f3fc;background:linear-gradient(180deg,#f8feff,#fff)">
+    <h2>Scratch pad — off-cycle "what if?"</h2>
+    <div class="h-sub">Answer the ad-hoc question in seconds, against the live triangle. Deliberately writes nothing.</div>
+    <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+      <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Claims inflation</label>
+        <div style="display:flex;align-items:center;gap:6px"><input id="wi_infl" type="number" value="2" step="0.5" style="width:72px;padding:7px;border:1px solid var(--line);border-radius:8px;text-align:right"><span style="color:var(--mut);font-size:12px">pts hotter</span></div></div>
+      <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tail factor</label>
+        <input id="wi_tail" type="number" value="1.01" step="0.01" min="1" style="width:82px;padding:7px;border:1px solid var(--line);border-radius:8px;text-align:right"></div>
+      <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Extra large loss (£)</label>
+        <input id="wi_ll" type="number" value="0" step="250000" style="width:120px;padding:7px;border:1px solid var(--line);border-radius:8px;text-align:right"></div>
+      <button class="btn" id="wi_run" style="background:#0891b2">Run scenario</button>
+      <span class="pill pill-slate">Commercial Property</span>
+    </div>
+    <div id="wi_out"></div>
+    <details class="why"><summary>Why does a scratch pad belong in a governed workbench?</summary><div>Because the alternative is worse. Off-cycle questions — the CFO asking what two extra points of inflation would do, a reinsurer asking about a longer tail — arrive constantly, and today they get answered in a throwaway spreadsheet that nobody can reproduce and that occasionally leaks into the real numbers. Here the answer comes off the same live triangle in seconds, and the endpoint <b>writes nothing at all</b>: no selection, no estimate, no audit event. The booked number can only change through the selection module, where it's a decision with a rationale and an owner. Governance isn't about preventing exploration; it's about keeping exploration and decisions clearly apart.</div></details>
+  </div>${ABOUT}`);
+  document.getElementById('wi_run').onclick=runWhatIf;
 };
+async function runWhatIf(ev){
+  const btn=ev.target, out=document.getElementById('wi_out');
+  btn.disabled=true; out.innerHTML='<div class="load">Running the scenario against the live triangle…</div>';
+  try{
+    const r=await API('/api/whatif',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lob:'COMMERCIAL_PROPERTY',
+        inflation_pts:parseFloat(document.getElementById('wi_infl').value)||0,
+        tail:parseFloat(document.getElementById('wi_tail').value)||1.01,
+        large_loss_load:parseFloat(document.getElementById('wi_ll').value)||0})});
+    const up=r.delta>=0;
+    out.innerHTML=`<div class="row" style="margin-bottom:12px">
+      <div class="tile"><div class="k">Governed (booked basis)</div><div class="v sm">${money(r.governed.ultimate)}</div>
+        <div style="color:var(--mut);font-size:11.5px;margin-top:4px">unchanged — nothing was written</div></div>
+      <div class="tile" style="border-color:#a5f3fc;background:#f8feff"><div class="k">Scenario ultimate</div>
+        <div class="v sm" style="color:#0e7490">${money(r.scenario.ultimate)}</div>
+        <div style="color:var(--mut);font-size:11.5px;margin-top:4px">scratch only</div></div>
+      <div class="tile"><div class="k">Impact</div>
+        <div class="v sm" style="color:${up?'#dc2626':'#16a34a'}">${up?'+':''}${money(r.delta)}</div>
+        <div style="color:var(--mut);font-size:11.5px;margin-top:4px">${up?'+':''}${r.delta_pct}% vs booked basis</div></div>
+    </div>
+    <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#115e59">
+      <b>Nothing was saved.</b> No selection row, no estimate, no audit event — the booked reserve is untouched. To act on this, go to <b>Triangle &amp; selection</b> and make it a recorded decision with a rationale.</div>`;
+  }catch(e){out.innerHTML=`<div class="err">Scenario failed: ${e.message}</div>`;}
+  btn.disabled=false;
+}
 
 function renderJudgements(rows){
   if(!rows||!rows.length) return '<div class="load">No judgements raised for this quarter yet.</div>';
@@ -614,39 +904,56 @@ PAGE.committee=async()=>{
 
 PAGE.engines=async()=>{
   const e=await API('/api/engines');
-  const counts=e.counts||[]; const sels=e.selections||[];
-  const srcLabel={DATABRICKS_EMPIRICAL:'Databricks (native)',RESQ:'External tool · ResQ',PRIOR_SELECTION:'Prior selection',MANUAL:'Manual'};
+  const counts=e.counts||[]; const sels=e.selections||[]; const methods=e.methods||[];
+  const srcLabel={DATABRICKS_EMPIRICAL:'Databricks (native)',RESQ:'External tool',PRIOR_SELECTION:'Prior selection',MANUAL:'Manual override'};
   const resqCount=(counts.find(c=>c.source_code==='RESQ')||{}).n||0;
-  main(`<h1>External engines — orchestrating ResQ &amp; the like</h1>
-  <p class="sub">Two ways to run reserving on Databricks. Default: we do it all. Or: keep your tool, we enrich and govern it.</p>
-  ${explain(`The selection step is a pluggable seam. Whether the pattern is picked natively in Databricks or in an external tool like LCP ResQ, it lands in the <b>same</b> governed <span class="mono">selected_development_pattern</span> table with a <span class="mono">source_code</span> — so the audit trail, lineage and downstream never depend on which engine produced it.`)}
-  <div class="card"><h2>Track 1 — we do it all (default)</h2>
-  <div class="h-sub">Databricks as the whole reserving platform.</div>
-    <div class="row" style="margin:0">
-      <div class="tile"><div class="k">Data</div><div class="v sm">Governed triangles</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">Derived from the claim ledger, reconciling to the penny</div></div>
-      <div class="tile"><div class="k">Engines</div><div class="v sm">Methodology library</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">CL · BF · Mack · GLM · peer, each a governed UC model</div></div>
-      <div class="tile"><div class="k">Agents</div><div class="v sm">Senior Reserving Actuary</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">Claude via FMAPI, grounded on live tables</div></div>
-      <div class="tile"><div class="k">Governance</div><div class="v sm">Audit · lineage · judgement</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">Every number traceable to the QRT cell it produces</div></div>
-    </div>
+  const inhouse=methods.find(m=>m.reserving_method_code==='INHOUSE_FREQUENCY_SEVERITY');
+  main(`<h1>Engines — your models, our governance</h1>
+  <p class="sub">The engine is a pluggable step. We do the data in, the governance around, and the narrative out.</p>
+  ${explain(`The one thing not worth arguing about is triangle mechanics — every tool does those. What matters is everything around them. So the <b>selection step is a plug-in point</b>: pick the pattern with a built-in method, with <b>your own R or Python model registered as a first-class method</b>, or in an external tool. Whichever produced it, the pick lands in the <b>same</b> governed table with a source stamp — so the audit trail, lineage and everything downstream never depend on which engine ran.`)}
+  <div class="card" style="border-color:#c7d2fe;background:linear-gradient(180deg,#fbfaff,#fff)"><h2>Your own model, as a first-class method</h2>
+  <div class="h-sub">The case that matters most for a team that already has models it trusts.</div>
+    ${inhouse?`<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;background:#fff;border:1px solid #ddd6fe;border-radius:10px;padding:14px 16px">
+      <div style="flex:1;min-width:260px">
+        <div style="font-weight:700;font-size:14.5px">${methodName(inhouse.reserving_method_code)}</div>
+        <div style="color:var(--mut);font-size:12.5px;margin-top:4px">${inhouse.summary}</div>
+        <div class="mono" style="font-size:11px;color:var(--mut);margin-top:8px">${inhouse.uc_model_name}</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="text-align:center"><div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em">Version</div><div style="font-weight:700;font-size:18px">${inhouse.model_version}</div></div>
+        <div style="text-align:center"><div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em">Alias</div><div style="margin-top:3px"><span class="pill pill-green">${inhouse.alias||'—'}</span></div></div>
+        <div style="text-align:center"><div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em">Distribution</div><div style="font-weight:700;font-size:18px">${inhouse.produces_distribution==='true'||inhouse.produces_distribution===true?'✓':'—'}</div></div>
+      </div></div>`:'<div class="load">In-house method not registered yet.</div>'}
+    <div style="margin-top:12px;color:var(--mut);font-size:12.5px">This is a real registered model, not a slide: it sits in the same registry as chain-ladder, exposes the same interface, and is versioned and aliased identically. <b style="color:var(--ink)">Your methodology, our governance</b> — the team keeps the model it defends to its regulator, and gains versioning, lineage, reproducibility and an audit trail it didn't have to build.</div>
+    <details class="why"><summary>What does "registered as a method" actually mean?</summary><div>Your model is wrapped so it takes a triangle and returns ultimate and IBNR per accident year — the same contract every built-in method honours. From that point the workbench treats it identically: it appears in the method library, produces estimate rows that sit side by side with the others for comparison, gets a version number and a <span class="mono">production</span> alias, and can be promoted or rolled back without editing anything. Nothing about the actuarial content changes; the key-person risk of a model living in one analyst's script does.</div></details>
   </div>
-  <div class="card"><h2>Track 2 — you have ResQ? We enrich your flow</h2>
-  <div class="h-sub">We don't replace the tool your team knows — we wrap it in data + orchestration + governance.</div>
+  <div class="card"><h2>The method library</h2>
+  <div class="h-sub">Every method — built-in and your own — registered and version-controlled side by side.</div>
+    <table><thead><tr><th>Method</th><th>Registered model</th><th class="num">Ver</th><th>Alias</th><th>Distribution</th></tr></thead><tbody>
+    ${methods.map(m=>{const own=m.reserving_method_code==='INHOUSE_FREQUENCY_SEVERITY';
+      return `<tr${own?' style="background:#faf9ff;font-weight:600"':''}><td>${methodName(m.reserving_method_code)}${own?' <span class="pill pill-violet" style="font-size:9.5px">your model</span>':''}</td>
+      <td class="mono" style="font-size:11.5px">${m.uc_model_name.split('.').pop()}</td><td class="num">${m.model_version}</td>
+      <td><span class="pill pill-green">${m.alias||'—'}</span></td>
+      <td>${m.produces_distribution==='true'||m.produces_distribution===true?'✓':'—'}</td></tr>`;}).join('')}
+    </tbody></table></div>
+  <div class="card"><h2>Or keep the tool your team already uses</h2>
+  <div class="h-sub">If the selection is made in an external actuarial tool, that's a step in the flow — not a reason to change anything.</div>
     <div class="seam">
-      <div class="z"><div class="zt">DATA plane · Databricks</div><div class="zd">Ingest claims/premium, build the governed triangle, apply DQ expectations. ResQ reads a clean, versioned triangle instead of the team hand-assembling one.</div></div>
+      <div class="z"><div class="zt">DATA · Databricks</div><div class="zd">Ingest claims and premium, run the data controls, build the governed triangle. The external tool reads a clean, reconciled, versioned triangle instead of the team hand-assembling one each quarter.</div></div>
       <div class="arrow">→</div>
-      <div class="z mid"><div class="zt">ORCHESTRATION · run ResQ as a job step</div><div class="zd">A Databricks Workflow hands ResQ the prepared triangle (ODBC / file / API), triggers the run, and reads the selected pattern + ultimates back. ResQ becomes "just another engine".</div></div>
+      <div class="z mid"><div class="zt">ENGINE · a step in the workflow</div><div class="zd">A Databricks Workflow hands over the prepared triangle, triggers the run, and reads the selected pattern and ultimates back. The engine becomes just another step.</div></div>
       <div class="arrow">→</div>
-      <div class="z"><div class="zt">GOVERNANCE plane · Databricks</div><div class="zd">The ResQ pick lands in selected_development_pattern (source = RESQ) with the same audit trail, lineage and attestation → same downstream (SII / IFRS 17 / capital).</div></div>
+      <div class="z"><div class="zt">GOVERNANCE &amp; NARRATIVE · Databricks</div><div class="zd">The pick lands in the same governed table with a source stamp, carrying the same audit trail and reproducibility into the same downstream — statutory, Solvency II, IFRS 17 and capital.</div></div>
     </div>
-    <div style="margin-top:12px;color:var(--mut);font-size:12.5px">This isn't a mock: <b style="color:var(--ink)">${resqCount}</b> selection(s) in this workbench were produced by ResQ and sit in the same governed table as the native ones — shown below.</div>
+    <div style="margin-top:12px;color:var(--mut);font-size:12.5px">Not a mock-up: <b style="color:var(--ink)">${resqCount}</b> selection(s) here were produced by an external tool and sit in the same table as the native ones, below.</div>
   </div>
-  <div class="card"><h2>Every selection, by engine</h2>
-  <div class="h-sub">Native and ResQ picks, side by side in one governed table — the proof the seam is real.</div>
+  <div class="card"><h2>Every selection, whatever produced it</h2>
+  <div class="h-sub">One governed table, one audit trail — the proof the plug-in point is real.</div>
     <div style="margin-bottom:10px">${counts.map(c=>`<span class="pill ${c.source_code==='RESQ'?'pill-violet':'pill-blue'}" style="margin-right:6px">${srcLabel[c.source_code]||c.source_code}: ${c.n}</span>`).join('')}</div>
-    <table><thead><tr><th>Source</th><th>LOB</th><th>Selection</th><th>Status</th><th>By</th></tr></thead><tbody>
-    ${sels.map(x=>`<tr><td><span class="pill ${x.source_code==='RESQ'?'pill-violet':'pill-slate'}">${x.source_code}</span></td><td>${x.line_of_business_code.replace(/_/g,' ')}</td><td class="mono">${x.selection_id}</td><td>${x.status_code}</td><td>${x.selected_by}</td></tr>`).join('')}
+    <table><thead><tr><th>Source</th><th>Line of business</th><th>Selection</th><th>Status</th><th>By</th></tr></thead><tbody>
+    ${sels.map(x=>`<tr><td><span class="pill ${x.source_code==='RESQ'?'pill-violet':'pill-slate'}">${srcLabel[x.source_code]||x.source_code}</span></td><td>${x.line_of_business_code.replace(/_/g,' ')}</td><td class="mono">${x.selection_id}</td><td>${x.status_code}</td><td>${x.selected_by}</td></tr>`).join('')}
     </tbody></table>
-    <details class="why"><summary>Why does this win on the account?</summary><div>The reserving team has already moved to LCP ResQ. "Rip it out" loses; "keep ResQ, we govern and orchestrate it, and give you the data, reporting and AI around it" meets them where they are — while the US pricing team gets the same triangle/selection machinery for rate indications. One governed platform, two teams, no data islands.</div></details>
+    <details class="why"><summary>Why lead with this rather than the triangle mechanics?</summary><div>Because the mechanics are not the differentiator — everyone has them. The data going in, the governance around, and the narrative coming out are. A team that already runs its own models in R and Python doesn't want them replaced; it wants them versioned, reproducible, off one analyst's laptop, and fed by data that reconciles. That is what this page is: the engine is a step, and we own everything around it.</div></details>
   </div>
   ${ABOUT}`);
 };
@@ -659,7 +966,7 @@ PAGE.genie=async()=>{
   ${ABOUT}`);
 };
 
-const METHOD_NAME={CHAIN_LADDER:'Chain-ladder',BORNHUETTER_FERGUSON:'Bornhuetter-Ferguson',EXPECTED_LOSS_RATIO:'Expected loss ratio',MACK:'Mack',GLM:'GLM',PEER_COMPARISON:'Benchmark (peer pattern)'};
+const METHOD_NAME={CHAIN_LADDER:'Chain-ladder',BORNHUETTER_FERGUSON:'Bornhuetter-Ferguson',EXPECTED_LOSS_RATIO:'Expected loss ratio',MACK:'Mack',GLM:'GLM',PEER_COMPARISON:'Benchmark (peer pattern)',INHOUSE_FREQUENCY_SEVERITY:'In-house frequency-severity'};
 const methodName=(c)=>METHOD_NAME[c]||(c||'').replace(/_/g,' ');
 const SPEC_META={
   senior_reserving:{icon:'◆',where:'triangle · estimates · judgements',tone:'violet'},
@@ -669,11 +976,13 @@ const SPEC_META={
   reviewer:{icon:'🔍',where:'selected_development_pattern',tone:'rose'},
 };
 PAGE.ai=async()=>{
-  const [probe,st]=await Promise.all([
-    API('/api/ai/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({specialist:'senior_reserving'})}),
+  // draw from the STATIC catalogue — never block the page on a model call, or the
+  // tiles take ~15s to appear while a scale-to-zero endpoint wakes up
+  const [cat,st]=await Promise.all([
+    API('/api/ai/specialists'),
     API('/api/ai/status').catch(()=>({})),
   ]);
-  const specs=probe.specialists||[];
+  const specs=cat.specialists||[];
   const ep=st.agent_endpoint; const live=st.endpoint_live;
   main(`<h1>Workbench AI</h1><p class="sub">One supervisor, ${specs.length} specialists, one Genie — every call grounded on live tables and audited.</p>
   ${explain(`Type a question and the <b>supervisor</b> classifies it and dispatches to the right specialist; or open a specialist directly from its tile. Answers are grounded on the live reserving tables and every call is written to the governance audit trail. The AI drafts and reviews — you decide.`)}

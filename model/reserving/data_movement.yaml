@@ -1,0 +1,79 @@
+kind: entity
+name: 1_raw_data_movement
+domain: reserving
+title: Data Movement Since Prior Close
+description: >
+  What changed in the claims data between the prior close and this one, by line of
+  business, accident year and movement type - new notifications, reopens, case
+  strengthenings and releases, backdated transactions, closures. This is the first
+  question of a quarterly close and the one that is hardest to answer from a
+  spreadsheet: an actuary opening the quarter wants to know what moved before they
+  look at a single factor, because a cohort that moved on ten reopens is a
+  different story from one that moved on a single revaluation. Backdated
+  transactions are called out separately because they silently restate a triangle
+  cell that was already reported last quarter.
+grain: One row per line of business per accident year per movement type per valuation date.
+tags:
+  project: reserving-workbench
+  layer: raw
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: movement_id
+    type: string
+    required: true
+    description: Identifier for the movement summary row.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: The close this movement is measured at.
+    classification: internal
+  - name: prior_valuation_date
+    type: date
+    required: true
+    description: The close it is measured from (the comparison baseline).
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: The line of business the movement belongs to.
+    classification: internal
+  - name: accident_year
+    type: integer
+    required: true
+    description: The accident-year cohort affected.
+    classification: internal
+  - name: movement_type_code
+    code_set: data_movement_type
+    required: true
+    description: How the data changed (new claim, reopen, revaluation, backdated, closed).
+    classification: internal
+  - name: claim_count
+    type: integer
+    required: true
+    description: How many claims moved this way.
+    classification: internal
+  - name: amount
+    type: decimal(18,2)
+    required: true
+    description: >
+      Signed change in incurred amount from this movement type - positive
+      strengthens the reserve, negative releases it.
+    classification: internal
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the amount.
+    classification: internal
+  - name: affects_reported_triangle
+    type: boolean
+    required: true
+    description: >
+      True when the movement changes a triangle cell that was already reported at
+      the prior close (backdated transactions and reopens on mature cohorts) - the
+      restatement an actuary must be told about, not discover.
+    classification: internal
+keys:
+  primary: [movement_id]
+owner: Chief Actuary

@@ -135,12 +135,19 @@ def _facts():
 
 
 # --------------------------------------------------------------------- specialists
+# Pin the period in every system prompt. Without it the model invents one ("Q3
+# committee briefing") and contradicts the app, which reports the 2026-Q4 close
+# everywhere else — a small thing that costs credibility on a big screen.
+_PERIOD = (f"The current valuation date is {config.VALUATION_DATE} — this is the "
+           f"2026-Q4 reserving close, compared against the prior close at 2026-09-30 (Q3). "
+           f"Always refer to this quarter as Q4 2026. All figures are GBP. ")
+
 SPECIALISTS = {
     "senior_reserving": {
         "name": "Senior Reserving Actuary",
         "scope": "Committee brief — emerging trends, cohorts needing attention, the judgement calls.",
         "triggers": "brief, committee, emerging, trends, overall, summary, what should I look at",
-        "system": ("You are the Senior Reserving Actuary for Bricksurance SE (commercial P&C). Brief the "
+        "system": (_PERIOD + "You are the Senior Reserving Actuary for Bricksurance SE (commercial P&C). Brief the "
                    "quarterly reserving committee: emerging trends, cohorts needing attention, judgement "
                    "calls. Be specific and quantitative, cite AYs, lines and figures. Concise. Synthetic "
                    "demo data; no disclaimers."),
@@ -149,7 +156,7 @@ SPECIALISTS = {
         "name": "Movement Explainer",
         "scope": "Explains the reserve roll-forward — why reserves moved this quarter, by driver.",
         "triggers": "why did reserves move, movement, roll-forward, change, driver, increase, decrease",
-        "system": ("You explain reserve movements for Bricksurance SE. Given the roll-forward drivers "
+        "system": (_PERIOD + "You explain reserve movements for Bricksurance SE. Given the roll-forward drivers "
                    "(opening → expected run-off → experience → assumption change → large loss → expert "
                    "judgement → closing), narrate WHY reserves moved, quantifying each driver. Concise."),
     },
@@ -157,7 +164,7 @@ SPECIALISTS = {
         "name": "Data-Quality Investigator",
         "scope": "Validation and actual-vs-expected breaches — which cohorts, why, where to look.",
         "triggers": "validation, breach, tolerance, data quality, anomaly, outlier, actual vs expected, residual",
-        "system": ("You are a reserving data-quality investigator for Bricksurance SE. Given the "
+        "system": (_PERIOD + "You are a reserving data-quality investigator for Bricksurance SE. Given the "
                    "actual-vs-expected breaches, point the actuary at the cohorts that need attention, "
                    "quantify the residuals, and hypothesise the likely cause (e.g. a large loss). Concise."),
     },
@@ -165,7 +172,7 @@ SPECIALISTS = {
         "name": "Committee-Note Drafter",
         "scope": "Drafts the committee memo for a reserving decision / judgement.",
         "triggers": "draft, note, memo, write up, minute, document, rationale, paper",
-        "system": ("You draft concise reserving-committee notes for Bricksurance SE. Given the judgements "
+        "system": (_PERIOD + "You draft concise reserving-committee notes for Bricksurance SE. Given the judgements "
                    "and selections, write a short, professional committee note: decision, rationale, "
                    "quantified impact, and the basis. Ready for an actuary to edit, not to author from scratch."),
     },
@@ -173,7 +180,7 @@ SPECIALISTS = {
         "name": "Reserving Peer Reviewer",
         "scope": "Independently reviews the actuary's own factor selection / overlay — a second set of eyes.",
         "triggers": "review, check, second opinion, sense check, is this reasonable, peer review, challenge",
-        "system": ("You are an independent reserving peer reviewer for Bricksurance SE — a senior actuary "
+        "system": (_PERIOD + "You are an independent reserving peer reviewer for Bricksurance SE — a senior actuary "
                    "giving a colleague a second opinion on THEIR selection or overlay. Be constructive and "
                    "specific: (1) does the selected pattern look reasonable vs the empirical and prior? "
                    "(2) is any override justified and adequately documented? (3) what would you challenge or "
@@ -226,11 +233,17 @@ def _prompt_for(key, facts):
             f"Reserve uncertainty (CoV):\n{json.dumps(facts['var'], indent=2)}\n\nBrief the committee.")
 
 
+def catalogue():
+    """The specialist list as static metadata — no model call, so a page can draw
+    its tiles instantly instead of waiting on a cold serving endpoint."""
+    return [{"key": k, "name": v["name"], "scope": v["scope"]} for k, v in SPECIALISTS.items()]
+
+
 def ask(question=None, specialist=None):
     """Supervisor entry. Tries the REGISTERED reserving-agent serving endpoint first (Agent
     Framework); falls back to inline FMAPI if the endpoint is cold/undeployed. Every call is
     traced in 5_ai_routing_trace for governance, honestly tagged with how it was served."""
-    spec_list = [{"key": k, "name": v["name"], "scope": v["scope"]} for k, v in SPECIALISTS.items()]
+    spec_list = catalogue()
     # 1) try the registered agent endpoint (the real Databricks agent)
     ep = _invoke_endpoint(question, specialist if specialist in SPECIALISTS else None)
     if ep and ep.get("text"):

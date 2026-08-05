@@ -1,0 +1,36 @@
+kind: code_set
+name: data_movement_type
+title: Data Movement Type
+description: >
+  How the claims data changed between one close and the next. This is the first
+  question of every quarterly close - "what moved in my data since last quarter?"
+  - and the one most reserving teams answer by hand, or not at all. Classifying
+  the movement makes the answer a query instead of an investigation: a cohort
+  that jumped because ten claims reopened is a different story from one that
+  jumped because a single claim was revalued.
+standards:
+  acord: n/a — operational data-change classification
+codes:
+  - code: NEW_CLAIM
+    label: New claim notified
+    description: A claim reported since the prior close (drives normal IBNR emergence).
+  - code: REOPENED
+    label: Reopened claim
+    description: >
+      A previously closed claim reopened in the period. Reopens are the classic
+      cause of an unexpected jump in a mature cohort's development.
+  - code: REVALUED_UP
+    label: Case reserve strengthened
+    description: An open claim's case estimate increased since the prior close.
+  - code: REVALUED_DOWN
+    label: Case reserve released
+    description: An open claim's case estimate decreased since the prior close.
+  - code: BACKDATED_TRANSACTION
+    label: Backdated transaction
+    description: >
+      A transaction posted this period but dated into a prior period, so it
+      changes a triangle cell that was previously reported. The silent restater
+      of last quarter's numbers.
+  - code: CLOSED
+    label: Claim closed
+    description: A claim settled and closed in the period.

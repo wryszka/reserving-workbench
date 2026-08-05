@@ -1,0 +1,77 @@
+kind: entity
+name: 1_raw_class_mapping
+domain: reserving
+title: Source Class to Reserving Class Mapping
+description: >
+  How each source system's product or class code maps to the reserving class the
+  triangle is built on, with the version the mapping was on at the prior close.
+  A silently changed mapping is the classic triangle-breaker: nothing in the data
+  looks wrong, every control ties, but a cohort's history has quietly moved
+  between classes and the development pattern breaks for reasons no factor
+  diagnostic will explain. Holding the mapping as governed, versioned data - and
+  flagging any row that changed since the prior close - turns a week of
+  archaeology into a row on a screen.
+grain: One row per source system per source class code per valuation date.
+tags:
+  project: reserving-workbench
+  layer: raw
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: mapping_id
+    type: string
+    required: true
+    description: Identifier for the mapping row.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: The close this mapping version applies to.
+    classification: internal
+  - name: source_system_code
+    code_set: source_system
+    required: true
+    description: The system the source class code comes from.
+    classification: internal
+  - name: source_class_code
+    type: string
+    required: true
+    description: The product / class code as it appears in the source system.
+    classification: internal
+  - name: source_class_label
+    type: string
+    required: true
+    description: Business description of the source class.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: The reserving class this source class maps into for this close.
+    classification: internal
+  - name: prior_line_of_business_code
+    code_set: line_of_business
+    required: false
+    description: >
+      The reserving class it mapped to at the prior close; differs from
+      line_of_business_code exactly when the mapping changed.
+    classification: internal
+  - name: changed_since_prior
+    type: boolean
+    required: true
+    description: >
+      True when this mapping moved since the prior close - the alert that
+      explains an otherwise inexplicable break in a development pattern.
+    classification: internal
+  - name: claim_count
+    type: integer
+    required: true
+    description: Claims affected by this mapping row (how much a change would move).
+    classification: internal
+  - name: change_reason
+    type: string
+    required: false
+    description: Why the mapping changed, and who changed it.
+    classification: internal
+keys:
+  primary: [mapping_id]
+owner: Chief Actuary

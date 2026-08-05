@@ -101,6 +101,40 @@ def selection_compute(body: dict):
     return out
 
 
+@app.post("/api/whatif")
+def whatif(body: dict):
+    """A scratch space OUTSIDE the governed selection.
+
+    Reserving teams constantly get off-cycle asks — "what if claims inflation runs
+    two points hotter", "what if the tail is longer than we're holding" — and today
+    those get answered in a throwaway spreadsheet that nobody can reproduce and
+    that sometimes leaks into the real numbers. This endpoint answers them against
+    the live triangle and deliberately writes NOTHING: no selection row, no audit
+    event, no estimate. The governed number is unaffected until an actuary goes to
+    the selection module and makes the decision properly."""
+    b = body or {}
+    lob = b.get("lob", "COMMERCIAL_PROPERTY")
+    infl = float(b.get("inflation_pts", 0) or 0) / 100.0   # points added to each factor's excess
+    tail = float(b.get("tail", 1.01) or 1.01)
+    large_loss_load = float(b.get("large_loss_load", 0) or 0)
+    base = reserving.compute(lob, b.get("basis", "VOLUME_WEIGHTED"), 5, tail, None)
+    # Inflation is applied to the DEVELOPMENT above 1.0 — i.e. to the part of each
+    # factor that represents future payment growth — not to the whole factor, which
+    # would nonsensically inflate the already-paid base too.
+    stressed = {k: round(1.0 + (v - 1.0) * (1.0 + infl), 6) for k, v in base["applied_factors"].items()}
+    tri = reserving.read_triangle(lob)
+    res = reserving.ultimate_ibnr(tri, stressed, tail)
+    res["ultimate"] = round(res["ultimate"] + large_loss_load, 2)
+    res["ibnr"] = round(res["ibnr"] + large_loss_load, 2)
+    res["outstanding"] = round(res["outstanding"] + large_loss_load, 2)
+    d = round(res["ultimate"] - base["reserve"]["ultimate"], 2)
+    return {"lob": lob, "governed": base["reserve"], "scenario": res,
+            "delta": d,
+            "delta_pct": round(d / base["reserve"]["ultimate"] * 100, 2) if base["reserve"]["ultimate"] else 0,
+            "scenario_factors": stressed, "governed_factors": base["applied_factors"],
+            "wrote_nothing": True}
+
+
 @app.post("/api/selection/elect")
 def selection_elect(body: dict):
     """Write back the actuary's election as a NEW audited selected_development_pattern row.
@@ -340,24 +374,59 @@ def lifecycle():
 def engines():
     """The external-engine (ResQ) talk track: show every selection by source, so a ResQ-produced
     pick sits in the same governed table as a native one — same audit trail, same downstream."""
-    rows = sql.query(
-        f"SELECT source_code, line_of_business_code, selection_id, status_code, rationale, selected_by "
-        f"FROM {F('selected_development_pattern')} ORDER BY source_code, line_of_business_code")
-    counts = sql.query(
-        f"SELECT source_code, count(*) n FROM {F('selected_development_pattern')} GROUP BY source_code ORDER BY source_code")
-    return {"selections": rows, "counts": counts}
+    q = sql.query_many({
+        "sel": (f"SELECT source_code, line_of_business_code, selection_id, status_code, rationale, selected_by "
+                f"FROM {F('selected_development_pattern')} ORDER BY source_code, line_of_business_code"),
+        "counts": (f"SELECT source_code, count(*) n FROM {F('selected_development_pattern')} "
+                   f"GROUP BY source_code ORDER BY source_code"),
+        # the in-house-model beat: a customer's own R/Python model registered as a
+        # first-class method, sitting in the same registry as the built-in ones
+        "methods": (f"SELECT reserving_method_code, uc_model_name, model_version, alias, "
+                    f"produces_distribution, summary FROM {F('reserving_methodology')} "
+                    f"ORDER BY reserving_method_code"),
+    })
+    return {"selections": q["sel"], "counts": q["counts"], "methods": q["methods"]}
 
 
 # ------------------------------------------------------------------ ingestion (the front door)
 @app.get("/api/ingestion")
 def ingestion():
+    """The whole "can I trust this data?" control surface, in the order a close asks:
+    what moved since last quarter · does it reconcile · has the owner signed it off ·
+    which checks passed (by Solvency II dimension) · is it complete and on time ·
+    did any class mapping change. Everything reads a real governed table."""
     q = sql.query_many({
         "feeds": (f"SELECT feed_id, feed_name, source_system_code, rows_received, rows_expected, "
-                  f"status, dq_pass_pct FROM {F('1_raw_data_feed')} ORDER BY feed_name"),
-        "dq": (f"SELECT feed_id, expectation_name, severity, passed, failed_rows, detail "
-               f"FROM {F('1_raw_dq_expectation')} ORDER BY feed_id, severity DESC, passed"),
+                  f"status, dq_pass_pct, arrived_at, sla_due_at, months_expected, months_present, "
+                  f"data_domain FROM {F('1_raw_data_feed')} ORDER BY feed_name"),
+        "dq": (f"SELECT feed_id, expectation_name, dq_dimension_code, severity, passed, failed_rows, "
+               f"detail FROM {F('1_raw_dq_expectation')} ORDER BY feed_id, severity DESC, passed"),
+        "recon": (f"SELECT reconciliation_id, feed_id, control_name, source_of_truth, feed_amount, "
+                  f"source_amount, difference, tolerance, ties, explanation "
+                  f"FROM {F('1_raw_ingestion_reconciliation')} ORDER BY ties, control_name"),
+        "signoff": (f"SELECT data_signoff_id, data_domain, owner_role, feeds_covered, controls_passing, "
+                    f"controls_total, status_code, attested_by, attested_at, note "
+                    f"FROM {F('1_raw_data_signoff')} ORDER BY data_domain"),
+        # the data diff: aggregated for the headline, and by cohort for the detail
+        # note: the ORDER BY sorts on a distinct alias — reusing `amount` as both an
+        # output alias and inside abs(sum(...)) makes Spark fail attribute resolution
+        "movement_type": (f"SELECT movement_type_code, sum(claim_count) claims, round(sum(amount),2) amount, "
+                          f"abs(sum(amount)) sort_key FROM {F('1_raw_data_movement')} "
+                          f"GROUP BY movement_type_code ORDER BY sort_key DESC"),
+        "movement_restating": (f"SELECT line_of_business_code, accident_year, movement_type_code, "
+                               f"claim_count, amount FROM {F('1_raw_data_movement')} "
+                               f"WHERE affects_reported_triangle = true ORDER BY abs(amount) DESC LIMIT 8"),
+        "movement_net": (f"SELECT round(sum(amount),2) net, sum(claim_count) claims, "
+                         f"count(distinct line_of_business_code) lobs FROM {F('1_raw_data_movement')}"),
+        "mapping": (f"SELECT source_class_code, source_class_label, line_of_business_code, "
+                    f"prior_line_of_business_code, changed_since_prior, claim_count, change_reason "
+                    f"FROM {F('1_raw_class_mapping')} ORDER BY changed_since_prior DESC, source_class_code"),
     })
-    return {"feeds": q["feeds"], "expectations": q["dq"]}
+    return {"feeds": q["feeds"], "expectations": q["dq"], "reconciliation": q["recon"],
+            "data_signoff": q["signoff"], "movement_by_type": q["movement_type"],
+            "movement_restating": q["movement_restating"],
+            "movement_net": (q["movement_net"][0] if q["movement_net"] else {}),
+            "mapping": q["mapping"], "valuation_date": config.VALUATION_DATE}
 
 
 @app.post("/api/ingestion/accept")
@@ -378,6 +447,46 @@ def ingestion_accept(body: dict):
     return {"ok": True, "feed_id": feed, "by": user}
 
 
+@app.post("/api/ingestion/attest")
+def ingestion_attest(body: dict):
+    """The data sign-off gate: the data owner attests a domain is fit to reserve on.
+
+    This is a different control from accepting a feed — accepting says "this file
+    landed and passed its checks"; attesting says "I, the data owner, stand behind
+    this domain for this close, and actuarial work may begin on it". It is refused
+    while any critical control on the domain's feeds is failing, so the gate is a
+    real gate rather than a button. Audited."""
+    domain = body.get("data_domain")
+    note = (body.get("note") or "").strip()
+    user = "claims.data.owner@bricksurance.demo"
+    if not domain:
+        return {"ok": False, "error": "data_domain required"}
+    # a critical DQ failure or a broken reconciliation on ANY feed in the domain blocks it
+    blockers = sql.query(
+        f"SELECT e.feed_id, e.expectation_name reason FROM {F('1_raw_dq_expectation')} e "
+        f"JOIN {F('1_raw_data_feed')} f ON f.feed_id = e.feed_id "
+        f"WHERE f.data_domain = '{sql.esc(domain)}' AND e.severity = 'critical' AND e.passed = false "
+        f"UNION ALL "
+        f"SELECT r.feed_id, r.control_name reason FROM {F('1_raw_ingestion_reconciliation')} r "
+        f"JOIN {F('1_raw_data_feed')} f ON f.feed_id = r.feed_id "
+        f"WHERE f.data_domain = '{sql.esc(domain)}' AND r.ties = false")
+    if blockers:
+        reasons = "; ".join(b["reason"] for b in blockers[:3])
+        return {"ok": False, "blocked": True,
+                "error": f"{len(blockers)} critical control(s) failing on this domain — {reasons}. "
+                         f"Resolve them before attesting the data."}
+    sql.query(f"UPDATE {F('1_raw_data_signoff')} SET status_code='ACCEPTED', "
+              f"attested_by='{sql.esc(user)}', attested_at=current_timestamp()"
+              + (f", note='{sql.esc(note)}'" if note else "") +
+              f" WHERE data_domain='{sql.esc(domain)}'")
+    eid = "AE-DS-" + uuid.uuid4().hex[:8]
+    sql.query(f"INSERT INTO {F('5_gov_audit_event')} (event_id, event_type, entity_type, entity_id, detail, actor, created_at) "
+              f"VALUES ('{eid}', 'data_attested', 'data_signoff', '{sql.esc(domain)}', "
+              f"'Attested {sql.esc(domain)} data as fit to reserve on for this close', "
+              f"'{sql.esc(user)}', current_timestamp())")
+    return {"ok": True, "data_domain": domain, "by": user}
+
+
 # ------------------------------------------------------------------ landing / attention (Beat 2)
 @app.get("/api/attention")
 def attention():
@@ -392,12 +501,45 @@ def attention():
         "totals": (f"SELECT round(sum(ultimate_loss),0) ultimate, round(sum(ibnr),0) ibnr, round(sum(outstanding),0) outstanding "
                    f"FROM {F('reserve_estimate')} WHERE reserving_method_code='CHAIN_LADDER'"),
         "signoff": (f"SELECT line_of_business_code, status_code, signed_best_estimate FROM {F('reserve_signoff')} ORDER BY line_of_business_code"),
+        # ---- book-wide cockpit: one row per line, so the opening hook scales to
+        # "we run 30+ classes" instead of showing a single cohort's problem.
+        "book": (
+            f"WITH est AS (SELECT line_of_business_code lob, sum(ultimate_loss) ultimate, sum(ibnr) ibnr "
+            f"             FROM {F('reserve_estimate')} WHERE reserving_method_code='CHAIN_LADDER' "
+            f"             GROUP BY line_of_business_code), "
+            f"     ave AS (SELECT line_of_business_code lob, "
+            f"                    sum(CASE WHEN within_tolerance = false THEN 1 ELSE 0 END) breaches, "
+            f"                    max(abs(standardised_residual)) worst_resid "
+            f"             FROM {F('actual_vs_expected')} GROUP BY line_of_business_code), "
+            f"     sel AS (SELECT line_of_business_code lob, "
+            f"                    sum(CASE WHEN status_code IN ('DRAFT','PENDING_APPROVAL') THEN 1 ELSE 0 END) pending_sel "
+            f"             FROM {F('selected_development_pattern')} GROUP BY line_of_business_code), "
+            f"     mv  AS (SELECT line_of_business_code lob, "
+            f"                    sum(CASE WHEN affects_reported_triangle THEN claim_count ELSE 0 END) restating_claims "
+            f"             FROM {F('1_raw_data_movement')} GROUP BY line_of_business_code), "
+            f"     mp  AS (SELECT line_of_business_code lob, "
+            f"                    sum(CASE WHEN changed_since_prior THEN 1 ELSE 0 END) mapping_changes "
+            f"             FROM {F('1_raw_class_mapping')} GROUP BY line_of_business_code), "
+            f"     ll  AS (SELECT line_of_business_code lob, count(*) large_losses "
+            f"             FROM {F('large_loss')} WHERE distorts_factor = true GROUP BY line_of_business_code) "
+            f"SELECT e.lob, e.ultimate, e.ibnr, coalesce(a.breaches,0) breaches, a.worst_resid, "
+            f"       coalesce(s.pending_sel,0) pending_sel, coalesce(m.restating_claims,0) restating_claims, "
+            f"       coalesce(p.mapping_changes,0) mapping_changes, coalesce(l.large_losses,0) large_losses, "
+            f"       so.status_code signoff_status "
+            f"FROM est e LEFT JOIN ave a ON a.lob=e.lob LEFT JOIN sel s ON s.lob=e.lob "
+            f"           LEFT JOIN mv m ON m.lob=e.lob LEFT JOIN mp p ON p.lob=e.lob "
+            f"           LEFT JOIN ll l ON l.lob=e.lob "
+            f"           LEFT JOIN {F('reserve_signoff')} so ON so.line_of_business_code=e.lob "
+            f"ORDER BY coalesce(a.breaches,0) DESC, coalesce(a.worst_resid,0) DESC, e.ultimate DESC"),
+        # the data front door's headline, so "trust the data" is visible from Today
+        "data_gate": (f"SELECT data_domain, status_code FROM {F('1_raw_data_signoff')} ORDER BY data_domain"),
     })
     return {"breaches": q["breaches"],
             "pending_selections": (q["pending_sel"][0]["n"] if q["pending_sel"] else 0),
             "pending_signoffs": (q["pending_signoff"][0]["n"] if q["pending_signoff"] else 0),
             "large_losses": (q["large"][0]["n"] if q["large"] else 0),
             "totals": q["totals"][0] if q["totals"] else {}, "signoff": q["signoff"],
+            "book": q["book"], "data_gate": q["data_gate"],
             "valuation_date": config.VALUATION_DATE}
 
 
@@ -406,6 +548,17 @@ def attention():
 def ai_ask(body: dict = None):
     b = body or {}
     return agents.ask(question=b.get("question"), specialist=b.get("specialist"))
+
+
+@app.get("/api/ai/specialists")
+def ai_specialists():
+    """The specialist catalogue — static metadata, no model call.
+
+    The Workbench AI page used to render its tiles from an /api/ai/ask response,
+    which meant waiting ~15s on a live model call just to draw the page. The
+    catalogue is static, so serve it directly and let the answers stream in when
+    the presenter actually asks something."""
+    return {"specialists": agents.catalogue()}
 
 
 @app.post("/api/ai/cache/toggle")
@@ -510,9 +663,17 @@ def reset_demo():
     actions = []
     sql.query(f"DELETE FROM {F('selected_development_pattern')} WHERE selection_id LIKE 'SEL-LIVE-%'"); actions.append("cleared live selections")
     sql.query(f"DELETE FROM {F('expert_judgement')} WHERE judgement_id LIKE 'EJ-LIVE-%'"); actions.append("cleared live judgements")
-    sql.query(f"DELETE FROM {F('5_gov_audit_event')} WHERE event_type='agent_query' OR event_id LIKE 'AE-SO-%' OR event_id LIKE 'AE-EJ-%' OR event_id LIKE 'AE-ING-%'"); actions.append("cleared demo audit rows")
+    sql.query(f"DELETE FROM {F('5_gov_audit_event')} WHERE event_type='agent_query' OR event_id LIKE 'AE-SO-%' OR event_id LIKE 'AE-EJ-%' OR event_id LIKE 'AE-ING-%' OR event_id LIKE 'AE-DS-%'"); actions.append("cleared demo audit rows")
     sql.query(f"UPDATE {F('reserve_signoff')} SET status_code=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'APPROVED' ELSE 'PENDING_APPROVAL' END, "
               f"signed_by=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'chief.actuary' ELSE NULL END"); actions.append("reset sign-offs to baseline")
+    # ingestion front door back to its opening state: the bordereau quarantined
+    # (its reconciliation still broken), premium awaiting its owner, claims attested
+    sql.query(f"UPDATE {F('1_raw_data_feed')} SET status=CASE WHEN feed_id='FEED-LARGELOSS' THEN 'quarantined' ELSE 'accepted' END"); actions.append("reset feed statuses")
+    sql.query(f"UPDATE {F('1_raw_data_signoff')} SET "
+              f"status_code=CASE WHEN data_domain='Large losses & bordereaux' THEN 'BLOCKED' "
+              f"WHEN data_domain='Claims' THEN 'ACCEPTED' ELSE 'PENDING' END, "
+              f"attested_by=CASE WHEN data_domain='Claims' THEN 'claims.data.owner@bricksurance.demo' ELSE NULL END, "
+              f"attested_at=CASE WHEN data_domain='Claims' THEN current_timestamp() ELSE NULL END"); actions.append("reset data sign-off gate")
     return {"ok": True, "actions": actions}
 
 
@@ -522,30 +683,56 @@ LEARN = [
      "Reserving estimates the money an insurer must hold for claims that have happened but aren't fully paid — "
      "the largest number on a P&C balance sheet. It feeds statutory accounts, the Solvency II SCR, IFRS 17 and "
      "the capital model. Getting it wrong in either direction is a regulatory and commercial problem."},
-    {"n": 2, "title": "The triangle", "body":
+    {"n": 2, "title": "Where the quarter actually goes", "body":
+     "Selecting development factors — the part that needs an actuary — is maybe a tenth of a reserving close. "
+     "The rest is plumbing: working out what changed in the data since last quarter, making the triangle tie to "
+     "the general ledger, chasing feeds that landed late, discovering that someone re-mapped a product code, and "
+     "then writing the movement commentary the committee asks for. That is the work this workbench is built to "
+     "remove. Trust the data, make the judgement, explain the movement, sign off and reproduce — and get the "
+     "evenings back."},
+    {"n": 3, "title": "Trusting the data: the six controls", "body":
+     "Before a factor is chosen: (1) what moved since the prior close — new claims, reopens, revaluations and "
+     "especially backdated transactions that silently restate a cell you already reported; (2) reconciliation of "
+     "each feed to its independent source of record; (3) the data owner's attestation that the domain is fit to "
+     "reserve on — refused while a critical control is red; (4) quality checks tagged with the Solvency II "
+     "dimension (accuracy, completeness, appropriateness), because reserving feeds the technical provisions; "
+     "(5) completeness and arrival against SLA; and (6) the source-class to reserving-class mapping, with last "
+     "quarter's value alongside — a changed mapping breaks a development pattern in a way no factor diagnostic "
+     "can explain."},
+    {"n": 4, "title": "The triangle", "body":
      "Losses are organised by accident year (row) and development lag (column): how a cohort's losses grow as "
      "they mature. Here the triangle is a governed VIEW over the claim ledger — it reconciles to the penny and "
      "can never drift, because there is no separately-stored copy."},
-    {"n": 3, "title": "Development factors & selection", "body":
+    {"n": 5, "title": "Development factors & selection", "body":
      "Age-to-age (loss-development) factors project each cohort to ultimate. The actuary reviews the empirical "
-     "factors, compares to the prior selection, and elects — overriding when a data anomaly (e.g. one late "
-     "large loss) distorts the mechanical pick. This selection is the core judgement, and it is audited."},
-    {"n": 4, "title": "Methods & uncertainty", "body":
-     "Chain-ladder, Bornhuetter-Ferguson, Mack, GLM and peer-comparison each project the ultimate; swapping "
+     "factors, compares to the prior selection, and selects — overriding when a data anomaly (e.g. one late "
+     "large loss) distorts the mechanical pick. This selection is the core judgement, it stays the actuary's, "
+     "and it is audited. An AI reviewer can challenge the pick and draft the rationale; it never decides."},
+    {"n": 6, "title": "Methods & uncertainty", "body":
+     "Chain-ladder, Bornhuetter-Ferguson, Mack, GLM and a benchmark pattern each project the ultimate; swapping "
      "method writes a new estimate, never an overwrite. Mack and GLM also give a distribution — the coefficient "
-     "of variation and percentiles that become the Solvency II risk margin and IFRS 17 risk adjustment."},
-    {"n": 5, "title": "Validation & judgement", "body":
+     "of variation and percentiles that inform the Solvency II risk margin and the IFRS 17 risk adjustment."},
+    {"n": 7, "title": "Explaining the movement", "body":
+     "\"Why did reserves move?\" is the question every reserving committee opens with, and the one that "
+     "traditionally costs a weekend of detective work across spreadsheets. Here the movement from the prior "
+     "close is decomposed by driver — expected run-off, emerging experience, assumption changes, large losses, "
+     "expert judgement — and an assistant drafts the commentary from that decomposition. You edit and own it; "
+     "you don't assemble it."},
+    {"n": 8, "title": "Validation & judgement", "body":
      "Actual-vs-expected on a rolling cohort validates the methods against emerging experience; breaches are "
      "flagged automatically. Expert judgements sit on top of the mechanical reserve, each audit-trailed with a "
-     "rationale, a magnitude-routed approval, and the QRT cells they touch."},
-    {"n": 6, "title": "Governance & sign-off", "body":
-     "Every data point is reconciled, every action is logged, every model is versioned. Sign-off records the "
-     "signed best estimate and the as-at data version, so the whole basis is reproducible for the auditor — "
-     "the actuary can put their name to the number and defend it."},
-    {"n": 7, "title": "The wider process & the seam", "body":
-     "Ingestion and DQ upstream; roll-forward, ranges, committee pack and the regulatory/capital handoff "
-     "downstream. And the engine seam: run the selection natively, or orchestrate an external tool (ResQ) — "
-     "the pick lands in the same governed table either way."},
+     "rationale, a magnitude-routed approval (under £1m senior actuary, £1m-£10m chief actuary, above that the "
+     "board), and the regulatory cells they touch."},
+    {"n": 9, "title": "Governance, sign-off & reproduce-as-at", "body":
+     "Every data point is reconciled, every action is logged, every model is version-controlled and registered. "
+     "Sign-off records the signed best estimate and the as-at data version, so when the auditor asks in March "
+     "about the Q2 number, reproducing it is one click rather than spreadsheet archaeology."},
+    {"n": 10, "title": "The wider process & the engine seam", "body":
+     "Data controls and reconciliation upstream; roll-forward, ranges, committee pack and the regulatory and "
+     "capital handoff downstream. And the engine seam: run the selection natively, register your own R or Python "
+     "model as a first-class method, or hand the triangle to an external tool — the pick lands in the same "
+     "governed table with the same audit trail either way. We do the data in, the governance around, and the "
+     "narrative out; the engine is a pluggable step."},
 ]
 
 

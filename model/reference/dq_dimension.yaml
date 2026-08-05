@@ -1,0 +1,31 @@
+kind: code_set
+name: dq_dimension
+title: Data-Quality Dimension
+description: >
+  The Solvency II data-quality dimensions. Article 19 of the Delegated Regulation
+  requires the data used to calculate technical provisions to be accurate,
+  complete and appropriate; EIOPA's guidelines on the valuation of technical
+  provisions expect an insurer to be able to evidence each dimension per data
+  source. Because reserving feeds the technical provisions directly, tagging
+  every data-quality check with its dimension turns an engineering test suite
+  into a regulatorily recognisable artefact.
+standards:
+  solvency_ii: Delegated Regulation (EU) 2015/35 Article 19 — data quality
+  acord: n/a — regulatory data-quality taxonomy
+codes:
+  - code: ACCURACY
+    label: Accuracy
+    description: >
+      The data is free from material error and reconciles to its source of
+      record (e.g. paid movements tie to the general ledger).
+  - code: COMPLETENESS
+    label: Completeness
+    description: >
+      The data is granular enough and covers every period and cohort required -
+      no missing months, no missing lines of business, no dropped claims.
+  - code: APPROPRIATENESS
+    label: Appropriateness
+    description: >
+      The data is relevant to the estimate it supports and consistently defined
+      over time - the same claim types, the same class mapping, the same basis
+      as the cohorts it is compared with.

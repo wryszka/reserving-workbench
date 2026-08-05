@@ -168,6 +168,47 @@ def generate(seed=SEED):
     add_txn(anomaly_id, 2025, "INDEMNITY_PAYMENT", 250_000.00)
     add_txn(anomaly_id, 2025, "CASE_RESERVE_MOVEMENT", -200_000.00)
 
+    # ---- seed REOPENED claims -------------------------------------------------
+    # Reopens are a real and painful movement type at every close: a claim that
+    # settled years ago comes back, and a mature cohort that should be quietly
+    # running off suddenly develops. Without them the "what changed in my data"
+    # view is missing its most interesting row, so the world carries a handful.
+    #
+    # Deliberately placed on MATURE cohorts (2019-2021) in lines OTHER than the
+    # Commercial Property AY2023 step, so the seeded 12->24m anomaly and the
+    # factor story around it are untouched: a 2026 movement on a 2019 accident
+    # year lands at development lag 7, nowhere near the 0->1 factor.
+    #
+    # The ledger shape is what makes these detectable downstream: pay, close
+    # (case released to zero), a GAP of quiet years, then activity again.
+    reopens = [
+        # (accident_year, lob, closed_after_year, reopen_paid, reopen_case)
+        (2019, "GENERAL_LIABILITY", 2021, 185_000.00, 120_000.00),
+        (2020, "GENERAL_LIABILITY", 2022, 96_000.00, 64_000.00),
+        (2019, "PROFESSIONAL_INDEMNITY", 2021, 240_000.00, 160_000.00),
+        (2021, "COMMERCIAL_MOTOR", 2023, 42_000.00, 28_000.00),
+        (2020, "COMMERCIAL_PROPERTY", 2022, 78_000.00, 52_000.00),
+    ]
+    for i, (ay, lob, closed_after, paid, case) in enumerate(reopens, 1):
+        rid = f"CLM-{ay}-RE{i:04d}"
+        claims.append(dict(claim_id=rid, policy_id=f"POL-{ay}-9{i:05d}",
+                           accident_year=ay, loss_date=f"{ay}-05-{10+i:02d}",
+                           line_of_business_code=lob, report_date=f"{ay}-06-{10+i:02d}"))
+        # original life of the claim: pays down and closes (case released to zero)
+        original = paid * 1.6
+        for lag, frac in enumerate([0.45, 0.35, 0.20]):
+            tyear = ay + lag
+            if tyear > closed_after:
+                break
+            add_txn(rid, tyear, "INDEMNITY_PAYMENT", original * frac * 0.85)
+            add_txn(rid, tyear, "EXPENSE_PAYMENT", original * frac * 0.15)
+        add_txn(rid, closed_after, "CASE_RESERVE_MOVEMENT", 0.0)   # closed: no case held
+        # ... then a gap of quiet years, and the reopen at the current valuation
+        add_txn(rid, VALUATION_YEAR, "INDEMNITY_PAYMENT", paid * 0.85)
+        add_txn(rid, VALUATION_YEAR, "EXPENSE_PAYMENT", paid * 0.15)
+        add_txn(rid, VALUATION_YEAR, "CASE_RESERVE_MOVEMENT", case)
+        _prev_case[rid] = case
+
     return claims, txns
 
 
