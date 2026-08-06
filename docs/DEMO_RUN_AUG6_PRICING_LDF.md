@@ -21,6 +21,10 @@
 | **R indication** | `LDF_demo/indication` (classic-compute variant: `LDF_demo/indication_e2`) |
 | **Catalog / schema for every query below** | `lr_dev_aws_us_catalog.reserving_workbench` |
 
+**The Job is real and has run.** Workflows shows *[reserving-workbench] LDF pipeline* with a
+successful 4-task run, and *LDF stage 3* with its own. The app links to both from the **pipeline
+panel** on Triangle & selection — you never have to leave the app to prove the pipeline exists.
+
 **Two-minute pre-flight:** open the app once so it wakes up → sidebar **Reset demo** → have the SQL Editor open in a second tab with the §3 query already pasted.
 
 ---
@@ -257,6 +261,29 @@ who chose what, on what basis, and why.
 > **The line to land.** *Five things you can ask about your methodology here — what it does, where
 > its inputs come from, why a number is what it is, what depends on it, and what changed. A script
 > can only answer the first, and only by reading it. That isn't a tidiness difference.*
+
+---
+
+## 5b · Policy, premium and the loss ratio
+
+**Where:** app sidebar → **Prepare** → **Ingestion & data controls** → tab **5 · Feeds &
+timeliness**. Two of the six feeds are **policy and claim experience read live from the pricing
+team's own schema** — 50,000 policies and 47,521 claims, not copied.
+
+That matters for two reasons:
+
+**It is the cross-team point, made concrete.** Pricing already owns policy and premium on the
+platform. Reserving reads them *in place* as a view — no second copy to reconcile, no extract to go
+stale. One book of business, two teams consuming it.
+
+**It gives you the denominator.** Ultimates alone are a numerator. With premium present, the loss
+ratio becomes a governed measure rather than something each analyst recomputes — GBP 2.24bn earned
+premium and GBP 260.5bn sum insured across 15 SIC codes, so the triangle can be cut at a segment
+grain rather than five broad lines.
+
+*(One check is deliberately amber: a minority of claims have no matching policy row. It is a
+warning, not a gate — it narrows segment analysis without invalidating the triangle, and it is
+reported rather than silently dropped.)*
 
 ---
 

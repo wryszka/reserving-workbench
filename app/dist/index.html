@@ -594,6 +594,20 @@ PAGE.triangle=async()=>{
     </div>
   </div>
 
+  <div class="card" style="border-color:#a5f3fc"><h2>The pipeline behind this page</h2>
+  <div class="h-sub">This is not a script. Four named tasks in a Databricks Job, each writing an inspectable table — with run history.</div>
+    <div class="seam" style="margin-bottom:10px">
+      <div class="z"><div class="zt">0 · source</div><div class="zd">Binds to the loss source and records what was pulled, from where.</div></div>
+      <div class="arrow">→</div>
+      <div class="z"><div class="zt">1 · prep</div><div class="zd">Large-loss adjustment, exclusions, coverage remap — flagged out, never deleted.</div></div>
+      <div class="arrow">→</div>
+      <div class="z mid"><div class="zt">2 · selection</div><div class="zd">Triangle, empirical factors, comparison vs prior. <b>Then it stops — this page is that stop.</b></div></div>
+      <div class="arrow">→</div>
+      <div class="z"><div class="zt">3 · output</div><div class="zd">Guarded: fails until a pattern is approved. Then develops on the approved factors.</div></div>
+    </div>
+    <div id="jobinfo" style="font-size:12.5px;color:var(--mut)"></div>
+    <details class="why"><summary>Why does this answer "if it fails, the whole thing reruns"?</summary><div>Each stage is a separate task, so in the run page you click the failed task and <b>Repair run</b> — that task alone reruns, the others are untouched. And because stage 2 stops for a human, the decision on this page is what resumes the flow: approving a selection triggers stage 3 rather than re-running the pipeline from the top.</div></details>
+  </div>
   <div class="card"><h2>Selection audit trail</h2>
   <div class="h-sub">Every selection recorded: who, when, source, why. New selection = new row; the prior is never overwritten.</div>
     <div id="audit">${renderAudit(sels)}</div>
@@ -610,6 +624,12 @@ PAGE.triangle=async()=>{
   document.getElementById('elect').onclick=doElect;
   document.getElementById('reviewbtn').onclick=doReview;
   recompute(true);   // initial compute fills the factor inputs
+  // surface the real Job — it exists, so link to it rather than describing it
+  API('/api/pipeline/info').then(p=>{
+    const el=document.getElementById('jobinfo'); if(!el)return;
+    const L=(u,t)=>u?`<a href="${u}" target="_blank" style="color:var(--blue);font-weight:600">${t}</a>`:`<span style="color:#94a3b8">${t} (not deployed here)</span>`;
+    el.innerHTML=`Open in Databricks: ${L(p.full_job_url,'the full 4-task Job')} &nbsp;·&nbsp; ${L(p.stage3_job_url,'the stage-3 job this page triggers')}`;
+  }).catch(()=>{});
 };
 
 function renderAudit(sels){

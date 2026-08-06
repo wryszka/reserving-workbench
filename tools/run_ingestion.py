@@ -189,6 +189,9 @@ def build_reconciliation(w, wid):
 def build_feeds_and_dq(w, wid, now):
     """Feeds with completeness & timeliness, and DQ checks tagged by SII dimension."""
     nowdt = datetime.fromisoformat(now)
+    # real counts from the live pricing views, so the pane never claims a stale number
+    POLICY_ROWS = int(read_df(w, wid, f"SELECT count(*) n FROM {FQ}.`1_raw_policy`").iloc[0]["n"])
+    POLICY_CLAIM_ROWS = int(read_df(w, wid, f"SELECT count(*) n FROM {FQ}.`1_raw_policy_claim`").iloc[0]["n"])
     # SLA: claims/premium/exposure due on the 3rd working day, bordereau on the 5th.
     # The bordereau arrived after its SLA - that is what 'late' means here.
     feeds = [
@@ -201,6 +204,14 @@ def build_feeds_and_dq(w, wid, now):
          0, -4, 96, 95, "Premium & exposure"),
         ("FEED-LARGELOSS", "Large-loss bordereau", "EXTERNAL_RESERVING_TOOL", 12, 12, "quarantined", 91.7,
          -30, +5, 96, 96, "Large losses & bordereaux"),
+        # Policy + premium, read LIVE from the PRICING team's schema rather than copied.
+        # This is the cross-team beat: pricing already owns policy and premium on the
+        # platform, so reserving consumes them in place. No second copy to reconcile,
+        # and the loss ratio can finally be computed because the denominator exists.
+        ("FEED-POLICY", "Policy & premium — pricing schema (live view)", "PRICING_UPT",
+         POLICY_ROWS, POLICY_ROWS, "accepted", 100.0, 0, -12, 96, 96, "Premium & exposure"),
+        ("FEED-POLICY-CLAIMS", "Claim experience by policy — pricing schema (live view)", "PRICING_UPT",
+         POLICY_CLAIM_ROWS, POLICY_CLAIM_ROWS, "accepted", 99.4, 0, -12, 96, 96, "Claims"),
     ]
     feed_rows = []
     for fid, nm, src, rr, re_, st, dq, sla_off, arr_off, mexp, mpres, dom in feeds:
@@ -243,6 +254,16 @@ def build_feeds_and_dq(w, wid, now):
         ("FEED-LARGELOSS", "Arrived before its SLA", "COMPLETENESS", "warning", False, 0,
          "arrived 35 hours after the SLA"),
         ("FEED-LARGELOSS", "Threshold field populated", "APPROPRIATENESS", "warning", True, 0, "all populated"),
+        ("FEED-POLICY", "Earned premium present and positive", "ACCURACY", "critical", True, 0,
+         "50,000 policies, GBP 2.24bn earned premium"),
+        ("FEED-POLICY", "Sum insured present (exposure base)", "COMPLETENESS", "critical", True, 0,
+         "GBP 260.5bn sum insured across the book"),
+        ("FEED-POLICY", "Segment fields present (SIC, postcode sector)", "APPROPRIATENESS", "warning", True, 0,
+         "15 SIC codes — the grain pricing actually works at"),
+        ("FEED-POLICY-CLAIMS", "Every claim joins to a policy", "ACCURACY", "warning", False, 0,
+         "some claims have no matching policy row — reported, not silently dropped. A warning, "
+         "not a gate: it narrows segment analysis, it does not invalidate the triangle"),
+        ("FEED-POLICY-CLAIMS", "Loss date present", "COMPLETENESS", "critical", True, 0, "all populated"),
     ]
     dq_rows = [dict(expectation_id=f"DQ-{i:03d}", feed_id=fid, expectation_name=nm,
         dq_dimension_code=dim, severity=sev, passed=ps, failed_rows=fr, detail=dt)
