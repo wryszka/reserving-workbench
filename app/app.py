@@ -727,6 +727,15 @@ def reset_demo():
     # ingestion front door back to its opening state: the bordereau quarantined
     # (its reconciliation still broken), premium awaiting its owner, claims attested
     sql.query(f"UPDATE {F('1_raw_data_feed')} SET status=CASE WHEN feed_id='FEED-LARGELOSS' THEN 'quarantined' ELSE 'accepted' END"); actions.append("reset feed statuses")
+    # Stage 3 output accumulates a row-set per approved selection, so a demo run
+    # leaves SEL-LIVE-% ultimates behind and the loss-cost table shows two answers.
+    # Clear the demo-authored ones so the pipeline output matches the seeded baseline.
+    try:
+        sql.query(f"DELETE FROM {config.CATALOG}.{config.SCHEMA}.demo_stage3_ultimate "
+                  f"WHERE applied_selection_id LIKE 'SEL-LIVE-%' OR applied_selection_id LIKE 'SEL-NB-%'")
+        actions.append("cleared demo pipeline output")
+    except Exception:
+        pass   # the table only exists once the pipeline has run
     sql.query(f"UPDATE {F('1_raw_data_signoff')} SET "
               f"status_code=CASE WHEN data_domain='Large losses & bordereaux' THEN 'BLOCKED' "
               f"WHEN data_domain='Claims' THEN 'ACCEPTED' ELSE 'PENDING' END, "

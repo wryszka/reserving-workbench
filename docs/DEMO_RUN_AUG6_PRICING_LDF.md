@@ -9,8 +9,10 @@
 
 | What | Exactly where |
 |---|---|
-| **The app** | https://reserving-workbench-7474656169654171.aws.databricksapps.com |
-| **App page for the whole LDF story** | Left sidebar → **Prepare** → **Triangle & selection** |
+| **1 · The monolith** (where you start) | Workspace → Shared → `reserving_workbench` → **LDF_demo** → **00_the_monolith** |
+| **2 · The split stages** | same folder → `stage_0_source_sync`, `stage_1_prep`, `stage_2_selection`, `stage_3_output` |
+| **3 · The Job** | Workspace → **Workflows** → *[reserving-workbench] LDF pipeline* (4 tasks, successful run history) |
+| **4 · The app** (the easy interface on top) | https://reserving-workbench-7474656169654171.aws.databricksapps.com → sidebar **Prepare** → **Triangle & selection** |
 | **SQL query tab** | Databricks workspace `fevm-lr-dev-aws-us` → SQL Editor → warehouse **Serverless Starter** (`a3b61648ea4809e3`) |
 | **The pipeline, as a Job** | Workspace → **Workflows** → *[reserving-workbench] LDF pipeline — prep · selection · output* (4 tasks, with run history) |
 | **Stage-3-only job** (what the app triggers) | Workflows → *[reserving-workbench] LDF stage 3 — develop on the approved pattern* |
@@ -25,6 +27,12 @@
 successful 4-task run, and *LDF stage 3* with its own. The app links to both from the **pipeline
 panel** on Triangle & selection — you never have to leave the app to prove the pipeline exists.
 
+> ⚠️ **Provenance — say this early, do not let them assume otherwise.** The monolith in step 1 is
+> **our reconstruction**, not your script: yours hasn't been shared with us yet. We built it from
+> the shape you described on 23 July so there was something concrete to decompose. Your real one is
+> longer, messier, and has rules in it we've guessed at — which is exactly why we're still asking
+> for it. Everything downstream of it is real and runs; the starting point is a stand-in.
+
 **Two-minute pre-flight:** open the app once so it wakes up → sidebar **Reset demo** → have the SQL Editor open in a second tab with the §3 query already pasted.
 
 ---
@@ -37,7 +45,7 @@ From our conversation on 23 July, the picture we took away:
 large SQL script. Three things about that hurt:
 
 - **You can't see into it.** It's one script, so identifying where a particular transformation
-  happens is hard. *(This is the one that matters most — answered in §5a.)*
+  happens is hard. *(This is the one that matters most — answered in §7.)*
 - **You can't restart part of it.** If it fails, the whole thing reruns.
 - **You can't stop it to intervene.** There's no point at which someone can override an
   empirical pick — for example holding a prior LDF pattern because a data anomaly distorted
@@ -54,16 +62,15 @@ Nothing here depends on that validation finishing.
 
 | # | Your ask | Section |
 |---|---|---|
-| 1 | **Triangle visualisation** — the losses and the empirically calculated LDFs *before* anything is selected | §3 |
-| 2 | **Comparison** — the empirical factors against a previously selected set | §4 |
-| 3 | **A decision module** — take the empirical pick, or hold the prior one, as a deliberate step | §4 |
+| 1 | **Triangle visualisation** — the losses and the empirically calculated LDFs *before* anything is selected | §4 (stage 2), §6 (in the app) |
+| 2 | **Comparison** — the empirical factors against a previously selected set | §5 (materiality gate), §6 |
+| 3 | **A decision module** — take the empirical pick, or hold the prior one, as a deliberate step | §6 |
 
 Plus two things to explore: **R integration**, since indications are built in R; and reading
 Discovery **without an ingestion project**.
 
 **What we said we'd do.** Build a prototype showing a staged workflow, the manual intervention
-point, and the R options — and review it today. §5 and §6 are that, decomposed on the three
-seams you asked for.
+point, and the R options — and review it today. That's what §3 to §6 walk through, in that order.
 
 > **One framing note.** This uses loss-development machinery that reserving teams also use.
 > That's deliberate: same technique, and here it serves a **rate indication**, not a booked
@@ -71,95 +78,81 @@ seams you asked for.
 
 ---
 
-## 2 · The shape of the answer
+## 2 · The running order
 
-**Read Discovery in place → build the triangle and empirical LDFs → compare and decide (recorded)
-→ hand the selected pattern to your R indication.**
+Deliberately **not** starting with the app. The app is the last thing, because it is the easiest
+thing — and leading with it invites "so it's a dashboard". The argument runs the other way:
 
-Four stages, each independently runnable and inspectable, and stage three is a decision a person
-makes. The alternatives from the 23rd — visual flow-builder, notebooks with widgets, a custom app
-— aren't competing options; they're different front doors to the same staged flow.
+| | What | Why this order |
+|---|---|---|
+| **1** | **The monolith** — one script, works fine, produces a number | Establish the problem on their own terms, in SQL they recognise |
+| **2** | **Broken into four notebooks** | Each stage named, runnable alone, writing an inspectable table |
+| **3** | **The same four as a Job** | Now it's a process: dependencies, run history, repair a single task |
+| **4** | **The app on top** | The easy interface over stage 2's stopping point — not the product, the front door |
+
+The single most useful thing to show is the **diff between step 1 and step 3**: same claims, same
+day, and the monolith is **£369,370 higher** on Commercial Property alone — because nobody ever
+looked at the factors. See §3.
 
 ---
 
-## 3 · Ask #1 — the triangle and empirical LDFs, before selection
+## 3 · Step 1 — the monolith, and what it costs
 
-**Where:** app sidebar → **Prepare** → **Triangle & selection**, line of business **Commercial
-Property** (it's the default).
+**Where:** `LDF_demo/00_the_monolith`. Run it; it works.
 
-- **Cumulative paid triangle** — accident year down, development month across; shaded = observed.
-- Below it, **individual age-to-age factors by accident year**, then the **volume-weighted
-  empirical factors**. Nothing selected yet — this is what the data says.
+It reads claims, remaps coverages, holds out large losses, applies exclusions, builds the triangle,
+computes the factors and writes ultimates — in one pass. Point at what that means:
 
-**The triangle is a view, not an output.** Derived from the loss ledger on read, so it reconciles
-to source by construction, with no stored copy to drift and no script to rerun.
+- The coverage remap is a `LEFT JOIN` inside a CTE. The large-loss hold-out is a `WHERE` clause
+  three CTEs down. **Nothing records that a claim left the base.**
+- The factors are computed and consumed **in the same breath**. No row anywhere says what was
+  selected, by whom, or why.
+- The tail (`* 1.01`) is hardcoded mid-script.
+- There is **no point at which it stops.**
+- The final column reads `applied_selection_id = 'no selection recorded'`.
 
-**The factor is a callable function, not a line buried in a script.** In your SQL Editor tab:
+**Then the number.** Run the comparison against the governed pipeline's output:
 
 ```sql
-SELECT lr_dev_aws_us_catalog.reserving_workbench.fn_empirical_ldf('COMMERCIAL_PROPERTY', 0);
--- 1.897191    (the 12 to 24 month factor)
+SELECT m.accident_year,
+       round(m.ultimate_loss,0)              AS monolith,
+       round(s.ultimate_loss,0)              AS governed,
+       round(m.ultimate_loss - s.ultimate_loss,0) AS difference
+FROM demo_monolith_ultimate m
+JOIN demo_stage3_ultimate s
+  ON s.accident_year = m.accident_year
+ AND s.line_of_business_code = m.line_of_business_code
+WHERE m.line_of_business_code = 'COMMERCIAL_PROPERTY'
+ORDER BY 1;
 ```
 
-Callable from SQL, the app, or a notebook — one definition, one answer, version-controlled. The
-direct contrast with "somewhere in 5,000 lines".
+Commercial Property, same claims, same day: the monolith is **£369,370 higher in total** — AY2021
++£45,966, AY2022 +£54,416, AY2023 +£38,823, and so on. Not because it's broken, but because the
+anomalous factor was never reviewed. **The output looks perfectly respectable, and that is the trap.**
 
-**On Discovery:** this reads synthetic loss data today. Pointing it at Discovery is a connection,
-not a migration — see §6.
-
----
-
-## 4 · Asks #2 and #3 — compare against the prior set, then decide
-
-**Where:** same page, scroll to **Individual age-to-age factors**, then **Decision module —
-select development factors**.
-
-**What the comparison shows.** In the individual factors:
-
-| Accident year | 12 to 24 month factor |
-|---|---|
-| 2019 | 1.667 |
-| 2020 | 1.676 |
-| 2021 | 1.667 |
-| 2022 | 1.667 |
-| **2023** | **3.627** — flagged red |
-| 2024 | 1.667 |
-| 2025 | 1.667 |
-
-One accident year develops at more than twice the rate of every other — a single late-reported
-large loss. The volume-weighted average across all years is **1.897**, dragged up by that one
-year; hold it out and you're back to roughly **1.667**.
-
-Exactly the case you described: an empirical pick you would not want flowing through untouched.
-
-**The decision module.** Directly below:
-
-- **Averaging basis** dropdown (volume-weighted / simple / last-N / median / geometric) — factors
-  recompute live. *(Median gives **1.6667** — a useful answer if asked how you'd defend 1.667.)*
-- Or **type over any single factor**: change the first from **1.897 to 1.667**. The ultimate
-  recomputes immediately, **£15.25m to £14.94m**, and **Δ vs prior selection** shows the
-  difference against the previously approved pattern. You see the consequence before committing.
-- Type a reason, then **Select & save**.
-
-**What that writes.** A new row — who, when, basis, factors, whether anything was overridden, and
-why. The previous selection is not overwritten. The **Selection audit trail** table at the bottom
-of the page shows it:
-
-| Selection | Source | Status | First factor |
-|---|---|---|---|
-| SEL-2026Q3-PROP-PRIOR | prior selection | approved | 1.667 |
-| SEL-2026Q4-PROP-EMPIRICAL | calculated | draft | 1.897 |
-| SEL-2026Q4-PROP-ELECTED | held prior | approved | 1.667 *(reason recorded)* |
-
-The stop-and-override point the current process can't offer — a recorded decision, not an edit
-someone remembers making.
+> **The line:** *"This isn't a quality problem — it runs, and the number looks fine. It's a
+> reviewability problem. You can't see it, you can't stop it, and it already wrote the answer."*
 
 ---
 
-## 5 · The script, split on your three seams
+## 4 · Step 2 — the same logic, in four named stages
 
-**Where:** Workspace → **Workflows** → *[reserving-workbench] LDF pipeline*. Four tasks with real
-run history; the individual notebooks are in Shared → `reserving_workbench` → **LDF_demo**.
+**Where:** `LDF_demo/stage_0_source_sync` → `stage_1_prep` → `stage_2_selection` → `stage_3_output`.
+Open them in order; each is a notebook you can run cell by cell and each writes a table you can look at.
+
+Nothing about the actuarial content changed. What changed is that **every step has a name and a
+checkpoint** — the three seams you asked for, plus a source-binding stage in front so the move off
+Discovery touches one file.
+
+---
+
+## 5 · Step 3 — the Job: now it is a process
+
+Same four stages, wired together with dependencies, run history, and the ability to rerun one task.
+This is the moment it stops being "some SQL files" and becomes an operable process.
+
+**Where:** Workspace → **Workflows** → *[reserving-workbench] LDF pipeline*. Open the successful
+run and walk the four green tasks.
 
 | Stage | File | What it does | Writes |
 |---|---|---|---|
@@ -213,7 +206,86 @@ and reversible.
 
 ---
 
-## 5a · "Can I see into my methodology?" — the five queries
+## 6 · Step 4 — the app, the easy interface on top
+
+Now the app earns its place: it is the front door onto **stage 2's stopping point**, not a separate
+product. Everything it shows is the same governed table the notebooks and the Job read.
+
+### Ask #1 — the triangle and empirical LDFs, before selection
+
+**Where:** app sidebar → **Prepare** → **Triangle & selection**, line of business **Commercial
+Property** (it's the default).
+
+- **Cumulative paid triangle** — accident year down, development month across; shaded = observed.
+- Below it, **individual age-to-age factors by accident year**, then the **volume-weighted
+  empirical factors**. Nothing selected yet — this is what the data says.
+
+**The triangle is a view, not an output.** Derived from the loss ledger on read, so it reconciles
+to source by construction, with no stored copy to drift and no script to rerun.
+
+**The factor is a callable function, not a line buried in a script.** In your SQL Editor tab:
+
+```sql
+SELECT lr_dev_aws_us_catalog.reserving_workbench.fn_empirical_ldf('COMMERCIAL_PROPERTY', 0);
+-- 1.897191    (the 12 to 24 month factor)
+```
+
+Callable from SQL, the app, or a notebook — one definition, one answer, version-controlled. The
+direct contrast with "somewhere in 5,000 lines".
+
+**On Discovery:** this reads synthetic loss data today. Pointing it at Discovery is a connection,
+not a migration — see §10.
+
+---
+
+### Asks #2 and #3 — compare against the prior set, then decide
+
+**Where:** same page, scroll to **Individual age-to-age factors**, then **Decision module —
+select development factors**.
+
+**What the comparison shows.** In the individual factors:
+
+| Accident year | 12 to 24 month factor |
+|---|---|
+| 2019 | 1.667 |
+| 2020 | 1.676 |
+| 2021 | 1.667 |
+| 2022 | 1.667 |
+| **2023** | **3.627** — flagged red |
+| 2024 | 1.667 |
+| 2025 | 1.667 |
+
+One accident year develops at more than twice the rate of every other — a single late-reported
+large loss. The volume-weighted average across all years is **1.897**, dragged up by that one
+year; hold it out and you're back to roughly **1.667**.
+
+Exactly the case you described: an empirical pick you would not want flowing through untouched.
+
+**The decision module.** Directly below:
+
+- **Averaging basis** dropdown (volume-weighted / simple / last-N / median / geometric) — factors
+  recompute live. *(Median gives **1.6667** — a useful answer if asked how you'd defend 1.667.)*
+- Or **type over any single factor**: change the first from **1.897 to 1.667**. The ultimate
+  recomputes immediately, **£15.25m to £14.94m**, and **Δ vs prior selection** shows the
+  difference against the previously approved pattern. You see the consequence before committing.
+- Type a reason, then **Select & save**.
+
+**What that writes.** A new row — who, when, basis, factors, whether anything was overridden, and
+why. The previous selection is not overwritten. The **Selection audit trail** table at the bottom
+of the page shows it:
+
+| Selection | Source | Status | First factor |
+|---|---|---|---|
+| SEL-2026Q3-PROP-PRIOR | prior selection | approved | 1.667 |
+| SEL-2026Q4-PROP-EMPIRICAL | calculated | draft | 1.897 |
+| SEL-2026Q4-PROP-ELECTED | held prior | approved | 1.667 *(reason recorded)* |
+
+The stop-and-override point the current process can't offer — a recorded decision, not an edit
+someone remembers making.
+
+---
+
+## 7 · "Can I see into my methodology?" — the five queries
 
 **Where:** Workspace → Shared → `reserving_workbench` → **LDF_demo** → **see_into_it**. Open it and run the cells in order — all 19 verified.
 
@@ -264,7 +336,7 @@ who chose what, on what basis, and why.
 
 ---
 
-## 5b · Policy, premium and the loss ratio
+## 8 · Policy, premium and the loss ratio
 
 **Where:** app sidebar → **Prepare** → **Ingestion & data controls** → tab **5 · Feeds &
 timeliness**. Two of the six feeds are **policy and claim experience read live from the pricing
@@ -287,7 +359,7 @@ reported rather than silently dropped.)*
 
 ---
 
-## 6 · R integration
+## 9 · R integration
 
 **Where:** Workspace → Shared → `reserving_workbench` → **LDF_demo** → **indication**.
 
@@ -320,7 +392,7 @@ line in a 5,000-line script.
 
 ---
 
-## 7 · Reading Discovery without an ingestion project
+## 10 · Reading Discovery without an ingestion project
 
 Federation connects Databricks to the Discovery SQL Server and queries its tables in place. No
 copy, no pipeline, no waiting on One Shield validation.
@@ -333,7 +405,7 @@ revisit ingestion when the Databricks feeds are verified — rather than the oth
 
 ---
 
-## 8 · What we'd need from you
+## 11 · What we'd need from you
 
 - **The LDF script split on the three seams in §5** — ingestion/prep, the selection and
   intervention point, output. It doesn't need to be tidy or complete. Without it, my intervention
@@ -348,7 +420,7 @@ it hasn't been done.
 
 ---
 
-## 9 · Anticipated questions
+## 12 · Anticipated questions
 
 **"This looks like reserving."** Same loss-development mathematics, different consumer — you
 develop losses to ultimate to reach a loss cost and an indicated rate; a reserving team books a
