@@ -12,12 +12,13 @@
 | **The app** | https://reserving-workbench-7474656169654171.aws.databricksapps.com |
 | **App page for the whole LDF story** | Left sidebar → **Prepare** → **Triangle & selection** |
 | **SQL query tab** | Databricks workspace `fevm-lr-dev-aws-us` → SQL Editor → warehouse **Serverless Starter** (`a3b61648ea4809e3`) |
-| **Stage 1 file** | repo `demo/ldf_pipeline/stage_1_prep.sql` |
-| **Stage 2 file** | repo `demo/ldf_pipeline/stage_2_selection.sql` |
-| **Stage 3 file** | repo `demo/ldf_pipeline/stage_3_output.sql` |
-| **"See into it" queries** | repo `demo/see_into_it.sql` — **run these if they push on transparency** |
-| **R indication** | repo `demo/r_indication/indication.R` (serverless variant: `indication_e2.R`) |
-| **Repo** | https://github.com/wryszka/reserving-workbench (public) |
+| **The pipeline, as a Job** | Workspace → **Workflows** → *[reserving-workbench] LDF pipeline — prep · selection · output* (4 tasks, with run history) |
+| **Stage-3-only job** (what the app triggers) | Workflows → *[reserving-workbench] LDF stage 3 — develop on the approved pattern* |
+| **All notebooks, openable** | Workspace → **Shared** → `reserving_workbench` → **LDF_demo** |
+| **"See into it" notebook** | `LDF_demo/see_into_it` — **run this if they push on transparency** (19 cells, all verified) |
+| **Stage 0 / 1 / 2 / 3** | `LDF_demo/stage_0_source_sync`, `stage_1_prep`, `stage_2_selection`, `stage_3_output` |
+| **Analyst notebook** (the power-user door) | `LDF_demo/analyst_selection` — all lines, all bases, ad-hoc exclusions; writes to the same selections table |
+| **R indication** | `LDF_demo/indication` (classic-compute variant: `LDF_demo/indication_e2`) |
 | **Catalog / schema for every query below** | `lr_dev_aws_us_catalog.reserving_workbench` |
 
 **Two-minute pre-flight:** open the app once so it wakes up → sidebar **Reset demo** → have the SQL Editor open in a second tab with the §3 query already pasted.
@@ -153,8 +154,8 @@ someone remembers making.
 
 ## 5 · The script, split on your three seams
 
-**Where:** repo `demo/ldf_pipeline/` — three files. All three have been run on the Serverless
-Starter warehouse; the figures below are actual output.
+**Where:** Workspace → **Workflows** → *[reserving-workbench] LDF pipeline*. Four tasks with real
+run history; the individual notebooks are in Shared → `reserving_workbench` → **LDF_demo**.
 
 | Stage | File | What it does | Writes |
 |---|---|---|---|
@@ -192,6 +193,16 @@ election and the person who approved it. Commercial Property ultimates:
 | 2025 | 1,460,097 | 1.4159 | 2,067,373 |
 | 2026 | 909,946 | 2.3603 | 2,147,773 |
 
+**Rerun one stage, not the lot.** In the run page, click the failed or stale task -> **Repair run**
+-> it reruns *that task alone*. That is the direct answer to "if it fails, the whole thing reruns".
+
+**And the decision resumes it.** Stage 2 stops on purpose. In the app, after **Select & save**, an
+**Approve & run stage 3** button appears with a live status chip: approving flips the selection to
+approved and triggers the stage-3 job, and you watch it go green without leaving the page. If you
+approve nothing and run stage 3 anyway, it **fails with a readable message** -
+*"STAGE 3 BLOCKED: no approved selection for COMMERCIAL_PROPERTY..."*. **That failure is the control
+working, not a bug** - worth saying out loud before you trigger it.
+
 **Three points to make with this:** named stages you can run and re-run individually · it stops
 where a human is needed, by design · the decision is data, not a code edit — so it's auditable
 and reversible.
@@ -200,7 +211,7 @@ and reversible.
 
 ## 5a · "Can I see into my methodology?" — the five queries
 
-**Where:** repo `demo/see_into_it.sql`, run in the SQL Editor.
+**Where:** Workspace → Shared → `reserving_workbench` → **LDF_demo** → **see_into_it**. Open it and run the cells in order — all 19 verified.
 
 This is the sharpest version of the objection, and worth separating from §5.
 "We split the script into three files" does not answer it — you would still be reading files.
@@ -251,7 +262,7 @@ who chose what, on what basis, and why.
 
 ## 6 · R integration
 
-**Where:** repo `demo/r_indication/indication.R`.
+**Where:** Workspace → Shared → `reserving_workbench` → **LDF_demo** → **indication**.
 
 Your indications are built in R and nothing here asks you to change that. R runs natively on
 Databricks — as a notebook or a task in the same job as the stages above. The script reads
@@ -321,10 +332,17 @@ triangle is a view over whatever it reads.
 
 **"Can we keep R?"** Yes — natively, as a stage in the flow rather than a separate system.
 
-**"Can the selection happen in a tool we already use?"** Yes. It's a defined hand-off: prepare the
-triangle here, pick wherever you prefer, read the chosen pattern back into the same recorded
-table. There's a source field on the selection row for exactly this, so you're not locked in
-either direction.
+**"Can the selection happen in a tool we already use?"** Yes, and there's a concrete demonstration
+rather than an assurance. Open `LDF_demo/analyst_selection`: it reads stage 2, shows every line of
+business at once, five averaging bases side by side, an ad-hoc "what if we drop AY2023" exclusion
+and a tail-factor range — then **writes to the same `selected_development_pattern` table the app
+writes to**, as `PENDING_APPROVAL`. Both rows appear in the same audit trail and stage 3's guard
+treats them identically.
+
+**The line:** *the app is for the sign-off moment, the notebook is for the analyst who wants to dig
+— and the governed record doesn't care which door the decision came through.* If a notebook can
+write a first-class selection, so can R, and so can an external actuarial tool. There's a source
+field on the row for exactly that, so you're not locked in either direction.
 
 **"What if it fails halfway?"** Each stage is a separate task — only the failed stage reruns.
 

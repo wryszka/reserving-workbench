@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 import datetime
 import uuid
 
-from server import agents, config, genie_api, reserving, sql
+from server import agents, config, genie_api, jobs, reserving, sql
 
 app = FastAPI(title="Reserving Workbench — Bricksurance SE")
 F = config.fqn
@@ -184,6 +184,60 @@ def selection_elect(body: dict):
     res = reserving.ultimate_ibnr(tri, fdict, tail)
     return {"ok": True, "selection_id": sel_id, "source": source, "status": "PENDING_APPROVAL",
             "prior_selection_id": prior_id, "selected_by": user, "reserve": res}
+
+
+@app.post("/api/selection/approve")
+def selection_approve(body: dict):
+    """Approve a pending selection — and RESUME THE PIPELINE.
+
+    This is the beat the staged pipeline exists for. Stage 2 stops deliberately;
+    stage 3 has a guard that fails while no pattern is approved. Approving here
+    flips the row to APPROVED and triggers the stage-3 job, so the human decision
+    is what picks the process back up. The run id comes back so the UI can show
+    the run's progress inline."""
+    b = body or {}
+    sel_id = b.get("selection_id")
+    lob = b.get("lob", "COMMERCIAL_PROPERTY")
+    approver = "chief.actuary@bricksurance.demo"
+    if not sel_id:
+        # approve the most recent pending selection for the line
+        row = sql.query_one(
+            f"SELECT selection_id FROM {F('selected_development_pattern')} "
+            f"WHERE line_of_business_code='{sql.esc(lob)}' AND status_code='PENDING_APPROVAL' "
+            f"ORDER BY selected_at DESC LIMIT 1")
+        if not row:
+            return {"ok": False, "error": "No pending selection to approve for this line."}
+        sel_id = row["selection_id"]
+    # the guard looks for '%ELECTED%', so an approved live selection has to match it
+    new_id = sel_id if "ELECTED" in sel_id else (sel_id + "-ELECTED")
+    sql.query(f"UPDATE {F('selected_development_pattern')} SET status_code='APPROVED', "
+              f"approved_by='{sql.esc(approver)}', approved_at=current_timestamp(), "
+              f"selection_id='{sql.esc(new_id)}' WHERE selection_id='{sql.esc(sel_id)}'")
+    eid = "AE-AP-" + uuid.uuid4().hex[:8]
+    sql.query(f"INSERT INTO {F('5_gov_audit_event')} (event_id, event_type, entity_type, entity_id, detail, actor, created_at) "
+              f"VALUES ('{eid}', 'selection_approved', 'selection', '{sql.esc(new_id)}', "
+              f"'Approved the selected development pattern; resumed the LDF pipeline at stage 3', "
+              f"'{sql.esc(approver)}', current_timestamp())")
+    run = jobs.run_stage3()
+    return {"ok": True, "selection_id": new_id, "approved_by": approver, "run": run}
+
+
+@app.get("/api/pipeline/status")
+def pipeline_status(run_id: int = 0):
+    """Poll a pipeline run so the app can show progress without leaving the page."""
+    if not run_id:
+        return {"ok": False, "error": "run_id required"}
+    return jobs.run_state(int(run_id))
+
+
+@app.get("/api/pipeline/info")
+def pipeline_info():
+    """Which pipeline jobs exist here, so the UI can hide the button if they don't."""
+    host = config.workspace_host()
+    full, s3 = jobs.full_job_id(), jobs.stage3_job_id()
+    return {"full_job_id": full, "stage3_job_id": s3,
+            "full_job_url": (f"{host}/#job/{full}" if (host and full) else None),
+            "stage3_job_url": (f"{host}/#job/{s3}" if (host and s3) else None)}
 
 
 def _user_from_headers():
@@ -661,9 +715,13 @@ def reset_demo():
     """Restore the demo to a clean state: clear live selections, agent-query audit rows,
     warm cache rows, and reset sign-offs to the seeded baseline (GL signed, rest pending)."""
     actions = []
-    sql.query(f"DELETE FROM {F('selected_development_pattern')} WHERE selection_id LIKE 'SEL-LIVE-%'"); actions.append("cleared live selections")
+    # clear selections authored during a demo, from EITHER door: the app writes
+    # SEL-LIVE-%, the analyst notebook writes SEL-NB-%. Missing the second one meant
+    # a re-run mid-call started with last run's notebook selection still pending.
+    sql.query(f"DELETE FROM {F('selected_development_pattern')} "
+              f"WHERE selection_id LIKE 'SEL-LIVE-%' OR selection_id LIKE 'SEL-NB-%'"); actions.append("cleared live + notebook selections")
     sql.query(f"DELETE FROM {F('expert_judgement')} WHERE judgement_id LIKE 'EJ-LIVE-%'"); actions.append("cleared live judgements")
-    sql.query(f"DELETE FROM {F('5_gov_audit_event')} WHERE event_type='agent_query' OR event_id LIKE 'AE-SO-%' OR event_id LIKE 'AE-EJ-%' OR event_id LIKE 'AE-ING-%' OR event_id LIKE 'AE-DS-%'"); actions.append("cleared demo audit rows")
+    sql.query(f"DELETE FROM {F('5_gov_audit_event')} WHERE event_type='agent_query' OR event_id LIKE 'AE-SO-%' OR event_id LIKE 'AE-EJ-%' OR event_id LIKE 'AE-ING-%' OR event_id LIKE 'AE-DS-%' OR event_id LIKE 'AE-AP-%'"); actions.append("cleared demo audit rows")
     sql.query(f"UPDATE {F('reserve_signoff')} SET status_code=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'APPROVED' ELSE 'PENDING_APPROVAL' END, "
               f"signed_by=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'chief.actuary' ELSE NULL END"); actions.append("reset sign-offs to baseline")
     # ingestion front door back to its opening state: the bordereau quarantined

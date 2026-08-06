@@ -15,14 +15,30 @@ USE CATALOG lr_dev_aws_us_catalog;
 USE SCHEMA reserving_workbench;
 
 -- ── GUARD · refuse to run on an unelected pattern ──────────────────────────
--- Returns the elected row; if this is empty, STOP — Stage 2 is unresolved.
+-- This does not warn, it FAILS. If no human has approved a pattern, the task
+-- errors and the job stops here — an unelected empirical pick cannot reach the
+-- loss-cost table. When it fires in a demo that is the control working, not a bug.
+SELECT CASE
+  WHEN COUNT(*) = 0 THEN
+    raise_error(
+      'STAGE 3 BLOCKED: no approved selection for COMMERCIAL_PROPERTY. ' ||
+      'An empirical pick cannot flow to the loss-cost table until an actuary ' ||
+      'approves a pattern. Approve it in the workbench (Triangle & selection -> ' ||
+      'Select & save), then re-run this task.')
+  ELSE 'guard passed: ' || COUNT(*) || ' approved selection(s)'
+END AS guard
+FROM selected_development_pattern
+WHERE status_code = 'APPROVED'
+  AND selection_id LIKE '%ELECTED%'
+  AND line_of_business_code = 'COMMERCIAL_PROPERTY';
+
+-- The assumption this run stands on — who approved it and why.
 SELECT
   selection_id, source_code, status_code, selected_by, approved_by, rationale
 FROM selected_development_pattern
 WHERE status_code = 'APPROVED'
   AND selection_id LIKE '%ELECTED%'
   AND line_of_business_code = 'COMMERCIAL_PROPERTY';
--- ^ zero rows  => do not proceed. one row => that is your governed assumption.
 
 -- 3a · develop to ultimate using the ELECTED factors -------------------------
 CREATE OR REPLACE TABLE demo_stage3_ultimate

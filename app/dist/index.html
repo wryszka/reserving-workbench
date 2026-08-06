@@ -584,6 +584,14 @@ PAGE.triangle=async()=>{
       <span id="electmsg" style="font-size:12.5px;color:var(--mut)"></span>
     </div>
     <div id="reviewout" style="margin-top:12px"></div>
+    <div id="pipebox" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);display:none">
+      <div style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">The pipeline is waiting on you</div>
+      <div style="font-size:12.5px;color:#334155;margin-bottom:10px">Stage 2 stopped deliberately — stage 3 will not produce a loss cost until a pattern is approved. Approving here resumes it.</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="approvebtn" style="background:#0891b2">Approve &amp; run stage 3</button>
+        <span id="pipechip"></span>
+      </div>
+    </div>
   </div>
 
   <div class="card"><h2>Selection audit trail</h2>
@@ -673,8 +681,55 @@ async function doElect(ev){
     msg.innerHTML=`<span style="color:#16a34a">✓ Saved ${r.selection_id} (${r.source}, ${r.status}) — ultimate ${money(r.reserve.ultimate)}. Refreshing audit trail…</span>`;
     const s=await API('/api/selection?lob='+encodeURIComponent(LOB));
     document.getElementById('audit').innerHTML=renderAudit(s.selections||[]);
+    // the selection is PENDING_APPROVAL — reveal the beat that resumes the pipeline
+    PENDING_SEL=r.selection_id;
+    const pb=document.getElementById('pipebox');
+    if(pb){pb.style.display='block'; document.getElementById('approvebtn').onclick=approveAndRun;
+      pb.scrollIntoView({behavior:'smooth',block:'nearest'});}
   }catch(e){msg.innerHTML=`<span style="color:#dc2626">Save failed: ${e.message}</span>`;}
   btn.disabled=false;
+}
+
+let PENDING_SEL=null, POLL=null;
+function pipeChip(state, text, url){
+  const tone={PENDING:['#fef3c7','#b45309'],RUNNING:['#dbeafe','#1d4ed8'],
+              SUCCESS:['#dcfce7','#15803d'],FAILED:['#fee2e2','#b91c1c']}[state]||['#e2e8f0','#334155'];
+  const link=url?` <a href="${url}" target="_blank" style="color:inherit;text-decoration:underline">open run →</a>`:'';
+  document.getElementById('pipechip').innerHTML=
+    `<span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:11.5px;font-weight:700;background:${tone[0]};color:${tone[1]}">${text}${link}</span>`;
+}
+async function approveAndRun(ev){
+  const btn=ev.target; btn.disabled=true;
+  pipeChip('PENDING','Approving…');
+  try{
+    const r=await API('/api/selection/approve',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lob:LOB, selection_id:PENDING_SEL})});
+    if(!r.ok){pipeChip('FAILED',r.error||'approve failed'); btn.disabled=false; return;}
+    const s=await API('/api/selection?lob='+encodeURIComponent(LOB));
+    document.getElementById('audit').innerHTML=renderAudit(s.selections||[]);
+    if(!r.run||!r.run.ok){pipeChip('FAILED',(r.run&&r.run.error)||'pipeline not available'); btn.disabled=false; return;}
+    pipeChip('RUNNING','Stage 3 running…', r.run.run_url);
+    pollPipeline(r.run.run_id);
+  }catch(e){pipeChip('FAILED',e.message); btn.disabled=false;}
+}
+function pollPipeline(runId){
+  clearInterval(POLL);
+  POLL=setInterval(async()=>{
+    try{
+      const st=await API('/api/pipeline/status?run_id='+runId);
+      if(!st.ok) return;
+      if(st.state==='RUNNING'||st.state==='PENDING'){pipeChip(st.state,'Stage 3 '+st.state.toLowerCase()+'…',st.run_url); return;}
+      clearInterval(POLL);
+      if(st.state==='SUCCESS'){
+        pipeChip('SUCCESS','Stage 3 complete — loss cost updated', st.run_url);
+      }else{
+        // a FAILED stage 3 is usually the guard, and its message is the point
+        pipeChip('FAILED','Stage 3 '+st.state.toLowerCase(), st.run_url);
+        if(st.detail) document.getElementById('pipechip').insertAdjacentHTML('afterend',
+          `<div style="margin-top:8px;font-size:12px;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:9px 12px">${st.detail.replace(/</g,'&lt;')}</div>`);
+      }
+    }catch(e){clearInterval(POLL);}
+  }, 4000);
 }
 
 async function doReview(ev){

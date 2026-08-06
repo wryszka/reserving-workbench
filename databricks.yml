@@ -1,6 +1,9 @@
 bundle:
   name: reserving-workbench
 
+include:
+  - resources/*.yml
+
 variables:
   catalog:
     description: Unity Catalog name for all demo objects (portability anchor — change this one var to redeploy elsewhere)

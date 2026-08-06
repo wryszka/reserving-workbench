@@ -1,0 +1,77 @@
+# The LDF process as a Databricks Job — the direct answer to two of the three
+# complaints about the Discovery monolith:
+#
+#   "we can't tell where any transformation happens"  -> four named tasks, each
+#     writing an inspectable table
+#   "if it fails, the whole thing reruns"             -> repair-run a single task
+#     from the Runs UI; the others are untouched
+#
+# Task 3 carries a hard guard: if no actuary has approved a pattern it FAILS with
+# a readable message. That failure is the control working. Approve in the
+# workbench, then repair-run task 3 alone.
+resources:
+  jobs:
+    ldf_pipeline:
+      name: "[reserving-workbench] LDF pipeline — prep · selection · output"
+      description: >
+        The quarterly LDF process, staged. Stage 0 binds to the loss source
+        (Federation over Discovery, or a scheduled copy-in for the big facts);
+        stage 1 preps (large-loss adjustment, exclusions, coverage remap);
+        stage 2 builds the triangle and empirical factors and compares them to
+        the prior selection, then stops for a human; stage 3 refuses to produce
+        a loss cost until a pattern is approved.
+      tags:
+        bxc_project: reserving-workbench
+        bxc_domain: reserving
+      tasks:
+        - task_key: stage_0_source_sync
+          description: "Bind to the loss source and record what was pulled, from where."
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../demo/ldf_pipeline/stage_0_source_sync.sql
+
+        - task_key: stage_1_prep
+          description: "Large-loss adjustment, claim exclusions, coverage remapping. Flagged out, never deleted."
+          depends_on:
+            - task_key: stage_0_source_sync
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../demo/ldf_pipeline/stage_1_prep.sql
+
+        - task_key: stage_2_selection
+          description: "Triangle, empirical factors, and comparison vs the prior selection with a materiality gate. Then it stops."
+          depends_on:
+            - task_key: stage_1_prep
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../demo/ldf_pipeline/stage_2_selection.sql
+
+        - task_key: stage_3_output
+          description: "GUARDED: fails unless an actuary has approved a pattern. Then develops to ultimate on the approved factors."
+          depends_on:
+            - task_key: stage_2_selection
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../demo/ldf_pipeline/stage_3_output.sql
+
+    # Stage 3 on its own — what the app triggers when a selection is approved,
+    # so "pick back up from the decision" is one call rather than a full rerun.
+    ldf_stage3_only:
+      name: "[reserving-workbench] LDF stage 3 — develop on the approved pattern"
+      description: >
+        Runs stage 3 alone. Triggered by the workbench when an actuary approves a
+        selection: the decision in the app picks the pipeline back up from the
+        point it stopped.
+      tags:
+        bxc_project: reserving-workbench
+        bxc_domain: reserving
+      tasks:
+        - task_key: stage_3_output
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../demo/ldf_pipeline/stage_3_output.sql
