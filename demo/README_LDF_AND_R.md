@@ -2,8 +2,8 @@
 
 Neither the split LDF script nor the R indication code ever arrived from Hiscox.
 Rather than wait, both are answered here with synthetic stand-ins built on the
-live `reserving_workbench` schema. **Everything below has been run for real on DEV
-except the R script** (see the caveat in §2).
+live `reserving_workbench` schema. **Everything below has been run for real** — the SQL pipeline on DEV, the R on a classic
+cluster (see the note in §2).
 
 ---
 
@@ -60,11 +60,11 @@ indicated rate change, then writes `demo_r_indication` carrying the `applied_sel
 
 Weighted trended LR **0.7446** vs target **0.62** → **indicated rate change ≈ +20.1%**.
 
-> ⚠️ **CAVEAT — the R script has NOT been executed.** R requires a cluster and there
-> is **no running cluster on DEV** right now (only the SQL warehouse). The *arithmetic*
-> above was independently verified, but the script itself is unrun. Either start a
-> small cluster before the call and run it, or present it as **code review + the
-> validated numbers** and say the seam is ready — do **not** claim it ran.
+> **Note on where R ran.** Executed 6 Aug on a classic Single User cluster, R 4.4.0:
+> `INDICATED=+20.10%`, reading 8 accident years and naming the selection it stood on.
+> The SQL pipeline is on serverless and R needs classic, so the R ran on a classic
+> cluster with the stage-3 output carried across (`indication_e2.R`). Real execution and
+> real numbers — but do **not** claim it ran on serverless.
 
 ### The point to make
 Their indication logic stays in R and stays theirs. What changes is that the
