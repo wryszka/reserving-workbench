@@ -7,20 +7,22 @@
 
 ## 0 · Where everything is (read this first)
 
-| What | Exactly where |
+| What | Click straight through |
 |---|---|
-| **1 · The monolith** (where you start) | Workspace → Shared → `reserving_workbench` → **LDF_demo** → **00_the_monolith** |
-| **2 · The split stages** | same folder → `stage_0_source_sync`, `stage_1_prep`, `stage_2_selection`, `stage_3_output` |
-| **3 · The Job** | Workspace → **Workflows** → *[reserving-workbench] LDF pipeline* (4 tasks, successful run history) |
-| **4 · The app** (the easy interface on top) | https://reserving-workbench-7474656169654171.aws.databricksapps.com → sidebar **Prepare** → **Triangle & selection** |
-| **SQL query tab** | Databricks workspace `fevm-lr-dev-aws-us` → SQL Editor → warehouse **Serverless Starter** (`a3b61648ea4809e3`) |
-| **The pipeline, as a Job** | Workspace → **Workflows** → *[reserving-workbench] LDF pipeline — prep · selection · output* (4 tasks, with run history) |
-| **Stage-3-only job** (what the app triggers) | Workflows → *[reserving-workbench] LDF stage 3 — develop on the approved pattern* |
-| **All notebooks, openable** | Workspace → **Shared** → `reserving_workbench` → **LDF_demo** |
-| **"See into it" notebook** | `LDF_demo/see_into_it` — **run this if they push on transparency** (19 cells, all verified) |
-| **Stage 0 / 1 / 2 / 3** | `LDF_demo/stage_0_source_sync`, `stage_1_prep`, `stage_2_selection`, `stage_3_output` |
-| **Analyst notebook** (the power-user door) | `LDF_demo/analyst_selection` — all lines, all bases, ad-hoc exclusions; writes to the same selections table |
-| **R indication** | `LDF_demo/indication` (classic-compute variant: `LDF_demo/indication_e2`) |
+| **The whole demo folder** — everything below lives here, numbered in running order | **[open LDF_demo](https://fevm-lr-dev-aws-us.cloud.databricks.com/browse/folders/1906953798015725)** |
+| **1 · The monolith** (start here) | [1_the_monolith](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005599) |
+| **2 · The four stages** — run in order | [2_stage_0_source_sync](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005600) |
+| | [3_stage_1_prep](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005601) |
+| | [4_stage_2_selection](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005602)  ← **this is where it stops for a human** |
+| | [5_stage_3_output](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005603)  ← guarded |
+| **3 · The Job** | **[LDF pipeline — 4 tasks, successful runs](https://fevm-lr-dev-aws-us.cloud.databricks.com/jobs/128759624194016)** |
+| | [stage-3-only job (what the app triggers)](https://fevm-lr-dev-aws-us.cloud.databricks.com/jobs/292936672808317) |
+| **4 · The app** (the easy interface on top) | **[open the workbench](https://reserving-workbench-7474656169654171.aws.databricksapps.com)** → sidebar **Prepare** → **Triangle & selection** |
+| **If they push on transparency** | [6_see_into_it](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005604) — 19 cells, all verified |
+| **The analyst's door** (power-user path) | [7_analyst_selection](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005605) — all lines, all bases, ad-hoc exclusions; writes the same selection row the app does |
+| **R indication** | [8_r_indication](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005606) |
+| | [9_r_indication_classic](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005607) (classic compute — the variant that actually ran) |
+| **SQL Editor** (for the ad-hoc queries in §3 and §7) | [open SQL Editor](https://fevm-lr-dev-aws-us.cloud.databricks.com/sql/editor) — warehouse **Serverless Starter** |
 | **Catalog / schema for every query below** | `lr_dev_aws_us_catalog.reserving_workbench` |
 
 **The Job is real and has run.** Workflows shows *[reserving-workbench] LDF pipeline* with a
@@ -33,7 +35,8 @@ panel** on Triangle & selection — you never have to leave the app to prove the
 > longer, messier, and has rules in it we've guessed at — which is exactly why we're still asking
 > for it. Everything downstream of it is real and runs; the starting point is a stand-in.
 
-**Two-minute pre-flight:** open the app once so it wakes up → sidebar **Reset demo** → have the SQL Editor open in a second tab with the §3 query already pasted.
+**Two-minute pre-flight:** open the app once so it wakes up → sidebar **Reset demo** → open the
+**LDF_demo folder** (link above) and leave **1_the_monolith** on screen, ready to run.
 
 ---
 
@@ -98,7 +101,7 @@ looked at the factors. See §3.
 
 ## 3 · Step 1 — the monolith, and what it costs
 
-**Where:** `LDF_demo/00_the_monolith`. Run it; it works.
+**Where:** [**1_the_monolith**](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005599) (or the folder link in §0). Run it; it works.
 
 It reads claims, remaps coverages, holds out large losses, applies exclusions, builds the triangle,
 computes the factors and writes ultimates — in one pass. Point at what that means:
@@ -137,8 +140,9 @@ anomalous factor was never reviewed. **The output looks perfectly respectable, a
 
 ## 4 · Step 2 — the same logic, in four named stages
 
-**Where:** `LDF_demo/stage_0_source_sync` → `stage_1_prep` → `stage_2_selection` → `stage_3_output`.
-Open them in order; each is a notebook you can run cell by cell and each writes a table you can look at.
+**Where:** `2_stage_0_source_sync` → `3_stage_1_prep` → `4_stage_2_selection` → `5_stage_3_output`
+(links in §0). They are numbered in running order, so the folder reads top to bottom. Each is a
+notebook you can run cell by cell, and each writes a table you can look at.
 
 Nothing about the actuarial content changed. What changed is that **every step has a name and a
 checkpoint** — the three seams you asked for, plus a source-binding stage in front so the move off
@@ -156,9 +160,9 @@ run and walk the four green tasks.
 
 | Stage | File | What it does | Writes |
 |---|---|---|---|
-| 1 | `stage_1_prep.sql` | The up-front build: **coverage remapping**, **named claim exclusions**, **large-loss adjustment**. Excluded and large rows are **flagged out, never silently deleted**. | `demo_stage1_prepared_loss` |
-| 2 | `stage_2_selection.sql` | Triangle → empirical factors (individual *and* volume-weighted) → **comparison vs the prior selection with a materiality gate**. **Then it stops.** | `demo_stage2_triangle`, `demo_stage2_empirical_ldf`, `demo_stage2_comparison` |
-| 3 | `stage_3_output.sql` | **Guard: refuses to produce output unless an approved election exists.** Then develops to ultimate on the elected pattern. | `demo_stage3_ultimate` |
+| 1 | `3_stage_1_prep` | The up-front build: **coverage remapping**, **named claim exclusions**, **large-loss adjustment**. Excluded and large rows are **flagged out, never silently deleted**. | `demo_stage1_prepared_loss` |
+| 2 | `4_stage_2_selection` | Triangle → empirical factors (individual *and* volume-weighted) → **comparison vs the prior selection with a materiality gate**. **Then it stops.** | `demo_stage2_triangle`, `demo_stage2_empirical_ldf`, `demo_stage2_comparison` |
+| 3 | `5_stage_3_output` | **Guard: refuses to produce output unless an approved election exists.** Then develops to ultimate on the elected pattern. | `demo_stage3_ultimate` |
 
 **Stage 1 checkpoint:** 366 claims, **1 large loss held out**, **53 coverage-remapped**, 0 excluded
 by rule. The flags are columns, so you can see exactly what was removed and why.
@@ -287,9 +291,9 @@ someone remembers making.
 
 ## 7 · "Can I see into my methodology?" — the five queries
 
-**Where:** Workspace → Shared → `reserving_workbench` → **LDF_demo** → **see_into_it**. Open it and run the cells in order — all 19 verified.
+**Where:** [**6_see_into_it**](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005604). Run the cells in order — all 19 verified.
 
-This is the sharpest version of the objection, and worth separating from §5.
+This is the sharpest version of the objection, and worth separating from §4 and §5.
 "We split the script into three files" does not answer it — you would still be reading files.
 The actual answer is that **the methodology stopped being text in a file** and became a governed
 object the catalog can answer questions about.
@@ -361,7 +365,7 @@ reported rather than silently dropped.)*
 
 ## 9 · R integration
 
-**Where:** Workspace → Shared → `reserving_workbench` → **LDF_demo** → **indication**.
+**Where:** [**8_r_indication**](https://fevm-lr-dev-aws-us.cloud.databricks.com/editor/notebooks/64021633005606).
 
 Your indications are built in R and nothing here asks you to change that. R runs natively on
 Databricks — as a notebook or a task in the same job as the stages above. The script reads
@@ -407,7 +411,7 @@ revisit ingestion when the Databricks feeds are verified — rather than the oth
 
 ## 11 · What we'd need from you
 
-- **The LDF script split on the three seams in §5** — ingestion/prep, the selection and
+- **The LDF script split on the three seams in §4** — ingestion/prep, the selection and
   intervention point, output. It doesn't need to be tidy or complete. Without it, my intervention
   point sits where I guessed rather than where your decisions actually are, and the exclusion and
   remap rules in stage 1 are plausible stand-ins rather than yours.
@@ -432,7 +436,7 @@ triangle is a view over whatever it reads.
 **"Can we keep R?"** Yes — natively, as a stage in the flow rather than a separate system.
 
 **"Can the selection happen in a tool we already use?"** Yes, and there's a concrete demonstration
-rather than an assurance. Open `LDF_demo/analyst_selection`: it reads stage 2, shows every line of
+rather than an assurance. Open **7_analyst_selection** (link in §0): it reads stage 2, shows every line of
 business at once, five averaging bases side by side, an ad-hoc "what if we drop AY2023" exclusion
 and a tail-factor range — then **writes to the same `selected_development_pattern` table the app
 writes to**, as `PENDING_APPROVAL`. Both rows appear in the same audit trail and stage 3's guard
