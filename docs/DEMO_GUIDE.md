@@ -34,8 +34,8 @@ Open **1 · Trust the data**. Six tabs, in the order a real close asks them.
 - *(If time: tab 4 shows the checks grouped as accuracy / completeness / appropriateness — the Solvency II dimensions, because reserving feeds the technical provisions.)*
 
 **3 · Make the judgement (1.5 min)** — *the pivot, not the peak*
-Open **Triangle & selection**. **SAY:** "Cumulative paid. AY2023 develops at **3.63×** where every other year is **1.67×** — that's the backdated loss we just traced. The 1.899 average is dragged up by that one outlier; 1.667 is roughly the average without it."
-- Edit the first factor **1.899 → 1.667** — ultimate recomputes live **£14.74m → £14.44m**.
+Open **Triangle & selection**. **SAY:** "Cumulative paid. AY2023 develops at **3.63×** where every other year is **1.67×** — that's the backdated loss we just traced. The 1.897 average is dragged up by that one outlier; 1.667 is roughly the average without it."
+- Edit the first factor **1.897 → 1.667** — ultimate recomputes live **£15.25m → £14.94m**.
 - Type a rationale → click **AI peer review**. **SAY:** "A second pair of eyes that challenges my pick and drafts the documentation. It challenges; **I decide**."
 - **Select & save** → new audited row.
 

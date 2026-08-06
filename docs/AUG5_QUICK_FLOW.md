@@ -31,8 +31,8 @@
 
 ### 2 · Make the judgement (2 min) — **the pivot, not the climax**
 **Triangle & selection.** Cumulative **paid**.
-**SAY:** "AY2023 develops at **3.63×** where every other year is **1.67×** — the backdated loss we just traced. Any of you spots it. The 1.899 average is dragged up by that one outlier; 1.667 is roughly the average without it."
-- Edit first factor **1.899 → 1.667** → ultimate recomputes live **£14.74m → £14.44m**
+**SAY:** "AY2023 develops at **3.63×** where every other year is **1.67×** — the backdated loss we just traced. Any of you spots it. The 1.897 average is dragged up by that one outlier; 1.667 is roughly the average without it."
+- Edit first factor **1.897 → 1.667** → ultimate recomputes live **£15.25m → £14.94m**
 - Rationale → **AI peer review** (one click, don't dwell): "Second pair of eyes that challenges my pick and drafts the documentation. It challenges; **I decide**."
 - **Select & save** → audited row. "My old script couldn't stop and let me do that."
 
