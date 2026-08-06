@@ -15,6 +15,7 @@
 | **Stage 1 file** | repo `demo/ldf_pipeline/stage_1_prep.sql` |
 | **Stage 2 file** | repo `demo/ldf_pipeline/stage_2_selection.sql` |
 | **Stage 3 file** | repo `demo/ldf_pipeline/stage_3_output.sql` |
+| **"See into it" queries** | repo `demo/see_into_it.sql` — **run these if they push on transparency** |
 | **R indication** | repo `demo/r_indication/indication.R` (serverless variant: `indication_e2.R`) |
 | **Repo** | https://github.com/wryszka/reserving-workbench (public) |
 | **Catalog / schema for every query below** | `lr_dev_aws_us_catalog.reserving_workbench` |
@@ -31,7 +32,7 @@ From our conversation on 23 July, the picture we took away:
 large SQL script. Three things about that hurt:
 
 - **You can't see into it.** It's one script, so identifying where a particular transformation
-  happens is hard.
+  happens is hard. *(This is the one that matters most — answered in §5a.)*
 - **You can't restart part of it.** If it fails, the whole thing reruns.
 - **You can't stop it to intervene.** There's no point at which someone can override an
   empirical pick — for example holding a prior LDF pattern because a data anomaly distorted
@@ -194,6 +195,57 @@ election and the person who approved it. Commercial Property ultimates:
 **Three points to make with this:** named stages you can run and re-run individually · it stops
 where a human is needed, by design · the decision is data, not a code edit — so it's auditable
 and reversible.
+
+---
+
+## 5a · "Can I see into my methodology?" — the five queries
+
+**Where:** repo `demo/see_into_it.sql`, run in the SQL Editor.
+
+This is the sharpest version of the objection, and worth separating from §5.
+"We split the script into three files" does not answer it — you would still be reading files.
+The actual answer is that **the methodology stopped being text in a file** and became a governed
+object the catalog can answer questions about.
+
+**Query 1 — what does the factor actually do?**
+
+```sql
+SELECT routine_definition
+FROM system.information_schema.routines
+WHERE routine_schema = 'reserving_workbench' AND routine_name = 'fn_empirical_ldf';
+```
+
+Returns the whole methodology, out of the catalog — no repo, no file, no author to ask:
+
+```
+SUM(nxt.cumulative_paid) / NULLIF(SUM(cur.cumulative_paid), 0)
+  ...joined on accident_year, line_of_business, currency, development_lag + 1
+```
+
+**Read that out loud.** That *is* the volume-weighted age-to-age factor: sum of the next column
+over sum of this one. An actuary can audit it in ten seconds and say "yes, that's what I meant".
+Compare with locating the same logic inside 5,000 lines.
+
+**Query 2 — where do the triangle numbers come from?** The triangle is a view, so its definition
+*is* its documentation: you can read that paid = indemnity + expense − recovery, and that
+development lag = transaction year − accident year. Nothing hidden in a load step.
+
+**Query 3 — why is this number what it is?** Drill from the 3.627 factor to the claim, in two
+hops: the two cells it divides (1,942,643 / 535,586), then every claim inside that movement —
+**CLM-2023-ANOMALY at £900,000 + £150,000**, on a base of ~40k claims. The anomaly names itself.
+In the current process this is the week-three discovery.
+
+**Query 4 — what else would I break if I changed it?** Lineage, recorded automatically as queries
+run rather than drawn by hand. Also in the UI: Catalog Explorer → table → **Lineage** tab, which
+shows the notebooks and jobs that touched it too.
+
+**Query 5 — what changed, and who changed it?** `DESCRIBE HISTORY` on the selection table gives
+every version with timestamp and author (32 versions today), and the selection table itself carries
+who chose what, on what basis, and why.
+
+> **The line to land.** *Five things you can ask about your methodology here — what it does, where
+> its inputs come from, why a number is what it is, what depends on it, and what changed. A script
+> can only answer the first, and only by reading it. That isn't a tidiness difference.*
 
 ---
 
