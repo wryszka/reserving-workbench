@@ -97,20 +97,43 @@ def compute(lob, basis="VOLUME_WEIGHTED", last_n=5, tail=1.01, overrides=None):
             "empirical_factors": factors, "applied_factors": applied, "reserve": res}
 
 
-def prior_reserve(lob, tail=1.01):
-    """The reserve implied by the current APPROVED prior selection (for delta comparison)."""
+def prior_selection(lob):
+    """The genuine PRIOR quarter's approved pattern — the thing an actuary compares against,
+    factor by factor. Deliberately NOT this quarter's elected row: we want the pattern carried
+    forward from last close (id ...-PRIOR), the lowest valuation_date, so 'prior' means prior."""
     import json
     row = sql.query_one(
-        f"SELECT development_factors, tail_factor FROM {F('selected_development_pattern')} "
+        f"SELECT selection_id, development_factors, tail_factor FROM {F('selected_development_pattern')} "
         f"WHERE line_of_business_code = '{sql.esc(lob)}' AND source_code = 'PRIOR_SELECTION' "
-        f"AND status_code = 'APPROVED' ORDER BY valuation_date DESC LIMIT 1")
-    tri = read_triangle(lob)
+        f"AND status_code = 'APPROVED' AND selection_id LIKE '%PRIOR' "
+        f"ORDER BY valuation_date ASC LIMIT 1")
+    if not row or not row.get("development_factors"):
+        # fall back to the oldest approved prior-selection row if the naming differs
+        row = sql.query_one(
+            f"SELECT selection_id, development_factors, tail_factor FROM {F('selected_development_pattern')} "
+            f"WHERE line_of_business_code = '{sql.esc(lob)}' AND source_code = 'PRIOR_SELECTION' "
+            f"AND status_code = 'APPROVED' ORDER BY valuation_date ASC LIMIT 1")
     if not row or not row.get("development_factors"):
         return None
     try:
-        arr = json.loads(row["development_factors"])
+        arr = [round(float(f), 4) for f in json.loads(row["development_factors"])]
     except Exception:
         return None
-    factors = {i: float(f) for i, f in enumerate(arr)}
-    t = float(row.get("tail_factor") or tail)
-    return ultimate_ibnr(tri, factors, t)
+    return {"selection_id": row.get("selection_id"), "factors": arr,
+            "tail": float(row.get("tail_factor") or 1.01)}
+
+
+def prior_reserve(lob, tail=1.01):
+    """The reserve implied by the genuine prior selection (for the delta) PLUS the prior factors
+    themselves, so the UI can show prior-vs-empirical-vs-selected factor by factor."""
+    p = prior_selection(lob)
+    if not p:
+        return None
+    tri = read_triangle(lob)
+    factors = {i: f for i, f in enumerate(p["factors"])}
+    res = ultimate_ibnr(tri, factors, p["tail"])
+    # carry the factor array + id so the decision grid can render the prior row
+    res["factors"] = p["factors"]
+    res["tail"] = p["tail"]
+    res["selection_id"] = p["selection_id"]
+    return res

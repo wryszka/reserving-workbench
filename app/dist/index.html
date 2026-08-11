@@ -53,6 +53,11 @@
   .tri th{text-align:right} .tri th:first-child{text-align:left}
   .tri .obs{background:#eff6ff} .tri .fut{color:#cbd5e1}
   .frow td{font-weight:700;color:var(--blue7);background:#f8fafc}
+  .prow td{color:#92400e;background:#fffbeb}
+  .crumb{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 16px;font-size:11px;
+    text-transform:uppercase;letter-spacing:.04em;color:#94a3b8}
+  .crumb .sep{color:#cbd5e1}
+  .crumb .done{color:#64748b} .crumb .on{color:var(--blue);font-weight:800}
   .anom{color:var(--red);font-weight:700;background:var(--redbg)}
   .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700}
   .pill-green{background:var(--greenbg);color:var(--green)} .pill-amber{background:var(--ambbg);color:var(--amber)}
@@ -199,7 +204,18 @@ async function resetDemo(){
   try{const r=await API('/api/reset',{method:'POST'}); m.textContent='✓ reset ('+(r.actions||[]).length+' actions)'; setTimeout(()=>{m.textContent='';route();},1500);}
   catch(e){m.textContent='reset failed';}
 }
-const main=(h)=>document.getElementById('main').innerHTML=h;
+// "You are here in the close" — the 5 stages of a reserving close, so a big-screen
+// viewer never loses the thread across ~11 nav destinations. Each page maps to a stage.
+const CLOSE_STAGES=[["Trust the data",["ingestion"]],["Select",["triangle"]],
+  ["Analyse",["methods","diagnostics"]],["Decide",["judgements","committee"]],
+  ["Sign off",["governance"]]];
+function crumb(){
+  const here=CLOSE_STAGES.findIndex(s=>s[1].includes(CURRENT));
+  if(here<0) return '';   // Today / AI / engines / learn sit outside the linear close
+  return `<div class="crumb">${CLOSE_STAGES.map((s,i)=>
+    `<span class="${i===here?'on':(i<here?'done':'')}">${i+1} · ${s[0]}</span>`).join('<span class="sep">→</span>')}</div>`;
+}
+const main=(h)=>document.getElementById('main').innerHTML=crumb()+h;
 const explain=(h)=>`<div class="explain"><b>What am I seeing?</b> ${h}</div>`;
 const ABOUT=`<div class="about"><b>About this demo.</b> Bricksurance SE is fictional and all data is synthetic. This workbench demonstrates the <i>platform pattern</i> for governed reserving on Databricks — the methodology is illustrative, not a certified actuarial model. Every panel reads a real Unity Catalog table, view or function.</div>`;
 
@@ -348,9 +364,20 @@ function ingTab(t){ING.tab=t;
   const els=document.querySelectorAll('#ingtabs .tab'); if(els[idx])els[idx].classList.add('on');
   ingRender();}
 
+// each tab says, in one line, what it is and why it's here — so a viewer landing on
+// tab 4 isn't relying on the page-level explainer that covers all six.
+const ING_SUBHEAD={
+  movement:"What moved since last quarter — the first question of every close, and the one a spreadsheet answers by hand, if at all.",
+  recon:"Does each feed tie to its independent source of record? The reconciliation that eats days when it doesn't — here it's a control, not a manual chase.",
+  gate:"Has the data owner attested this domain is fit to reserve on? A formal gate: it refuses while a critical control is red.",
+  dq:"Quality checks grouped by the Solvency II data-quality dimension — because reserving feeds the technical provisions, so this is regulatory evidence, not just testing.",
+  feeds:"Every feed's arrival vs SLA and completeness of history — and the quarantine that blocks acceptance until a feed passes.",
+  mapping:"Did any source-class → reserving-class mapping change since last quarter? The silent triangle-breaker no factor diagnostic can explain.",
+};
 function ingRender(){
   const d=ING.data, body=document.getElementById('ingbody'); if(!body)return;
-  body.innerHTML=({movement:ingMovement,recon:ingRecon,gate:ingGate,dq:ingDq,feeds:ingFeeds,mapping:ingMapping}[ING.tab]||ingMovement)(d);
+  const sub=ING_SUBHEAD[ING.tab]?`<div class="explain" style="margin-bottom:14px">${ING_SUBHEAD[ING.tab]}</div>`:'';
+  body.innerHTML=sub+({movement:ingMovement,recon:ingRecon,gate:ingGate,dq:ingDq,feeds:ingFeeds,mapping:ingMapping}[ING.tab]||ingMovement)(d);
   if(ING.tab==='gate') wireGate();
   if(ING.tab==='feeds') wireFeeds();
 }
@@ -518,7 +545,7 @@ function ingMapping(d){
 }
 
 // live state for the decision module (per page load)
-let SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, overrides:{}, empirical:{}, applied:{}, lags:[], overrode:false};
+let SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, overrides:{}, empirical:{}, applied:{}, prior:null, lags:[], overrode:false};
 
 PAGE.triangle=async()=>{
   const [t,s]=await Promise.all([API('/api/triangle?lob='+encodeURIComponent(LOB)),API('/api/selection?lob='+encodeURIComponent(LOB))]);
@@ -536,10 +563,10 @@ PAGE.triangle=async()=>{
   const lobOpts=t.lobs.map(l=>`<option value="${l}" ${l===LOB?'selected':''}>${l.replace(/_/g,' ')}</option>`).join('');
   const sels=s.selections||[];
   // reset live state for this LOB
-  SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, overrides:{}, empirical:{}, applied:{}, lags:t.development_lags.slice(0,-1), overrode:false};
+  SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, overrides:{}, empirical:{}, applied:{}, prior:null, lags:t.development_lags.slice(0,-1), overrode:false};
 
   main(`<h1>Triangle &amp; loss-development-factor selection</h1>
-  <p class="sub">Review the triangle, choose an averaging basis, override any factor, and select — the decision is recorded and reserves recompute live.</p>
+  <p class="sub">Review the triangle, choose an averaging basis, override any factor, and select — the decision is recorded and the ultimate recomputes live.</p>
   <div style="margin-bottom:14px">Line of business: <select id="lob" name="lob" aria-label="Line of business">${lobOpts}</select></div>
   ${explain(`The upper-left (shaded) cells are observed <b>cumulative paid</b> losses. The <b>decision module</b> below lets you pick how factors are averaged, <b>edit any factor</b> (e.g. override the anomalous AY2023 step), and <b>select</b> — the ultimate/IBNR recompute live and your decision is written back as a new audited selection row. Note the volume-weighted 12→24m factor (1.897) is dragged up by the single 3.63 outlier year; the 1.667 you'd hold is roughly the average with that year excluded. This is the stop-and-override moment a black-box script can't offer.`)}
   <div class="card"><h2>Cumulative paid triangle</h2><div class="h-sub">Derived live from the claim ledger (loss_development) — reconciles to the penny.</div>
@@ -562,16 +589,19 @@ PAGE.triangle=async()=>{
         <input id="lastn" type="number" value="5" min="1" max="8" style="width:70px;padding:7px;border:1px solid var(--line);border-radius:8px"></div>
       <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tail factor</label>
         <input id="tail" type="number" value="1.01" step="0.01" min="1" style="width:80px;padding:7px;border:1px solid var(--line);border-radius:8px"></div>
+      <button class="btn ghost" id="holdprior" style="background:#fef3c7;color:#b45309">Hold prior pattern</button>
       <button class="btn ghost" id="resetf" style="background:#eef2ff;color:var(--blue)">Reset overrides</button>
     </div>
     <div style="overflow-x:auto"><table class="tri" id="ftable"><thead><tr><th>dev</th>${SEL.lags.map(l=>`<th>${l}→${l+1}</th>`).join('')}</tr></thead>
       <tbody>
+        <tr class="prow" title="Last quarter's approved pattern — what you're deciding against"><td>prior</td><td colspan="${SEL.lags.length}" style="text-align:left;color:var(--mut)" id="priorrow">—</td></tr>
         <tr><td>empirical</td><td colspan="${SEL.lags.length}" style="text-align:left;color:var(--mut)" id="emprow">computing…</td></tr>
         <tr class="frow"><td>selected</td>${SEL.lags.map(l=>`<td><input class="fin" data-lag="${l}" type="number" step="0.001" style="width:66px;padding:5px;border:1px solid #c7d2fe;border-radius:6px;text-align:right;font-variant-numeric:tabular-nums"></td>`).join('')}</tr>
-      </tbody></table></div>
+      </tbody></table>
+      <div id="whyfactor" style="font-size:11.5px;color:var(--mut);margin-top:6px"></div></div>
     <div class="row" style="margin-top:16px;margin-bottom:0">
       <div class="tile"><div class="k">Selected ultimate</div><div class="v sm" id="r_ult">—</div></div>
-      <div class="tile"><div class="k">Selected IBNR</div><div class="v sm" id="r_ibnr">—</div></div>
+      <div class="tile"><div class="k">Selected IBNR (unpaid)</div><div class="v sm" id="r_ibnr">—</div></div>
       <div class="tile"><div class="k">Δ vs prior selection</div><div class="v sm" id="r_delta">—</div></div>
     </div>
     <div style="margin-top:14px">
@@ -621,6 +651,7 @@ PAGE.triangle=async()=>{
   document.getElementById('lastn').onchange=(e)=>{SEL.last_n=parseInt(e.target.value)||5;recompute(true);};
   document.getElementById('tail').onchange=(e)=>{SEL.tail=parseFloat(e.target.value)||1.01;recompute(false);};
   document.getElementById('resetf').onclick=()=>{SEL.overrides={};recompute(true);};
+  document.getElementById('holdprior').onclick=holdPrior;
   document.getElementById('elect').onclick=doElect;
   document.getElementById('reviewbtn').onclick=doReview;
   recompute(true);   // initial compute fills the factor inputs
@@ -644,9 +675,15 @@ async function recompute(refillInputs){
     const r=await API('/api/selection/compute',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides})});
     SEL.empirical=r.empirical_factors; SEL.applied=r.applied_factors;
-    // empirical row — always target the first row of the factor table (id-independent, idempotent)
-    const emp=SEL.lags.map(l=>{const f=r.empirical_factors[l];return `<td>${f!=null?Number(f).toFixed(3):'—'}</td>`;}).join('');
-    const tb=document.querySelector('#ftable tbody'); if(tb&&tb.rows[0]) tb.rows[0].innerHTML=`<td>empirical</td>${emp}`;
+    SEL.prior=(r.prior_reserve&&r.prior_reserve.factors)||null;
+    // empirical + prior rows — target by cell id so row order can't break them
+    const cells=(get)=>SEL.lags.map(l=>{const f=get(l);const anom=(SEL.prior&&SEL.prior[l]!=null&&f!=null&&f>SEL.prior[l]*1.4);
+      return `<td${anom?' class="anom"':''}>${f!=null?Number(f).toFixed(3):'—'}</td>`;}).join('');
+    const emprow=document.getElementById('emprow');
+    if(emprow&&emprow.parentElement) emprow.parentElement.innerHTML=`<td>empirical</td>${cells(l=>r.empirical_factors[l])}`;
+    const priorrow=document.getElementById('priorrow');
+    if(priorrow&&priorrow.parentElement) priorrow.parentElement.innerHTML=`<td>prior</td>${SEL.prior?cells(l=>SEL.prior[l]):`<td colspan="${SEL.lags.length}" style="text-align:left;color:var(--mut)">no prior pattern on record</td>`}`;
+    paintWhyFactor(r.empirical_factors);
     // selected inputs — refill only when basis changed (preserve manual edits otherwise)
     if(refillInputs){
       document.querySelectorAll('.fin').forEach(inp=>{const l=inp.dataset.lag;
@@ -677,6 +714,32 @@ function markOverride(){
   document.querySelectorAll('.fin').forEach(inp=>{const l=inp.dataset.lag;
     inp.style.borderColor=(SEL.overrides[l]!=null)?'#d97706':'#c7d2fe';
     inp.style.background=(SEL.overrides[l]!=null)?'#fffbeb':'#fff';});
+}
+
+// per-datapoint "why" — the dev-language rule's second half. Names the factor that's off pattern.
+function paintWhyFactor(emp){
+  const el=document.getElementById('whyfactor'); if(!el)return;
+  if(!SEL.prior){el.textContent='';return;}
+  const off=SEL.lags.filter(l=>emp[l]!=null&&SEL.prior[l]!=null&&emp[l]>SEL.prior[l]*1.4)
+    .map(l=>`${l*12}→${(l+1)*12}m (empirical ${Number(emp[l]).toFixed(2)}× vs prior ${Number(SEL.prior[l]).toFixed(2)}×)`);
+  el.innerHTML = off.length
+    ? `<b>Why the red cell:</b> the ${off.join(', ')} factor is well above the pattern you held last quarter — a single late large loss, not a trend. That's the one to decide on; hold the prior or take the spike.`
+    : `Empirical factors sit close to the prior pattern this quarter — no single step is off. The averaging basis is the judgement here, not one anomalous factor.`;
+}
+
+async function holdPrior(){
+  if(!SEL.prior){document.getElementById('electmsg').textContent='No prior pattern on record for this line.';return;}
+  // copy prior into selected, mark every changed cell as an override
+  SEL.overrides={};
+  SEL.lags.forEach(l=>{if(SEL.prior[l]!=null) SEL.overrides[l]=Number(SEL.prior[l]);});
+  document.querySelectorAll('.fin').forEach(inp=>{const l=inp.dataset.lag;
+    if(SEL.prior[l]!=null) inp.value=Number(SEL.prior[l]);});
+  SEL.overrode=true; markOverride(); recomputeReserveOnly();
+  // pre-fill a rationale rather than bypass it — the audit trail is the point
+  const rat=document.getElementById('rationale');
+  if(rat && !rat.value.trim())
+    rat.value="Held the prior approved pattern: this quarter's empirical spike is a single late-reported large loss reserved individually, not a change in development. Prior pattern remains the better estimate of underlying development.";
+  document.getElementById('electmsg').innerHTML='<span style="color:#b45309">Prior pattern copied into your selection — edit the rationale and Select &amp; save, or adjust any factor first.</span>';
 }
 
 function paintReserve(res, prior){
@@ -760,7 +823,7 @@ async function doReview(ev){
   btn.disabled=true; out.innerHTML='<div class="load">The peer reviewer is checking your selection…</div>';
   try{
     const r=await API('/api/ai/review-selection',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lob:LOB,proposed_factors:proposed,empirical_factors:empirical,prior_factors:[],overrode:SEL.overrode,rationale})});
+      body:JSON.stringify({lob:LOB,proposed_factors:proposed,empirical_factors:empirical,prior_factors:(SEL.lags.map(l=>SEL.prior&&SEL.prior[l]!=null?SEL.prior[l]:null)),overrode:SEL.overrode,rationale})});
     out.innerHTML=`<div class="brief"><span class="tag">${r.specialist_name} · ${r.model}${r.cached?' · cached':''}</span>${(r.text||'').replace(/</g,'&lt;')}</div>`;
   }catch(e){out.innerHTML=`<div class="err">Review failed: ${e.message}</div>`;}
   btn.disabled=false;
@@ -984,8 +1047,23 @@ PAGE.engines=async()=>{
   const resqCount=(counts.find(c=>c.source_code==='RESQ')||{}).n||0;
   const inhouse=methods.find(m=>m.reserving_method_code==='INHOUSE_FREQUENCY_SEVERITY');
   main(`<h1>Engines — your models, our governance</h1>
-  <p class="sub">The engine is a pluggable step. We do the data in, the governance around, and the narrative out.</p>
-  ${explain(`The one thing not worth arguing about is triangle mechanics — every tool does those. What matters is everything around them. So the <b>selection step is a plug-in point</b>: pick the pattern with a built-in method, with <b>your own R or Python model registered as a first-class method</b>, or in an external tool. Whichever produced it, the pick lands in the <b>same</b> governed table with a source stamp — so the audit trail, lineage and everything downstream never depend on which engine ran.`)}
+  <p class="sub">This stands on its own. Bring a package if you have one — you don't need one to close.</p>
+  ${explain(`Triangle mechanics aren't the argument — every tool has them. What matters is everything around them. So the <b>selection step is a plug-in point</b>, and there are three honest ways in. Whichever you use, the pick lands in the <b>same</b> governed table with a source stamp — so the audit trail, lineage and downstream never depend on which engine ran.`)}
+  <div class="row" style="margin-bottom:4px">
+    <div class="tile" style="border-color:#bbf7d0;background:#f0fdf4;flex:1;min-width:230px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#15803d;font-weight:800">Track 1 · default</div>
+      <div class="v sm" style="color:#15803d">Standalone</div>
+      <div style="color:var(--mut);font-size:12px;margin-top:5px">Everything runs here natively — chain-ladder, BF, Mack, GLM, benchmark, and (roadmap) Cape&nbsp;Cod, Benktander, bootstrap, tail-fit, gross-to-net. <b>You don't need a reserving package to close.</b></div></div>
+    <div class="tile" style="border-color:#c7d2fe;background:#faf9ff;flex:1;min-width:230px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;font-weight:800">Track 2</div>
+      <div class="v sm" style="color:#6d28d9">Bring your own R / Python</div>
+      <div style="color:var(--mut);font-size:12px;margin-top:5px">Your model registered as a first-class method — your craft, versioned and governed. Off the laptop, into the registry.</div></div>
+    <div class="tile" style="flex:1;min-width:230px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);font-weight:800">Track 3 · optional</div>
+      <div class="v sm">Plug in a package</div>
+      <div style="color:var(--mut);font-size:12px;margin-top:5px">Own ResQ / Reserve&nbsp;Pro? Keep it. We prep the governed triangle, it makes the pick, we read it back into the same audited table. <b>Pay for its depth; we make everything around it defensible.</b></div></div>
+  </div>
+  <div class="explain" style="background:linear-gradient(90deg,#f0fdf4,#faf9ff);border-color:#bbf7d0"><b>The one line:</b> it's <b>both, or just this — your choice</b>. If you own a package, we enrich where you're weak — data in, governance around, narrative out. If you don't, you get off the spreadsheet without buying a licence. Two doors, same governed house.</div>
   <div class="card" style="border-color:#c7d2fe;background:linear-gradient(180deg,#fbfaff,#fff)"><h2>Your own model, as a first-class method</h2>
   <div class="h-sub">The case that matters most for a team that already has models it trusts.</div>
     ${inhouse?`<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;background:#fff;border:1px solid #ddd6fe;border-radius:10px;padding:14px 16px">
@@ -1029,6 +1107,25 @@ PAGE.engines=async()=>{
     ${sels.map(x=>`<tr><td><span class="pill ${x.source_code==='RESQ'?'pill-violet':'pill-slate'}">${srcLabel[x.source_code]||x.source_code}</span></td><td>${x.line_of_business_code.replace(/_/g,' ')}</td><td class="mono">${x.selection_id}</td><td>${x.status_code}</td><td>${x.selected_by}</td></tr>`).join('')}
     </tbody></table>
     <details class="why"><summary>Why lead with this rather than the triangle mechanics?</summary><div>Because the mechanics are not the differentiator — everyone has them. The data going in, the governance around, and the narrative coming out are. A team that already runs its own models in R and Python doesn't want them replaced; it wants them versioned, reproducible, off one analyst's laptop, and fed by data that reconciles. That is what this page is: the engine is a step, and we own everything around it.</div></details>
+  </div>
+  <div class="card"><h2>Straight talk — what runs here, what you bring, what a package still does better</h2>
+  <div class="h-sub">No overclaiming. This is where the boundary is, honestly.</div>
+    <table><thead><tr><th>Capability</th><th>Native here</th><th>Bring your model</th><th>A package still leads</th></tr></thead><tbody>
+    ${[
+      ["Development triangle + empirical factors (paid/incurred)","✓","",""],
+      ["CL · BF · Mack · GLM · benchmark","✓","",""],
+      ["Cape Cod · Benktander · ODP bootstrap","roadmap","✓ today via your R","mature"],
+      ["Tail curve fitting (exp / inverse-power / Weibull)","roadmap","✓ via your R","deep libraries"],
+      ["Gross-to-net (reinsurance programme)","roadmap (simple)","✓ via your model","full XL / cat"],
+      ["Reconciliation to the GL, versioned, reproducible","✓","✓","—"],
+      ["Model registry, back-testing, scheduled runs (MLOps)","✓","✓","rarely offered"],
+      ["Decades of actuarial edge cases","","","✓ this is theirs"],
+    ].map(r=>`<tr><td>${r[0]}</td>
+      <td style="text-align:center;color:${r[1].startsWith('✓')?'#16a34a':(r[1]?'#b45309':'#cbd5e1')}">${r[1]||'—'}</td>
+      <td style="text-align:center;color:${r[2].startsWith('✓')?'#6d28d9':'#94a3b8'}">${r[2]||'—'}</td>
+      <td style="text-align:center;color:${r[3]==='✓ this is theirs'?'#334155':'#94a3b8'}">${r[3]||'—'}</td></tr>`).join('')}
+    </tbody></table>
+    <div style="margin-top:10px;color:var(--mut);font-size:12.5px">The green column is what a team with <b>no package</b> gets on day one. The last column is exactly why we don't pretend to replace a reserving package — and why "plug yours in" is a real option, not a fallback.</div>
   </div>
   ${ABOUT}`);
 };

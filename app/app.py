@@ -724,6 +724,15 @@ def reset_demo():
     sql.query(f"DELETE FROM {F('5_gov_audit_event')} WHERE event_type='agent_query' OR event_id LIKE 'AE-SO-%' OR event_id LIKE 'AE-EJ-%' OR event_id LIKE 'AE-ING-%' OR event_id LIKE 'AE-DS-%' OR event_id LIKE 'AE-AP-%'"); actions.append("cleared demo audit rows")
     sql.query(f"UPDATE {F('reserve_signoff')} SET status_code=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'APPROVED' ELSE 'PENDING_APPROVAL' END, "
               f"signed_by=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'chief.actuary' ELSE NULL END"); actions.append("reset sign-offs to baseline")
+    # Restore the seeded selection trail. The guard keys on status_code +
+    # approved_by, so if a demo (or a SQL review) left those cleared, stage 3
+    # blocks on a "clean" demo and the opening state is wrong.
+    sql.query(f"UPDATE {F('selected_development_pattern')} SET "
+              f"status_code = CASE WHEN selection_id = 'SEL-2026Q4-PROP-EMPIRICAL' THEN 'RETIRED' ELSE 'APPROVED' END, "
+              f"approved_by = CASE WHEN selection_id = 'SEL-2026Q4-PROP-EMPIRICAL' THEN NULL ELSE 'chief.actuary' END, "
+              f"approved_at = CASE WHEN selection_id = 'SEL-2026Q4-PROP-EMPIRICAL' THEN NULL ELSE current_timestamp() END "
+              f"WHERE selection_id IN ('SEL-2026Q3-PROP-PRIOR','SEL-2026Q4-PROP-ELECTED','SEL-2026Q4-PROP-EMPIRICAL')")
+    actions.append("restored seeded selection approvals")
     # ingestion front door back to its opening state: the bordereau quarantined
     # (its reconciliation still broken), premium awaiting its owner, claims attested
     sql.query(f"UPDATE {F('1_raw_data_feed')} SET status=CASE WHEN feed_id='FEED-LARGELOSS' THEN 'quarantined' ELSE 'accepted' END"); actions.append("reset feed statuses")
