@@ -390,12 +390,13 @@ def lineage(estimate_id: str):
 @app.get("/api/committee")
 def committee():
     q = sql.query_many({
-        "by_lob": (f"SELECT line_of_business_code, round(sum(ibnr),0) ibnr, round(sum(outstanding),0) outstanding "
+        "by_lob": (f"SELECT line_of_business_code, round(sum(ibnr),0) ibnr, round(sum(outstanding),0) outstanding, "
+                   f"round(sum(ultimate_loss),0) ultimate, round(sum(ultimate_net),0) ultimate_net "
                    f"FROM {F('reserve_estimate')} WHERE reserving_method_code='CHAIN_LADDER' "
                    f"GROUP BY line_of_business_code ORDER BY line_of_business_code"),
         "totals": (f"SELECT round(sum(ultimate_loss),0) ultimate, round(sum(ibnr),0) ibnr, "
-                   f"round(sum(outstanding),0) outstanding FROM {F('reserve_estimate')} "
-                   f"WHERE reserving_method_code='CHAIN_LADDER'"),
+                   f"round(sum(outstanding),0) outstanding, round(sum(ultimate_net),0) ultimate_net "
+                   f"FROM {F('reserve_estimate')} WHERE reserving_method_code='CHAIN_LADDER'"),
     })
     return {"by_lob": q["by_lob"], "totals": q["totals"][0] if q["totals"] else {}}
 

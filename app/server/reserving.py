@@ -80,6 +80,43 @@ def ultimate_ibnr(tri, factors, tail=1.0):
             "outstanding": round(ult_total - paid_total, 2), "per_ay": per_ay}
 
 
+def apply_reinsurance(gross_ultimate, qs_pct, xol_attach=None, xol_limit=None, xol_expected_recovery=None):
+    """Take a GROSS aggregate ultimate to NET.
+
+    IMPORTANT — grain matters, and getting it wrong is exactly what makes an actuary
+    distrust a tool. Quota share is proportional, so it applies cleanly to the line
+    AGGREGATE ultimate. An excess-of-loss layer attaches PER CLAIM (or per event),
+    NOT to the aggregate ultimate — attaching a £3m XoL to a £13m line total would
+    nonsensically cede most of the book. So at the aggregate we cede:
+      * quota share on the whole ultimate, plus
+      * an expected XoL recovery (modelled from the large losses that pierce the
+        layer), if supplied — a single expected amount, not the layer applied to
+        the aggregate.
+    Returns (net_ultimate, ceded). xol_attach/xol_limit are carried only to describe
+    the layer in the UI; they are not applied to the aggregate here.
+    """
+    g = float(gross_ultimate or 0.0)
+    qs = float(qs_pct or 0.0)
+    ceded_qs = g * qs
+    ceded_xol = float(xol_expected_recovery or 0.0)   # expected recovery on large losses, per-risk
+    net = g - ceded_qs - ceded_xol
+    return round(max(net, 0.0), 2), round(ceded_qs + ceded_xol, 2)
+
+
+def programme_for(lob):
+    """The outwards RI programme for a line, or None. Read once; cheap."""
+    row = sql.query_one(
+        f"SELECT quota_share_pct, xol_attachment, xol_limit, xol_expected_recovery, note "
+        f"FROM {F('reinsurance_programme')} WHERE line_of_business_code = '{sql.esc(lob)}'")
+    if not row:
+        return None
+    return {"quota_share_pct": float(row.get("quota_share_pct") or 0.0),
+            "xol_attachment": (float(row["xol_attachment"]) if row.get("xol_attachment") is not None else None),
+            "xol_limit": (float(row["xol_limit"]) if row.get("xol_limit") is not None else None),
+            "xol_expected_recovery": (float(row["xol_expected_recovery"]) if row.get("xol_expected_recovery") is not None else None),
+            "note": row.get("note")}
+
+
 def fit_tail(factors, method="EXPONENTIAL", n_extrapolate=6):
     """Fit a decay curve to the observed age-to-age factors and extrapolate a TAIL factor
     beyond the triangle — the thing a single '1.01' box can't do and an actuary always does.
@@ -165,6 +202,16 @@ def compute(lob, basis="VOLUME_WEIGHTED", last_n=5, tail=1.01, overrides=None):
             except (TypeError, ValueError):
                 pass
     res = ultimate_ibnr(tri, applied, tail)
+    # gross-to-net: every reserve is booked gross AND net. If a programme applies,
+    # take the ultimate through it so the decision module shows both live.
+    prog = programme_for(lob)
+    if prog:
+        net, ceded = apply_reinsurance(res["ultimate"], prog["quota_share_pct"],
+                                       prog["xol_attachment"], prog["xol_limit"],
+                                       prog["xol_expected_recovery"])
+        res["ultimate_net"] = net
+        res["ceded"] = ceded
+        res["reinsurance"] = prog
     return {"lob": lob, "basis": basis, "last_n": last_n, "tail": tail,
             "empirical_factors": factors, "applied_factors": applied, "reserve": res}
 

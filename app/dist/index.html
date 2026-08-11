@@ -607,7 +607,8 @@ PAGE.triangle=async()=>{
       <div id="whyfactor" style="font-size:11.5px;color:var(--mut);margin-top:6px"></div>
       <div id="tailout" style="margin-top:8px"></div></div>
     <div class="row" style="margin-top:16px;margin-bottom:0">
-      <div class="tile"><div class="k">Selected ultimate</div><div class="v sm" id="r_ult">—</div></div>
+      <div class="tile"><div class="k">Selected ultimate (gross)</div><div class="v sm" id="r_ult">—</div></div>
+      <div class="tile" style="border-color:#bfdbfe"><div class="k">Ultimate net of reinsurance</div><div class="v sm" id="r_net" style="color:#1d4ed8">—</div><div id="r_ri" style="font-size:11px;color:var(--mut);margin-top:3px"></div></div>
       <div class="tile"><div class="k">Selected IBNR (unpaid)</div><div class="v sm" id="r_ibnr">—</div></div>
       <div class="tile"><div class="k">Δ vs prior selection</div><div class="v sm" id="r_delta">—</div></div>
     </div>
@@ -772,6 +773,11 @@ async function holdPrior(){
 function paintReserve(res, prior){
   document.getElementById('r_ult').textContent=money(res.ultimate);
   document.getElementById('r_ibnr').textContent=money(res.ibnr);
+  // gross-to-net: show the net ultimate + the programme, or make clear there's none
+  const net=document.getElementById('r_net'), ri=document.getElementById('r_ri');
+  if(net){ if(res.ultimate_net!=null){net.textContent=money(res.ultimate_net);
+      ri.textContent=(res.reinsurance&&res.reinsurance.note)?res.reinsurance.note:`ceded ${money(res.ceded||0)}`;}
+    else {net.textContent='—'; ri.textContent='no programme on this line';} }
   const el=document.getElementById('r_delta');
   if(prior){const d=res.ultimate-prior.ultimate; const pct=prior.ultimate?(d/prior.ultimate*100):0;
     el.innerHTML=`<span style="color:${d>0?'#dc2626':'#16a34a'}">${d>=0?'+':''}${money(d)}</span> <span style="font-size:12px;color:var(--mut)">(${pct>=0?'+':''}${pct.toFixed(1)}%)</span>`;
@@ -1053,8 +1059,8 @@ PAGE.committee=async()=>{
   const c=await API('/api/committee');
   main(`<h1>Reserving committee</h1><p class="sub">Quarter-over-quarter view, with the Senior Reserving Actuary agent surfacing emerging trends.</p>
   ${explain(`IBNR and outstanding by line of business (chain-ladder basis). The agent below is a real Foundation Model API call over the live diagnostics — it reads the out-of-tolerance cohorts, method spread and open judgements, and briefs the committee the way a senior actuary would.`)}
-  <div class="card"><h2>Reserves by line of business</h2><table><thead><tr><th>LOB</th><th class="num">IBNR</th><th class="num">Outstanding</th></tr></thead><tbody>
-  ${c.by_lob.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.ibnr)}</td><td class="num">${money(r.outstanding)}</td></tr>`).join('')}
+  <div class="card"><h2>Reserves by line of business</h2><div class="h-sub">Gross and net of the outwards reinsurance programme — every reserve is booked both ways.</div><table><thead><tr><th>LOB</th><th class="num">IBNR</th><th class="num">Outstanding</th><th class="num">Ultimate (gross)</th><th class="num">Ultimate (net)</th></tr></thead><tbody>
+  ${c.by_lob.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.ibnr)}</td><td class="num">${money(r.outstanding)}</td><td class="num">${money(r.ultimate)}</td><td class="num" style="color:#1d4ed8">${r.ultimate_net!=null?money(r.ultimate_net):'—'}</td></tr>`).join('')}
   </tbody></table></div>
   <div class="card"><h2>Senior Reserving Actuary agent</h2><div class="h-sub">Claude via Databricks Foundation Model API, grounded on live reserving tables.</div>
   <button class="btn" id="brief">Generate committee brief</button><div id="briefout" style="margin-top:14px"></div></div>${ABOUT}`);

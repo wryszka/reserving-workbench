@@ -37,6 +37,14 @@ def main():
     check("reserve estimates reconcile (paid+case+ibnr=ultimate)", n == 0, f"{n} breaks")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.reserve_estimate")[0][0])
     check("reserve_estimate populated", n > 0, f"{n} rows")
+    # gross-to-net (A5): net must exist, be below gross, and be a sane proportion (not <50% or >gross)
+    row = q(f"SELECT round(sum(ultimate_loss),0), round(sum(ultimate_net),0) FROM {FQ}.reserve_estimate "
+            f"WHERE reserving_method_code='CHAIN_LADDER' AND ultimate_net IS NOT NULL")[0]
+    g, net = float(row[0] or 0), float(row[1] or 0)
+    check("net ultimate exists and is a sane fraction of gross", g > 0 and 0.55*g < net < g,
+          f"gross {g:,.0f} net {net:,.0f} ({(net/g*100 if g else 0):.0f}%)")
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.reinsurance_programme")[0][0])
+    check("reinsurance programme seeded", n >= 3, f"{n} lines")
     n = int(q(f"SELECT COUNT(DISTINCT reserving_method_code) FROM {FQ}.reserve_estimate")[0][0])
     check("multiple methods present", n >= 3, f"{n} methods")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.reserving_methodology")[0][0])

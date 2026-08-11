@@ -93,6 +93,24 @@ attributes:
     required: true
     description: Total outstanding - ultimate loss minus paid to date (case reserves plus IBNR).
     classification: confidential
+  - name: ultimate_net
+    type: decimal(18,2)
+    required: false
+    description: >
+      Ultimate loss net of the outwards reinsurance programme (quota share + one
+      excess-of-loss layer). Every reserve is booked gross and net; this is the
+      net figure. Null where no programme applies to the line.
+    classification: confidential
+  - name: ibnr_net
+    type: decimal(18,2)
+    required: false
+    description: IBNR net of reinsurance recoveries - net ultimate minus paid-to-date net of recoveries.
+    classification: confidential
+  - name: ceded_ultimate
+    type: decimal(18,2)
+    required: false
+    description: The part of the ultimate ceded to reinsurers (gross ultimate minus net ultimate).
+    classification: confidential
   - name: ultimate_std_error
     type: decimal(18,2)
     required: false

@@ -125,6 +125,44 @@ def main():
     lobs = sorted(tri.line_of_business_code.unique())
     print(f"Triangle: {len(tri)} rows, LOBs {lobs}")
 
+    # outwards RI programme per line (gross-to-net). QS is proportional; the XoL
+    # EXPECTED recovery is a line-level aggregate (XoL attaches per-claim, not to the
+    # aggregate ultimate). Read the programme + each line's total CL ultimate so the
+    # aggregate XoL recovery can be apportioned across cohorts by ultimate share.
+    prog = {}
+    try:
+        pr = read_df(w, wid, f"SELECT line_of_business_code, quota_share_pct, xol_expected_recovery "
+                             f"FROM {FQ}.reinsurance_programme")
+        def _num(v):  # pandas gives NaN (not None) for SQL NULL — treat both as 0
+            try:
+                x = float(v); return 0.0 if x != x else x   # x!=x is the NaN test
+            except (TypeError, ValueError):
+                return 0.0
+        for _, r in pr.iterrows():
+            prog[r["line_of_business_code"]] = (_num(r["quota_share_pct"]), _num(r["xol_expected_recovery"]))
+    except Exception as e:
+        print(f"  (no reinsurance_programme yet: {e}) — net columns will be NULL")
+
+    # first pass: total chain-ladder ultimate per line, to apportion the aggregate XoL recovery
+    line_ult = {}
+    for lob in lobs:
+        pt0 = cum(tri, lob, "cumulative_paid"); ml0 = max(max(r) for r in pt0.values())
+        f0 = a2a(pt0, ml0); dp0 = diag(pt0)
+        line_ult[lob] = sum(dp0[ay][1] * cdf(f0, dp0[ay][0], ml0) for ay in pt0)
+
+    def to_net(gross, lob):
+        """gross cohort ultimate -> (net, ceded). QS scales per cohort; the line's
+        aggregate XoL expected recovery is apportioned to this cohort by its share
+        of the line ultimate. None if no programme on the line."""
+        if lob not in prog:
+            return None, None
+        qs, xol_rec = prog[lob]
+        share = (gross / line_ult[lob]) if line_ult.get(lob) else 0.0
+        ceded_qs = gross * qs
+        ceded_xol = xol_rec * share
+        net = gross - ceded_qs - ceded_xol
+        return round(max(net, 0.0), 2), round(ceded_qs + ceded_xol, 2)
+
     est, cf, ave = [], [], []
     for lob in lobs:
         pt = cum(tri, lob, "cumulative_paid"); it = cum(tri, lob, "cumulative_incurred")
@@ -141,13 +179,18 @@ def main():
             for method, ult, serr in [("CHAIN_LADDER", cl, None), ("BORNHUETTER_FERGUSON", bf, None),
                                        ("EXPECTED_LOSS_RATIO", apri, None), ("MACK", cl, se.get(ay, 0.0))]:
                 ult = max(ult, paid + case)  # never below incurred
+                net_ult, ceded = to_net(ult, lob)
+                ibnr_g = max(ult-paid-case, 0.0)
+                # net IBNR scales with the net proportion of the ultimate (simplification)
+                ibnr_net = round(ibnr_g * (net_ult/ult), 2) if (net_ult is not None and ult) else None
                 est.append(dict(reserve_estimate_id=f"RES-2026-{lob[:4]}-{ay}-{method[:2]}",
                     valuation_date=VAL_DATE, accident_year=ay, line_of_business_code=lob,
                     reserving_method_code=method, methodology_id=f"METH-{method}",
                     selection_id=("SEL-2026Q4-PROP-ELECTED" if lob == "COMMERCIAL_PROPERTY" else None),
                     currency_code="GBP", paid_to_date=round(paid, 2), case_reserves=round(case, 2),
-                    ultimate_loss=round(ult, 2), ibnr=round(max(ult-paid-case, 0.0), 2),
+                    ultimate_loss=round(ult, 2), ibnr=round(ibnr_g, 2),
                     outstanding=round(ult-paid, 2),
+                    ultimate_net=net_ult, ibnr_net=ibnr_net, ceded_ultimate=ceded,
                     ultimate_std_error=(round(serr, 2) if serr is not None else None),
                     expert_judgement_applied=0.0, source_system_code="RESERVING_ENGINE"))
             # cashflow (chain-ladder runoff)
@@ -179,7 +222,8 @@ def main():
     n = overwrite(w, wid, "reserve_estimate",
         ["reserve_estimate_id","valuation_date","accident_year","line_of_business_code",
          "reserving_method_code","methodology_id","selection_id","currency_code","paid_to_date",
-         "case_reserves","ultimate_loss","ibnr","outstanding","ultimate_std_error",
+         "case_reserves","ultimate_loss","ibnr","outstanding","ultimate_net","ibnr_net",
+         "ceded_ultimate","ultimate_std_error",
          "expert_judgement_applied","source_system_code"], est)
     print(f"reserve_estimate: {n} rows")
     n = overwrite(w, wid, "reserve_cashflow_pattern",
@@ -202,10 +246,17 @@ def main():
                       uc_model_name=f"{CAT}.{SCH}.method_{m.lower()}", model_version=1, alias="production",
                       produces_distribution=dist, summary=s, owner_role="Chief Actuary", registered_at=now)
                  for m, dist, s in methods]
-    overwrite(w, wid, "reserving_methodology",
-        ["methodology_id","reserving_method_code","uc_model_name","model_version","alias",
-         "produces_distribution","summary","owner_role","registered_at"], meth_rows)
-    print(f"reserving_methodology: {len(meth_rows)} rows")
+    # Seed the registry ONLY where empty. notebook 04 registers the REAL MLflow models
+    # (including the customer's own in-house method) and owns this table; overwriting it
+    # here would clobber those. So this is a fallback for a fresh schema, not a reset.
+    existing_meth = read_df(w, wid, f"SELECT count(*) n FROM {FQ}.reserving_methodology")
+    if int(existing_meth.iloc[0]["n"]) == 0:
+        overwrite(w, wid, "reserving_methodology",
+            ["methodology_id","reserving_method_code","uc_model_name","model_version","alias",
+             "produces_distribution","summary","owner_role","registered_at"], meth_rows)
+        print(f"reserving_methodology: seeded {len(meth_rows)} rows (was empty)")
+    else:
+        print(f"reserving_methodology: left intact ({int(existing_meth.iloc[0]['n'])} rows — owned by notebook 04)")
 
     # empirical factors for the property line (for the selection seeds)
     pt = cum(tri, "COMMERCIAL_PROPERTY", "cumulative_paid")

@@ -1,0 +1,77 @@
+kind: entity
+name: reinsurance_programme
+domain: reserving
+title: Reinsurance Programme
+description: >
+  The outwards reinsurance programme applied to a line of business, as the
+  minimal structure needed to take a gross reserve to net: a quota-share
+  proportion ceded off the top, and a single excess-of-loss layer (cede the
+  part of the ultimate above an attachment, up to a limit). Every reserve an
+  actuary books is booked gross AND net; without a programme there is no net
+  number, which is the loudest gap in a gross-only workbench. This is a
+  deliberate simplification - one QS plus one XoL layer per line, not a full
+  treaty tower with reinstatements and cat cover - and is labelled as such in
+  the app. The point is that a net ultimate EXISTS and is governed, not that
+  the RI model is exhaustive.
+grain: One row per line of business (the programme applied to that line).
+tags:
+  project: reserving-workbench
+  layer: raw
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: programme_id
+    type: string
+    required: true
+    description: Identifier for the programme row.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: The line of business this programme applies to.
+    classification: internal
+  - name: quota_share_pct
+    type: decimal(5,4)
+    required: true
+    description: >
+      Proportion of every loss ceded to the quota-share treaty, 0 to 1 (e.g.
+      0.20 = 20% ceded). Applied before the excess-of-loss layer.
+    classification: internal
+  - name: xol_attachment
+    type: decimal(18,2)
+    required: false
+    description: >
+      Excess-of-loss attachment point on the (post-quota-share) ultimate for the
+      line; losses above this are ceded to the XoL layer. Null = no XoL layer.
+    classification: internal
+  - name: xol_limit
+    type: decimal(18,2)
+    required: false
+    description: >
+      Width of the excess-of-loss layer above the attachment; ceded XoL recovery
+      is capped at this. Null = unlimited above attachment.
+    classification: internal
+  - name: xol_expected_recovery
+    type: decimal(18,2)
+    required: false
+    description: >
+      Modelled EXPECTED aggregate recovery from the excess-of-loss layer on this
+      line's large losses. XoL attaches per-claim, not to the aggregate ultimate,
+      so the net calculation subtracts this expected recovery rather than applying
+      the layer to the line total (which would wrongly cede most of the book). In
+      a full model this comes from the large-loss distribution piercing the layer;
+      here it is a supplied estimate. Null = no modelled XoL recovery.
+    classification: internal
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the monetary terms.
+    classification: internal
+  - name: note
+    type: string
+    required: false
+    description: Plain-language description of the programme (for the app).
+    classification: internal
+keys:
+  primary: [programme_id]
+owner: Chief Actuary

@@ -413,6 +413,34 @@ def main():
          "changed_since_prior", "claim_count", "change_reason"], cm)
     print(f"1_raw_class_mapping: {n} rows")
 
+    # ---- outwards reinsurance programme (gross-to-net) ----
+    # One QS + one XoL layer per line, sized to each line's ultimate scale so the
+    # net numbers are plausible. Long-tail lines cede more (bigger XoL); short-tail
+    # property/marine cede via quota share. Deliberately simple; labelled as such.
+    # QS is proportional (applies to the aggregate). XoL attaches per-claim, so we
+    # carry an EXPECTED aggregate recovery (a modelled amount from the large losses
+    # that pierce the layer), not the attachment applied to the line total. Recoveries
+    # are sized to a few % of each line's ultimate — plausible, and clearly labelled.
+    prog = [
+        ("RIP-CP", "COMMERCIAL_PROPERTY",    0.15, 2_000_000, 3_000_000, 650_000,
+         "15% quota share + £3m xs £2m per-risk excess-of-loss (≈£0.65m expected recovery)."),
+        ("RIP-CM", "COMMERCIAL_MOTOR",       0.10, None,      None,      None,
+         "10% quota share; no excess-of-loss layer."),
+        ("RIP-GL", "GENERAL_LIABILITY",      0.20, 3_000_000, 7_000_000, 900_000,
+         "20% quota share + £7m xs £3m per-risk excess-of-loss (≈£0.9m expected recovery)."),
+        ("RIP-PI", "PROFESSIONAL_INDEMNITY", 0.25, 3_000_000, 7_000_000, 700_000,
+         "25% quota share + £7m xs £3m per-risk excess-of-loss (≈£0.7m expected recovery)."),
+        ("RIP-MA", "MARINE",                 0.30, None,      None,      None,
+         "30% quota share; marine written heavily proportional."),
+    ]
+    prog_rows = [dict(programme_id=p, line_of_business_code=l, quota_share_pct=qs,
+        xol_attachment=att, xol_limit=lim, xol_expected_recovery=rec, currency_code=CCY, note=note)
+        for p, l, qs, att, lim, rec, note in prog]
+    n = overwrite(w, wid, "reinsurance_programme",
+        ["programme_id", "line_of_business_code", "quota_share_pct", "xol_attachment",
+         "xol_limit", "xol_expected_recovery", "currency_code", "note"], prog_rows)
+    print(f"reinsurance_programme: {n} rows")
+
     # control gate: the claims reconciliation must actually tie, or the "I never
     # fight the GL again" claim in the demo is not true
     claims_rec = [r for r in rec if r["reconciliation_id"] == "REC-CLAIMS-GL"][0]
