@@ -51,6 +51,11 @@ def main():
     n = int(q(f"SELECT COUNT(DISTINCT reserving_method_code) FROM {FQ}.reserve_estimate "
               f"WHERE reserving_method_code IN ('CAPE_COD','BENKTANDER')")[0][0])
     check("Cape Cod + Benktander produce estimates", n == 2, f"{n}/2 present")
+    # Phase 3 F1/C3: back-test replayed across historical valuations
+    n = int(q(f"SELECT COUNT(DISTINCT valuation_year) FROM {FQ}.method_backtest")[0][0])
+    check("back-test spans multiple past valuations", n >= 3, f"{n} valuations")
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.method_backtest")[0][0])
+    check("method_backtest populated", n > 0, f"{n} rows")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.reserving_methodology")[0][0])
     check("methodology library registered", n >= 5, f"{n} methods")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.actual_vs_expected WHERE within_tolerance=false")[0][0])

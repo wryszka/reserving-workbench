@@ -299,6 +299,28 @@ def estimates(lob: str = None):
 
 
 # ------------------------------------------------------------------ diagnostics / validation
+@app.get("/api/backtest")
+def backtest():
+    """Champion/challenger: how each method WOULD have performed at past valuations,
+    scored against what actually emerged. The metric a spreadsheet team can't keep and
+    most packages don't offer — automated, tracked method accuracy per line."""
+    q = sql.query_many({
+        # mean absolute error by method x line (the league table)
+        "by_method_line": (
+            f"SELECT line_of_business_code, reserving_method_code, "
+            f"round(100*avg(abs(error_pct)),1) mae_pct, count(*) n "
+            f"FROM {F('method_backtest')} GROUP BY 1,2 ORDER BY 1, mae_pct"),
+        # overall ranking across the book
+        "by_method": (
+            f"SELECT reserving_method_code, round(100*avg(abs(error_pct)),1) mae_pct, "
+            f"round(100*avg(error_pct),1) bias_pct, count(*) n "
+            f"FROM {F('method_backtest')} GROUP BY 1 ORDER BY mae_pct"),
+        "valuations": (f"SELECT DISTINCT valuation_year FROM {F('method_backtest')} ORDER BY 1"),
+    })
+    return {"by_method_line": q["by_method_line"], "by_method": q["by_method"],
+            "valuations": [r["valuation_year"] for r in q["valuations"]]}
+
+
 @app.get("/api/diagnostics")
 def diagnostics():
     q = sql.query_many({

@@ -131,6 +131,9 @@ def _facts():
                  f"WHERE line_of_business_code='COMMERCIAL_PROPERTY' ORDER BY display_order"),
         "var": (f"SELECT line_of_business_code, coefficient_of_variation, best_estimate "
                 f"FROM {F('reserve_variability')} ORDER BY coefficient_of_variation DESC"),
+        "backtest": (f"SELECT line_of_business_code, reserving_method_code, "
+                     f"round(100*avg(abs(error_pct)),1) mae_pct FROM {F('method_backtest')} "
+                     f"GROUP BY 1,2 ORDER BY 1, mae_pct"),
     })
 
 
@@ -187,6 +190,17 @@ SPECIALISTS = {
                    "ask for before sign-off? Cite figures. End with a one-line verdict: SUPPORT / SUPPORT WITH "
                    "CONDITIONS / CHALLENGE. You advise; the actuary decides."),
     },
+    "backtest": {
+        "name": "Back-test Commentator",
+        "scope": "Narrates champion/challenger accuracy — which method has been closest, by line.",
+        "triggers": "accurate, accuracy, back-test, backtest, champion, challenger, which method, track record, historically",
+        "system": (_PERIOD + "You comment on reserving method back-testing for Bricksurance SE. Given each "
+                   "method's mean absolute error by line of business (how it would have performed at past "
+                   "valuations, scored against emerged experience), tell the actuary which method has been "
+                   "most accurate and where, and call out that accuracy tracks tail length (short-tail lines "
+                   "predictable, long-tail not). Be specific with the percentages. Note that this is a "
+                   "governed, tracked record, not a memory. Concise."),
+    },
 }
 
 CLASSIFIER_SYSTEM = (
@@ -226,6 +240,10 @@ def _prompt_for(key, facts):
     if key == "committee_note":
         return (f"Judgements:\n{json.dumps(facts['judge'], indent=2)}\n\n"
                 f"IBNR by line:\n{json.dumps(facts['spread'], indent=2)}\n\nDraft the committee note.")
+    if key == "backtest":
+        return (f"Method mean-absolute-error by line of business (%), from replaying each method at "
+                f"past valuations against emerged experience:\n{json.dumps(facts['backtest'], indent=2)}\n\n"
+                f"Which method has been most accurate, where, and what does that say about tail length?")
     # senior_reserving
     return (f"Out-of-tolerance cohorts:\n{json.dumps(facts['ave'], indent=2)}\n\n"
             f"IBNR by line:\n{json.dumps(facts['spread'], indent=2)}\n\n"

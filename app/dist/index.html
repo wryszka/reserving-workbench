@@ -173,7 +173,7 @@ let CFG={};
 const NAV=[
   {section:null, items:[["overview","Today","▤"]]},
   {section:"Prepare", items:[["ingestion","Ingestion & data controls","⇩"],["triangle","Triangle & selection","△"]]},
-  {section:"Analyse", items:[["methods","Methods & estimates","∑"],["diagnostics","Diagnostics","◫"]]},
+  {section:"Analyse", items:[["methods","Methods & estimates","∑"],["diagnostics","Diagnostics","◫"],["backtest","Method accuracy","◎"]]},
   {section:"Decide", items:[["judgements","Expert judgement","⚖"],["committee","Committee","◆"],["governance","Governance & sign-off","⬡"]]},
   {section:"AI & platform", items:[["ai","Workbench AI","✦"],["engines","Engines & your models","⚙"]]},
 ];
@@ -1043,6 +1043,31 @@ async function runWhatIf(ev){
   btn.disabled=false;
 }
 
+PAGE.backtest=async()=>{
+  const d=await API('/api/backtest');
+  const bm=d.by_method||[], bml=d.by_method_line||[];
+  const vals=(d.valuations||[]).join(', ');
+  // group line rows by LOB, best method first
+  const byLob={}; bml.forEach(r=>{(byLob[r.line_of_business_code]=byLob[r.line_of_business_code]||[]).push(r);});
+  main(`<h1>Method accuracy — champion / challenger</h1>
+  <p class="sub">How each method WOULD have performed at past valuations (${vals}), scored against what actually emerged.</p>
+  ${explain(`This is the thing a spreadsheet team can never keep and most reserving packages don't offer: <b>automated, tracked method accuracy</b>. We replay every method over the claim ledger truncated to each past valuation, and score its projection against the cohorts that have since run off. "Which method has been most accurate on this line?" becomes a number, not a memory — and the honest answer differs by line. No separate history is stored; the depth comes from replaying the one ledger.`)}
+  <div class="card"><h2>Across the book — mean absolute error by method</h2><div class="h-sub">Lower is more accurate. Bias shows whether a method tends to over- or under-project.</div>
+    <table><thead><tr><th>Method</th><th class="num">Mean abs error</th><th class="num">Bias</th><th class="num">Cohorts tested</th></tr></thead><tbody>
+    ${bm.map((r,i)=>`<tr${i===0?' style="background:#f0fdf4;font-weight:600"':''}><td>${methodName(r.reserving_method_code)}${i===0?' <span class="pill pill-green" style="font-size:9.5px">most accurate</span>':''}</td>
+      <td class="num">${r.mae_pct}%</td>
+      <td class="num" style="color:${Number(r.bias_pct)>=0?'#dc2626':'#16a34a'}">${Number(r.bias_pct)>=0?'+':''}${r.bias_pct}%</td>
+      <td class="num">${r.n}</td></tr>`).join('')}
+    </tbody></table></div>
+  <div class="card"><h2>By line of business — accuracy tracks tail length</h2><div class="h-sub">Short-tail lines are far more predictable than long-tail — measured, not asserted.</div>
+    ${Object.entries(byLob).map(([lob,rows])=>`<div style="margin-bottom:14px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px">${lob.replace(/_/g,' ')} <span style="color:var(--mut);font-weight:400;font-size:11.5px">— best: ${methodName(rows[0].reserving_method_code)} at ${rows[0].mae_pct}%</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${rows.map(r=>`<span class="pill ${r.reserving_method_code===rows[0].reserving_method_code?'pill-green':'pill-slate'}" style="font-size:11px">${methodName(r.reserving_method_code)}: ${r.mae_pct}%</span>`).join('')}</div>
+    </div>`).join('')}
+    <details class="why"><summary>How to use this in a real close</summary><div>When two methods disagree on a cohort, the back-test says which has been closer <b>on that line, historically</b> — a governed reason to lean one way, logged rather than remembered. Over time it's your champion/challenger record: if a challenger method starts beating the incumbent on a line, you'll see it here before it costs you. The scoring uses cohorts mature enough that their paid is essentially final, so no method is graded against another method's guess.</div></details>
+  </div>${ABOUT}`);
+};
+
 function renderJudgements(rows){
   if(!rows||!rows.length) return '<div class="load">No judgements raised for this quarter yet.</div>';
   return `<table><thead><tr><th>ID</th><th>LOB</th><th>Category</th><th class="num">Magnitude</th><th>Approval</th><th>Status</th><th>Rationale</th><th></th></tr></thead><tbody>
@@ -1224,6 +1249,7 @@ const SPEC_META={
   data_quality:{icon:'◫',where:'actual_vs_expected',tone:'amber'},
   committee_note:{icon:'✎',where:'judgements · estimates',tone:'emerald'},
   reviewer:{icon:'🔍',where:'selected_development_pattern',tone:'rose'},
+  backtest:{icon:'◎',where:'method_backtest',tone:'cyan'},
 };
 PAGE.ai=async()=>{
   // draw from the STATIC catalogue — never block the page on a model call, or the

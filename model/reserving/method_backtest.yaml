@@ -1,0 +1,81 @@
+kind: entity
+name: method_backtest
+domain: reserving
+title: Method Back-Test / Champion-Challenger
+description: >
+  How each reserving method WOULD have performed if it had set the ultimate at a
+  past valuation, scored against what actually emerged since. For every historical
+  valuation year, line of business and accident-year cohort, the method's projected
+  ultimate as-at that valuation is compared to the latest (current) view of the same
+  cohort, and the percentage error recorded. This is the thing a spreadsheet team can
+  never build and most reserving packages don't: continuous, automated method
+  validation - "which method has been most accurate on this line over the last N
+  valuations?" becomes a tracked metric rather than a memory. Derived entirely by
+  replaying the methods over the one claim ledger at truncated valuation dates, so
+  there is no separate historical data to maintain - the depth comes from the ledger.
+grain: One row per valuation year per line of business per accident year per method.
+tags:
+  project: reserving-workbench
+  layer: engine
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: backtest_id
+    type: string
+    required: true
+    description: Identifier for the back-test result row.
+    classification: internal
+  - name: valuation_year
+    type: integer
+    required: true
+    description: The past valuation the method was replayed at (triangle truncated to this year).
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: Line of business.
+    classification: internal
+  - name: accident_year
+    type: integer
+    required: true
+    description: The accident-year cohort whose ultimate was projected.
+    classification: internal
+  - name: reserving_method_code
+    code_set: reserving_method
+    required: true
+    description: The method whose as-at projection is being scored.
+    classification: internal
+  - name: projected_ultimate
+    type: decimal(18,2)
+    required: true
+    description: The method's projected ultimate for the cohort, as at valuation_year.
+    classification: internal
+  - name: emerged_ultimate
+    type: decimal(18,2)
+    required: true
+    description: >
+      The current best view of the cohort's ultimate (latest valuation), i.e. what
+      the projection is scored against - the closest thing to "actual" available.
+    classification: internal
+  - name: error_pct
+    type: decimal(9,4)
+    required: true
+    description: >
+      Signed percentage error, (projected - emerged) / emerged. Positive = the method
+      over-projected as at that valuation; negative = under-projected.
+    classification: internal
+  - name: development_age
+    type: integer
+    required: true
+    description: >
+      How mature the cohort was at the valuation (valuation_year minus accident_year).
+      Errors at low development age are the meaningful test - a mature cohort is easy.
+    classification: internal
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the amounts.
+    classification: internal
+keys:
+  primary: [backtest_id]
+owner: Chief Actuary
