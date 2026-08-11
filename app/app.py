@@ -101,6 +101,22 @@ def selection_compute(body: dict):
     return out
 
 
+@app.post("/api/blend")
+def blend(body: dict):
+    """Blend chain-ladder and BF per accident year — a flat CL weight, or a maturity rule
+    (BF for green years, CL once mature). Returns per-AY CL/BF/blended so the actuary sees
+    the mix. This is what selection means beyond one factor. Read-only."""
+    b = body or {}
+    ms = None
+    if b.get("maturity_rule"):
+        ms = {"switch_lag": int(b.get("switch_lag", 2)),
+              "w_green": float(b.get("w_green", 0.0)), "w_mature": float(b.get("w_mature", 1.0))}
+    return reserving.blend(b.get("lob", "COMMERCIAL_PROPERTY"), b.get("basis", "VOLUME_WEIGHTED"),
+                           float(b.get("tail", 1.01) or 1.01),
+                           cl_weight=b.get("cl_weight"), maturity_switch=ms,
+                           overrides=b.get("overrides") or {})
+
+
 @app.post("/api/tail/fit")
 def tail_fit(body: dict):
     """Fit a decay curve (exponential / inverse-power) to the current factor pattern and

@@ -218,5 +218,8 @@ complete ledger-to-capital arc at real scale.*
   positioning), B3 (honesty matrix), E1 (why-factor), E2 (per-tab sub-headers), E3 (breadcrumb).
 - **2026-08-11 — Phase 2 in progress:** A2 (fitted tail — exponential/inverse-power, R² surfaced)
   DONE & live. A5 (gross-to-net — RI programme entity, net columns, grain-correct QS+expected-XoL)
-  DONE & live; retention 70–90%/line, 76% book. Next in Phase 2: A3 (method blending + Cape Cod/
-  Benktander), C1 (register the new methods).
+  DONE & live; retention 70–90%/line, 76% book. A3 (method blending + Cape Cod &
+  Benktander) DONE & live — blend control (flat weight + maturity rule), verified: maturity rule
+  correctly puts CL on mature cohorts, BF on green; Benktander sits between BF and CL. C1 DONE — all
+  9 methods registered as real MLflow/UC models (smoke 26/26). **Phase 2 complete.** Next: Phase 3
+  (MLOps differentiator — F1 historical data, then C2 scheduled close Job, A6 bootstrap, C3 back-test).

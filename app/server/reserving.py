@@ -216,6 +216,59 @@ def compute(lob, basis="VOLUME_WEIGHTED", last_n=5, tail=1.01, overrides=None):
             "empirical_factors": factors, "applied_factors": applied, "reserve": res}
 
 
+def blend(lob, basis="VOLUME_WEIGHTED", tail=1.01, cl_weight=None, maturity_switch=None, apriori_lr=0.62, overrides=None):
+    """Blend chain-ladder and Bornhuetter-Ferguson PER ACCIDENT YEAR — what "selection"
+    actually means beyond one factor. Two ways to set the weight:
+      * cl_weight: a flat CL weight 0..1 applied to every cohort (blend = w*CL + (1-w)*BF)
+      * maturity_switch: {before_lag: w_green, at_or_after: w_mature} — the actuarial rule
+        of thumb (BF for green years, CL once mature). If given, it overrides cl_weight.
+    Returns per-AY CL / BF / blended ultimate + the totals, so the UI shows the mix, not
+    just a number. Read-only.
+    """
+    tri = read_triangle(lob)
+    factors = empirical_factors(tri, basis)
+    applied = dict(factors)
+    if overrides:
+        for k, v in overrides.items():
+            try:
+                applied[int(k)] = round(float(v), 4)
+            except (TypeError, ValueError):
+                pass
+    ml = max_lag(tri)
+    diag = latest_diagonal(tri)
+    rows = []
+    tot_cl = tot_bf = tot_blend = tot_paid = 0.0
+    for ay, (lag, paid) in diag.items():
+        cdf = tail
+        for k in range(lag, ml):
+            cdf *= applied.get(k, 1.0)
+        cl = paid * cdf
+        prem = paid / apriori_lr if paid else 0.0        # crude premium proxy from paid
+        apri = prem * apriori_lr
+        pct_unpaid = 1.0 - (1.0 / cdf if cdf else 1.0)
+        bf = paid + apri * pct_unpaid
+        # weight for this cohort
+        if maturity_switch:
+            w = maturity_switch.get("w_mature", 1.0) if lag >= maturity_switch.get("switch_lag", 2) else maturity_switch.get("w_green", 0.0)
+        else:
+            w = 1.0 if cl_weight is None else max(0.0, min(1.0, float(cl_weight)))
+        b = w * cl + (1.0 - w) * bf
+        rows.append({"accident_year": ay, "dev_lag": lag, "cl": round(cl, 2), "bf": round(bf, 2),
+                     "cl_weight": round(w, 2), "blended": round(b, 2)})
+        tot_cl += cl; tot_bf += bf; tot_blend += b; tot_paid += paid
+    rows.sort(key=lambda r: r["accident_year"])
+    res = {"ultimate": round(tot_blend, 2), "paid": round(tot_paid, 2),
+           "ibnr": round(max(tot_blend - tot_paid, 0.0), 2), "outstanding": round(tot_blend - tot_paid, 2)}
+    prog = programme_for(lob)
+    if prog:
+        net, ceded = apply_reinsurance(res["ultimate"], prog["quota_share_pct"],
+                                       prog["xol_attachment"], prog["xol_limit"], prog["xol_expected_recovery"])
+        res["ultimate_net"] = net; res["ceded"] = ceded; res["reinsurance"] = prog
+    return {"lob": lob, "per_ay": rows, "reserve": res,
+            "totals": {"chain_ladder": round(tot_cl, 2), "bornhuetter_ferguson": round(tot_bf, 2),
+                       "blended": round(tot_blend, 2)}}
+
+
 def prior_selection(lob):
     """The genuine PRIOR quarter's approved pattern — the thing an actuary compares against,
     factor by factor. Deliberately NOT this quarter's elected row: we want the pattern carried

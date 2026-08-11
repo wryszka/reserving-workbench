@@ -168,6 +168,16 @@ def main():
         pt = cum(tri, lob, "cumulative_paid"); it = cum(tri, lob, "cumulative_incurred")
         max_lag = max(max(r) for r in pt.values())
         f = a2a(pt, max_lag); dp = diag(pt); di = diag(it); se = mack_se(pt, f, max_lag)
+        # Cape Cod: derive ONE expected loss ratio for the line from the triangle itself
+        # (Stanard-Bühlmann): ELR = sum(latest paid) / sum(premium * reported-pct), so the
+        # a-priori isn't taken on faith like BF — it's estimated from the data.
+        cc_num = cc_den = 0.0
+        for a in pt:
+            la, pa = dp[a]; ca = cdf(f, la, max_lag)
+            rep = (1.0 / ca) if ca else 1.0                 # reported proportion to date
+            prem_a = (di.get(a, (la, pa))[1] or pa) / APRIORI_LR
+            cc_num += pa; cc_den += prem_a * rep
+        cape_cod_elr = (cc_num / cc_den) if cc_den else APRIORI_LR
         for ay in sorted(pt):
             lag, paid = dp[ay]; _, inc = di.get(ay, (lag, paid))
             case = max(inc - paid, 0.0)
@@ -175,9 +185,16 @@ def main():
             c = cdf(f, lag, max_lag)
             cl = paid * c
             pct_unpaid = 1.0 - (1.0/c if c else 1.0)
+            pct_rep = (1.0/c if c else 1.0)                  # reported proportion (Benktander Z)
             bf = paid + apri*pct_unpaid
+            # Cape Cod: same BF form but with the data-derived ELR
+            capecod = paid + (prem * cape_cod_elr) * pct_unpaid
+            # Benktander (Neuhaus): iterate BF once — credibility Z = reported proportion.
+            # ult = Z*CL + (1-Z)*BF, the standard optimal-credibility blend.
+            benk = pct_rep * cl + (1.0 - pct_rep) * bf
             for method, ult, serr in [("CHAIN_LADDER", cl, None), ("BORNHUETTER_FERGUSON", bf, None),
-                                       ("EXPECTED_LOSS_RATIO", apri, None), ("MACK", cl, se.get(ay, 0.0))]:
+                                       ("EXPECTED_LOSS_RATIO", apri, None), ("MACK", cl, se.get(ay, 0.0)),
+                                       ("CAPE_COD", capecod, None), ("BENKTANDER", benk, None)]:
                 ult = max(ult, paid + case)  # never below incurred
                 net_ult, ceded = to_net(ult, lob)
                 ibnr_g = max(ult-paid-case, 0.0)

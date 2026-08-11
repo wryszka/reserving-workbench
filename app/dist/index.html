@@ -865,12 +865,26 @@ async function doReview(ev){
 PAGE.methods=async()=>{
   const [m,e,v]=await Promise.all([API('/api/methodology'),API('/api/estimates'),API('/api/variability')]);
   main(`<h1>Methods &amp; estimates</h1><p class="sub">The methodology library, the reserve estimates it produces, and the uncertainty around them.</p>
-  ${explain(`Each method is a governed Unity Catalog model; swapping method writes a new estimate, never an overwrite, so every basis is comparable. Estimates reconcile to the penny (paid + case + IBNR = ultimate). The ranges (Mack CoV / percentiles) turn the point estimate into the distribution Solvency II and IFRS 17 need.`)}
+  ${explain(`Each method is a governed Unity Catalog model — chain-ladder, Bornhuetter-Ferguson, Cape Cod (ELR derived from the triangle), Benktander (the credibility blend), Mack, GLM. Swapping method writes a new estimate, never an overwrite. But real selection isn't picking one method — it's <b>blending them per cohort</b>, which is what the blend control below does. Estimates reconcile to the penny; the ranges (Mack CoV / percentiles) turn the point estimate into the distribution Solvency II and IFRS 17 need.`)}
   <div class="card"><h2>Methodology library</h2><div class="h-sub">Each method registered + versioned in Unity Catalog.</div>
   <table><thead><tr><th>Method</th><th>UC model</th><th class="num">Ver</th><th>Alias</th><th>Distribution</th><th>Owner</th></tr></thead><tbody>
   ${m.methods.map(x=>`<tr><td><b>${methodName(x.reserving_method_code)}</b></td><td class="mono">${x.uc_model_name.split('.').pop()}</td><td class="num">${x.model_version}</td><td><span class="pill pill-green">${x.alias||'—'}</span></td><td>${x.produces_distribution==='true'||x.produces_distribution===true?'✓':'—'}</td><td>${x.owner_role}</td></tr>`).join('')}
   </tbody></table></div>
-  <div class="card"><h2>Reserve estimates</h2><div class="h-sub">Per accident year × method — reconciling to the penny.</div>
+  <div class="card" style="border-color:#c7d2fe"><h2>Blend the methods — per cohort</h2>
+  <div class="h-sub">Showing five ultimates side by side isn't a selection. Selecting is <b>choosing and blending per accident year</b> — chain-ladder once a cohort is mature, Bornhuetter-Ferguson while it's green. Commercial Property.</div>
+    <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px"><input type="radio" name="blendmode" value="flat" checked> Flat weight</label>
+      <div id="flatwrap" style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--mut)">BF</span>
+        <input id="clw" type="range" min="0" max="100" value="60" style="width:180px">
+        <span style="font-size:12px;color:var(--mut)">CL</span>
+        <span id="clwval" style="font-weight:700;color:var(--blue7);min-width:64px">60% CL</span></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px"><input type="radio" name="blendmode" value="maturity"> Maturity rule</label>
+      <div id="matwrap" style="display:none;font-size:12.5px;color:var(--mut)">BF before dev <input id="switchlag" type="number" value="2" min="1" max="6" style="width:52px;padding:5px;border:1px solid var(--line);border-radius:6px">, chain-ladder at/after</div>
+    </div>
+    <div id="blendout"><div class="load">Computing blend…</div></div>
+  </div>
+  <div class="card"><h2>Reserve estimates</h2><div class="h-sub">Per accident year × method — reconciling to the penny. Cape Cod and Benktander now sit alongside as governed methods.</div>
   <table><thead><tr><th>LOB</th><th class="num">AY</th><th>Method</th><th class="num">Paid</th><th class="num">Ultimate</th><th class="num">IBNR</th><th class="num">Std err</th></tr></thead><tbody>
   ${e.estimates.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td>${methodName(r.reserving_method_code)}</td><td class="num">${money(r.paid_to_date)}</td><td class="num">${money(r.ultimate_loss)}</td><td class="num">${money(r.ibnr)}</td><td class="num">${r.ultimate_std_error?money(r.ultimate_std_error):'—'}</td></tr>`).join('')}
   </tbody></table></div>
@@ -879,7 +893,38 @@ PAGE.methods=async()=>{
   ${v.rows.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.best_estimate)}</td><td class="num">${money(r.standard_error)}</td><td class="num">${(Number(r.coefficient_of_variation)*100).toFixed(1)}%</td><td class="num">${money(r.percentile_75)}</td><td class="num">${money(r.percentile_95)}</td></tr>`).join('')}
   </tbody></table></div>
   ${ABOUT}`);
+  // blend controls
+  const clw=document.getElementById('clw'), clwval=document.getElementById('clwval');
+  const upd=()=>{clwval.textContent=`${clw.value}% CL`;runBlend();};
+  clw.oninput=upd;
+  document.getElementById('switchlag').onchange=runBlend;
+  document.querySelectorAll('input[name="blendmode"]').forEach(r=>r.onchange=()=>{
+    const mat=document.querySelector('input[name="blendmode"]:checked').value==='maturity';
+    document.getElementById('flatwrap').style.display=mat?'none':'flex';
+    document.getElementById('matwrap').style.display=mat?'block':'none';runBlend();});
+  runBlend();
 };
+async function runBlend(){
+  const out=document.getElementById('blendout'); if(!out)return;
+  const mat=document.querySelector('input[name="blendmode"]:checked').value==='maturity';
+  const body={lob:'COMMERCIAL_PROPERTY',tail:1.01};
+  if(mat){body.maturity_rule=true;body.switch_lag=parseInt(document.getElementById('switchlag').value)||2;body.w_green=0.0;body.w_mature=1.0;}
+  else{body.cl_weight=(parseInt(document.getElementById('clw').value)||0)/100;}
+  try{
+    const r=await API('/api/blend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const t=r.totals, res=r.reserve;
+    out.innerHTML=`<div class="row" style="margin-bottom:10px">
+      <div class="tile"><div class="k">Chain-ladder total</div><div class="v sm">${money(t.chain_ladder)}</div></div>
+      <div class="tile"><div class="k">Bornhuetter-Ferguson total</div><div class="v sm">${money(t.bornhuetter_ferguson)}</div></div>
+      <div class="tile" style="border-color:#c7d2fe;background:#faf9ff"><div class="k">Blended ultimate</div><div class="v sm" style="color:#6d28d9">${money(t.blended)}</div></div>
+      <div class="tile" style="border-color:#bfdbfe"><div class="k">Blended net of RI</div><div class="v sm" style="color:#1d4ed8">${res.ultimate_net!=null?money(res.ultimate_net):'—'}</div></div>
+    </div>
+    <table><thead><tr><th class="num">AY</th><th class="num">dev</th><th class="num">Chain-ladder</th><th class="num">BF</th><th class="num">CL weight</th><th class="num">Blended</th></tr></thead><tbody>
+    ${r.per_ay.map(a=>`<tr><td class="num">${a.accident_year}</td><td class="num">${a.dev_lag}</td><td class="num">${money(a.cl)}</td><td class="num">${money(a.bf)}</td><td class="num">${Math.round(a.cl_weight*100)}%</td><td class="num" style="font-weight:700;color:#6d28d9">${money(a.blended)}</td></tr>`).join('')}
+    </tbody></table>
+    <div style="margin-top:8px;font-size:12px;color:var(--mut)">${mat?'Maturity rule: BF for green years, chain-ladder once mature — the weight column shows the switch by cohort.':'Flat blend applied to every cohort. The greener the year, the more the choice between CL and BF actually moves the number.'}</div>`;
+  }catch(e){out.innerHTML=`<div class="err">Blend failed: ${e.message}</div>`;}
+}
 
 PAGE.methodology=async()=>{
   const m=await API('/api/methodology');
@@ -1171,7 +1216,7 @@ PAGE.genie=async()=>{
   ${ABOUT}`);
 };
 
-const METHOD_NAME={CHAIN_LADDER:'Chain-ladder',BORNHUETTER_FERGUSON:'Bornhuetter-Ferguson',EXPECTED_LOSS_RATIO:'Expected loss ratio',MACK:'Mack',GLM:'GLM',PEER_COMPARISON:'Benchmark (peer pattern)',INHOUSE_FREQUENCY_SEVERITY:'In-house frequency-severity'};
+const METHOD_NAME={CHAIN_LADDER:'Chain-ladder',BORNHUETTER_FERGUSON:'Bornhuetter-Ferguson',EXPECTED_LOSS_RATIO:'Expected loss ratio',MACK:'Mack',GLM:'GLM',PEER_COMPARISON:'Benchmark (peer pattern)',CAPE_COD:'Cape Cod',BENKTANDER:'Benktander-Hovinen',INHOUSE_FREQUENCY_SEVERITY:'In-house frequency-severity'};
 const methodName=(c)=>METHOD_NAME[c]||(c||'').replace(/_/g,' ');
 const SPEC_META={
   senior_reserving:{icon:'◆',where:'triangle · estimates · judgements',tone:'violet'},

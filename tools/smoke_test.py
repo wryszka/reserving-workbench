@@ -47,6 +47,10 @@ def main():
     check("reinsurance programme seeded", n >= 3, f"{n} lines")
     n = int(q(f"SELECT COUNT(DISTINCT reserving_method_code) FROM {FQ}.reserve_estimate")[0][0])
     check("multiple methods present", n >= 3, f"{n} methods")
+    # A3: Cape Cod + Benktander are real methods, not just codes
+    n = int(q(f"SELECT COUNT(DISTINCT reserving_method_code) FROM {FQ}.reserve_estimate "
+              f"WHERE reserving_method_code IN ('CAPE_COD','BENKTANDER')")[0][0])
+    check("Cape Cod + Benktander produce estimates", n == 2, f"{n}/2 present")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.reserving_methodology")[0][0])
     check("methodology library registered", n >= 5, f"{n} methods")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.actual_vs_expected WHERE within_tolerance=false")[0][0])

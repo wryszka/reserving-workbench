@@ -31,7 +31,14 @@ codes:
     label: Cape Cod
     description: >
       A Bornhuetter-Ferguson variant that derives the expected loss ratio from
-      the triangle itself rather than taking it as given.
+      the triangle itself (Stanard-Bühlmann) rather than taking it as given.
+  - code: BENKTANDER
+    label: Benktander-Hovinen
+    description: >
+      The credibility-weighted blend of chain-ladder and Bornhuetter-Ferguson
+      (one Benktander iteration): ultimate = Z·CL + (1-Z)·BF with Z the reported
+      proportion, giving more weight to CL as a cohort matures. The optimal
+      credibility estimator between the two.
   - code: MACK
     label: Mack Chain-Ladder
     description: >

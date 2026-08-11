@@ -72,6 +72,8 @@ METHODS = {
     "MACK": (True, "Distribution-free stochastic chain-ladder; standard error around the ultimate."),
     "GLM": (True, "Over-dispersed Poisson GLM on incrementals; bootstrap for a full distribution."),
     "PEER_COMPARISON": (False, "Benchmarks the selected pattern against an external / peer development pattern."),
+    "CAPE_COD": (False, "Bornhuetter-Ferguson with the expected loss ratio derived from the triangle (Stanard-Bühlmann)."),
+    "BENKTANDER": (False, "Credibility blend of chain-ladder and BF (one Benktander iteration); weights CL up as a cohort matures."),
     # the in-house model: a team's own model, first-class and governed
     "INHOUSE_FREQUENCY_SEVERITY": (True,
         "The team's own frequency-severity model (R/Python), registered as a first-class method "
