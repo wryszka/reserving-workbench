@@ -223,3 +223,12 @@ complete ledger-to-capital arc at real scale.*
   correctly puts CL on mature cohorts, BF on green; Benktander sits between BF and CL. C1 DONE — all
   9 methods registered as real MLflow/UC models (smoke 26/26). **Phase 2 complete.** Next: Phase 3
   (MLOps differentiator — F1 historical data, then C2 scheduled close Job, A6 bootstrap, C3 back-test).
+- **2026-08-11 — Phase 3 in progress:** F1 (historical depth — no fake snapshots; valuation-as-of is the
+  ledger truncated to transaction_year<=Y) + C3 (champion/challenger back-testing, method_backtest, the
+  Method-accuracy page, Back-test Commentator agent) DONE & live, smoke 28/28. Accuracy tracks tail length,
+  measured not asserted (Marine 1.8% → PI 16%).
+  **DECISION NEEDED before C2 (scheduled close Job):** two engines have diverged —
+  `notebooks/01_reserving_engine.py` (older) vs `tools/run_reserving.py` (canonical, has Cape Cod/Benktander/
+  net/backtest). C2 must chain ONE. Options: (a) wrap the verified tools/ scripts as job-task notebooks
+  [lower risk, keeps the tested engine]; (b) bring notebook 01 to parity [cleaner long-term, more work].
+  Recommend (a). A6 (bootstrap) then slots in as another task on whichever wins.
