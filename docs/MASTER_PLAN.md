@@ -213,3 +213,10 @@ complete ledger-to-capital arc at real scale.*
 
 ## 7 · Status log
 - **2026-08-11 — plan merged; starting Phase 1.**
+- **2026-08-11 — Phase 1 shipped & verified live:** A1 (prior row + Hold-prior + fixed
+  prior_reserve + AI review gets real priors), B1 (language), B2 (three-track standalone-first
+  positioning), B3 (honesty matrix), E1 (why-factor), E2 (per-tab sub-headers), E3 (breadcrumb).
+- **2026-08-11 — Phase 2 in progress:** A2 (fitted tail — exponential/inverse-power, R² surfaced)
+  DONE & live. A5 (gross-to-net — RI programme entity, net columns, grain-correct QS+expected-XoL)
+  DONE & live; retention 70–90%/line, 76% book. Next in Phase 2: A3 (method blending + Cape Cod/
+  Benktander), C1 (register the new methods).
