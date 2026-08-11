@@ -589,6 +589,12 @@ PAGE.triangle=async()=>{
         <input id="lastn" type="number" value="5" min="1" max="8" style="width:70px;padding:7px;border:1px solid var(--line);border-radius:8px"></div>
       <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tail factor</label>
         <input id="tail" type="number" value="1.01" step="0.01" min="1" style="width:80px;padding:7px;border:1px solid var(--line);border-radius:8px"></div>
+      <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Fit tail</label>
+        <select id="tailmethod" name="tailmethod" aria-label="Tail fit method" style="width:auto">
+          <option value="">— manual —</option>
+          <option value="EXPONENTIAL">Exponential curve</option>
+          <option value="INVERSE_POWER">Inverse-power curve</option>
+        </select></div>
       <button class="btn ghost" id="holdprior" style="background:#fef3c7;color:#b45309">Hold prior pattern</button>
       <button class="btn ghost" id="resetf" style="background:#eef2ff;color:var(--blue)">Reset overrides</button>
     </div>
@@ -598,7 +604,8 @@ PAGE.triangle=async()=>{
         <tr><td>empirical</td><td colspan="${SEL.lags.length}" style="text-align:left;color:var(--mut)" id="emprow">computing…</td></tr>
         <tr class="frow"><td>selected</td>${SEL.lags.map(l=>`<td><input class="fin" data-lag="${l}" type="number" step="0.001" style="width:66px;padding:5px;border:1px solid #c7d2fe;border-radius:6px;text-align:right;font-variant-numeric:tabular-nums"></td>`).join('')}</tr>
       </tbody></table>
-      <div id="whyfactor" style="font-size:11.5px;color:var(--mut);margin-top:6px"></div></div>
+      <div id="whyfactor" style="font-size:11.5px;color:var(--mut);margin-top:6px"></div>
+      <div id="tailout" style="margin-top:8px"></div></div>
     <div class="row" style="margin-top:16px;margin-bottom:0">
       <div class="tile"><div class="k">Selected ultimate</div><div class="v sm" id="r_ult">—</div></div>
       <div class="tile"><div class="k">Selected IBNR (unpaid)</div><div class="v sm" id="r_ibnr">—</div></div>
@@ -649,7 +656,10 @@ PAGE.triangle=async()=>{
   document.getElementById('basis').onchange=(e)=>{SEL.basis=e.target.value;SEL.overrides={};
     document.getElementById('lastnwrap').style.display=(SEL.basis==='LAST_N')?'block':'none';recompute(true);};
   document.getElementById('lastn').onchange=(e)=>{SEL.last_n=parseInt(e.target.value)||5;recompute(true);};
-  document.getElementById('tail').onchange=(e)=>{SEL.tail=parseFloat(e.target.value)||1.01;recompute(false);};
+  document.getElementById('tail').onchange=(e)=>{SEL.tail=parseFloat(e.target.value)||1.01;
+    document.getElementById('tailmethod').value='';document.getElementById('tailout').innerHTML='';recompute(false);};
+  document.getElementById('tailmethod').onchange=(e)=>{if(e.target.value)doFitTail(e.target.value);
+    else document.getElementById('tailout').innerHTML='';};
   document.getElementById('resetf').onclick=()=>{SEL.overrides={};recompute(true);};
   document.getElementById('holdprior').onclick=holdPrior;
   document.getElementById('elect').onclick=doElect;
@@ -725,6 +735,23 @@ function paintWhyFactor(emp){
   el.innerHTML = off.length
     ? `<b>Why the red cell:</b> the ${off.join(', ')} factor is well above the pattern you held last quarter — a single late large loss, not a trend. That's the one to decide on; hold the prior or take the spike.`
     : `Empirical factors sit close to the prior pattern this quarter — no single step is off. The averaging basis is the judgement here, not one anomalous factor.`;
+}
+
+async function doFitTail(method){
+  const out=document.getElementById('tailout');
+  out.innerHTML='<div class="load">Fitting the tail curve…</div>';
+  try{
+    const r=await API('/api/tail/fit',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lob:LOB,method,basis:SEL.basis,last_n:SEL.last_n,overrides:SEL.overrides})});
+    if(!r.tail||r.tail<=1){out.innerHTML=`<div style="font-size:12px;color:var(--mut)">${r.note||'No decaying tail to fit for this pattern.'}</div>`;return;}
+    // apply the fitted tail into the tail input and recompute the reserve
+    document.getElementById('tail').value=r.tail; SEL.tail=r.tail; recomputeReserveOnly();
+    const fitted=(r.fitted_factors||[]).map(f=>Number(f).toFixed(4)).join(' · ');
+    out.innerHTML=`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 13px;font-size:12.5px;color:#14532d">
+      <b>${method==='INVERSE_POWER'?'Inverse-power':'Exponential'} tail fitted:</b> factor <b>${r.tail}</b>${r.r2!=null?` (fit R²&nbsp;${r.r2})`:''} — applied.
+      <div style="color:#166534;margin-top:4px">Extrapolated factors beyond the triangle: ${fitted||'—'}</div>
+      <div style="color:var(--mut);margin-top:4px">This is the curve, not a guessed number — override the tail box if your judgement differs.</div></div>`;
+  }catch(e){out.innerHTML=`<div class="err">Tail fit failed: ${e.message}</div>`;}
 }
 
 async function holdPrior(){

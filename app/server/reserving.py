@@ -80,6 +80,78 @@ def ultimate_ibnr(tri, factors, tail=1.0):
             "outstanding": round(ult_total - paid_total, 2), "per_ay": per_ay}
 
 
+def fit_tail(factors, method="EXPONENTIAL", n_extrapolate=6):
+    """Fit a decay curve to the observed age-to-age factors and extrapolate a TAIL factor
+    beyond the triangle — the thing a single '1.01' box can't do and an actuary always does.
+
+    factors: {lag: factor} the selected/empirical development factors (the observed pattern).
+    Returns {method, tail, fitted_factors, r2} where tail = product of the extrapolated
+    factors' excess-over-1, i.e. the cumulative development still to come after the last
+    observed lag.
+
+    Methods, all fit to the *excess* development (f-1), which decays to zero:
+      EXPONENTIAL   — (f_k - 1) = a * exp(-b*k)      [log-linear fit]
+      INVERSE_POWER — (f_k - 1) = a * k^(-b)          [log-log fit]
+    Both are standard tail families; we fit on the tail half of the pattern (where decay is
+    visible) and extrapolate n_extrapolate periods, which is where >99% of the tail sits.
+    Pure Python — no scipy — so it runs anywhere the app runs.
+    """
+    import math
+    lags = sorted(factors)
+    # excess development, only where it's positive (a factor below 1 isn't tail-shaped)
+    pts = [(k, factors[k] - 1.0) for k in lags if factors[k] and factors[k] - 1.0 > 1e-6]
+    if len(pts) < 2:
+        return {"method": method, "tail": 1.0, "fitted_factors": [], "r2": None,
+                "note": "not enough decaying factors to fit a tail"}
+    # fit on the back half — the mature end, where the tail actually lives
+    tail_pts = pts[len(pts) // 2:] if len(pts) >= 4 else pts
+
+    def _linfit(xs, ys):
+        n = len(xs); sx = sum(xs); sy = sum(ys)
+        sxx = sum(x * x for x in xs); sxy = sum(x * y for x, y in zip(xs, ys))
+        denom = n * sxx - sx * sx
+        if abs(denom) < 1e-12:
+            return None
+        b = (n * sxy - sx * sy) / denom
+        a = (sy - b * sx) / n
+        # r2
+        ymean = sy / n
+        ss_tot = sum((y - ymean) ** 2 for y in ys) or 1e-12
+        ss_res = sum((y - (a + b * x)) ** 2 for x, y in zip(xs, ys))
+        return a, b, 1.0 - ss_res / ss_tot
+
+    if method == "INVERSE_POWER":
+        xs = [math.log(k + 1) for k, _ in tail_pts]           # k+1 avoids log(0)
+        ys = [math.log(e) for _, e in tail_pts]
+        fit = _linfit(xs, ys)
+        if not fit:
+            return {"method": method, "tail": 1.0, "fitted_factors": [], "r2": None}
+        a, b, r2 = fit
+        model = lambda k: math.exp(a) * ((k + 1) ** b)
+    else:  # EXPONENTIAL (default)
+        xs = [k for k, _ in tail_pts]
+        ys = [math.log(e) for _, e in tail_pts]
+        fit = _linfit(xs, ys)
+        if not fit:
+            return {"method": method, "tail": 1.0, "fitted_factors": [], "r2": None}
+        a, b, r2 = fit
+        model = lambda k: math.exp(a) * math.exp(b * k)
+
+    last = lags[-1]
+    fitted = []
+    tail = 1.0
+    for i in range(1, n_extrapolate + 1):
+        k = last + i
+        excess = max(model(k), 0.0)
+        if excess < 1e-5:
+            break
+        f = 1.0 + excess
+        fitted.append(round(f, 5))
+        tail *= f
+    return {"method": method, "tail": round(tail, 5),
+            "fitted_factors": fitted, "r2": (round(r2, 4) if r2 is not None else None)}
+
+
 def compute(lob, basis="VOLUME_WEIGHTED", last_n=5, tail=1.01, overrides=None):
     """Recompute empirical factors (with any manual overrides applied) + resulting reserve.
     overrides: {lag(str/int): factor} — manual per-factor overrides layered on the basis."""

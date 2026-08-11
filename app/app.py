@@ -101,6 +101,23 @@ def selection_compute(body: dict):
     return out
 
 
+@app.post("/api/tail/fit")
+def tail_fit(body: dict):
+    """Fit a decay curve (exponential / inverse-power) to the current factor pattern and
+    return an extrapolated tail factor + the fitted factors beyond the triangle. This is the
+    thing a single tail input box can't do — the actuary sees the curve, not a guessed number,
+    and can accept it or override. Read-only."""
+    b = body or {}
+    lob = b.get("lob", "COMMERCIAL_PROPERTY")
+    method = b.get("method", "EXPONENTIAL")
+    basis = b.get("basis", "VOLUME_WEIGHTED")
+    overrides = b.get("overrides") or {}
+    # fit to the pattern the actuary is actually looking at (basis + any overrides)
+    c = reserving.compute(lob, basis, int(b.get("last_n", 5) or 5), 1.0, overrides)
+    fit = reserving.fit_tail(c["applied_factors"], method)
+    return {"lob": lob, "method": method, **fit}
+
+
 @app.post("/api/whatif")
 def whatif(body: dict):
     """A scratch space OUTSIDE the governed selection.
