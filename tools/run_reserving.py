@@ -22,6 +22,14 @@ FQ = f"{CAT}.{SCH}"
 VAL_DATE = "2026-12-31"
 APRIORI_LR = 0.62
 
+# Collision-free 4-char line code for row IDs. lob[:4] mapped BOTH
+# COMMERCIAL_PROPERTY and COMMERCIAL_MOTOR to "COMM", so their estimate/cashflow
+# IDs collided and a join over them fanned out. Use an explicit distinct code.
+LINE_CODE = {"COMMERCIAL_PROPERTY": "CPRP", "COMMERCIAL_MOTOR": "CMOT",
+             "GENERAL_LIABILITY": "GENL", "PROFESSIONAL_INDEMNITY": "PROF", "MARINE": "MARN"}
+def lc(lob):
+    return LINE_CODE.get(lob, (lob[:4]).upper())
+
 
 def q(w, wid, sql):
     r = w.statement_execution.execute_statement(statement=sql, warehouse_id=wid, wait_timeout="50s")
@@ -197,7 +205,7 @@ def run(w, wid):
                 ibnr_g = max(ult-paid-case, 0.0)
                 # net IBNR scales with the net proportion of the ultimate (simplification)
                 ibnr_net = round(ibnr_g * (net_ult/ult), 2) if (net_ult is not None and ult) else None
-                est.append(dict(reserve_estimate_id=f"RES-2026-{lob[:4]}-{ay}-{method[:2]}",
+                est.append(dict(reserve_estimate_id=f"RES-2026-{lc(lob)}-{ay}-{method[:2]}",
                     valuation_date=VAL_DATE, accident_year=ay, line_of_business_code=lob,
                     reserving_method_code=method, methodology_id=f"METH-{method}",
                     selection_id=("SEL-2026Q4-PROP-ELECTED" if lob == "COMMERCIAL_PROPERTY" else None),
@@ -212,8 +220,8 @@ def run(w, wid):
             for k in range(lag, max_lag):
                 nxt = cc*f.get(k, 1.0); incp = nxt-cc
                 if incp > 0.01:
-                    cf.append(dict(cashflow_id=f"CF-2026-{lob[:4]}-{ay}-{k+1}",
-                        reserve_estimate_id=f"RES-2026-{lob[:4]}-{ay}-CH",
+                    cf.append(dict(cashflow_id=f"CF-2026-{lc(lob)}-{ay}-{k+1}",
+                        reserve_estimate_id=f"RES-2026-{lc(lob)}-{ay}-CH",
                         development_period=(k+1-lag), expected_payment=round(incp, 2), currency_code="GBP"))
                 cc = nxt
             # Actual-vs-expected on the FIRST development step (0->1) — where factor-selection risk
@@ -227,7 +235,7 @@ def run(w, wid):
                 actual = pt[ay][1] - pt[ay][0]
                 expected = pt[ay][0] * (median_f0 - 1.0)
                 var = actual - expected; serr2 = abs(expected)*0.15 or 1.0
-                ave.append(dict(ave_id=f"AVE-2026-{lob[:4]}-{ay}", validation_period="2026",
+                ave.append(dict(ave_id=f"AVE-2026-{lc(lob)}-{ay}", validation_period="2026",
                     reserving_method_code="CHAIN_LADDER", line_of_business_code=lob, accident_year=ay,
                     expected_emergence=round(expected, 2), actual_emergence=round(actual, 2),
                     variance=round(var, 2), standardised_residual=round(var/serr2, 4),
@@ -359,7 +367,7 @@ def run(w, wid):
         be = d["ult"]; se_raw = math.sqrt(d["var"])
         cov = max((se_raw / be) if be else 0.0, COV_FLOOR.get(lob, 0.08))
         se = round(be * cov, 2)
-        var_rows.append(dict(variability_id=f"VAR-2026-{lob[:4]}", valuation_date=VAL_DATE,
+        var_rows.append(dict(variability_id=f"VAR-2026-{lc(lob)}", valuation_date=VAL_DATE,
             line_of_business_code=lob, reserving_method_code="MACK", best_estimate=round(be, 2),
             standard_error=se, coefficient_of_variation=round(cov, 4),
             percentile_75=round(be + 0.674 * se, 2), percentile_95=round(be + 1.645 * se, 2),
@@ -400,7 +408,7 @@ def run(w, wid):
     for lob in lobs:
         signed = lob == "GENERAL_LIABILITY"
         be = sum(e["ultimate_loss"] for e in est if e["line_of_business_code"] == lob and e["reserving_method_code"] == "CHAIN_LADDER")
-        so_rows.append(dict(signoff_id=f"SO-2026-{lob[:4]}", valuation_date=VAL_DATE,
+        so_rows.append(dict(signoff_id=f"SO-2026-{lc(lob)}", valuation_date=VAL_DATE,
             line_of_business_code=lob, signed_best_estimate=round(be, 2),
             selection_id=None, reserving_method_code="CHAIN_LADDER", data_version="v1 (2026-12-31 snapshot)",
             status_code="APPROVED" if signed else "PENDING_APPROVAL",

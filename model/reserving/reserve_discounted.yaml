@@ -1,0 +1,63 @@
+kind: view
+name: reserve_discounted
+domain: reserving
+title: Discounted Reserve (PV of Runoff)
+description: >
+  The present value of each reserve estimate's outstanding, obtained by
+  discounting its single-producer cashflow pattern (reserve_cashflow_pattern) on
+  the risk-free curve (discount_curve). Nothing is stored - it is a view over the
+  runoff and the curve, so the discounted number always ties to the undiscounted
+  one and to the curve version in force. Surfaces the undiscounted outstanding,
+  the discounted outstanding, the discount benefit (the difference), the implied
+  effective rate and the cashflow-weighted mean term - the figures Solvency II TP
+  and IFRS 17 LIC both need. Long-tail lines (PI, GL) show a materially larger
+  discount benefit than short-tail (Property, Marine) because their cash pays out
+  further away - the point of discounting at all.
+grain: One row per reserve estimate that has a cashflow pattern, per curve version.
+tags:
+  project: reserving-workbench
+  layer: engine
+  gen: gen1
+  domain: reserving
+sql: |
+  WITH cf AS (
+    SELECT
+      c.reserve_estimate_id,
+      c.development_period,
+      c.expected_payment,
+      c.currency_code
+    FROM {reserving.reserve_cashflow_pattern} c
+  ),
+  discounted AS (
+    SELECT
+      cf.reserve_estimate_id,
+      cf.currency_code,
+      dc.curve_version,
+      SUM(cf.expected_payment)                                         AS undiscounted,
+      SUM(cf.expected_payment
+          / POWER(1 + dc.spot_rate, cf.development_period))            AS discounted,
+      SUM(cf.expected_payment * cf.development_period)                 AS weighted_term_num,
+      SUM(cf.expected_payment)                                         AS weighted_term_den
+    FROM cf
+    JOIN {reserving.discount_curve} dc
+      ON dc.currency_code = cf.currency_code
+     AND dc.development_period = cf.development_period
+    GROUP BY cf.reserve_estimate_id, cf.currency_code, dc.curve_version
+  )
+  SELECT
+    d.reserve_estimate_id,
+    e.line_of_business_code,
+    e.accident_year,
+    e.reserving_method_code,
+    d.curve_version,
+    d.currency_code,
+    ROUND(d.undiscounted, 2)                                          AS undiscounted_outstanding,
+    ROUND(d.discounted, 2)                                            AS discounted_outstanding,
+    ROUND(d.undiscounted - d.discounted, 2)                          AS discount_benefit,
+    ROUND(CASE WHEN d.discounted > 0
+               THEN (d.undiscounted / d.discounted) - 1 ELSE 0 END, 6) AS implied_effective_rate,
+    ROUND(CASE WHEN d.weighted_term_den > 0
+               THEN d.weighted_term_num / d.weighted_term_den ELSE 0 END, 2) AS mean_term_years
+  FROM discounted d
+  JOIN {reserving.reserve_estimate} e
+    ON e.reserve_estimate_id = d.reserve_estimate_id

@@ -32,6 +32,9 @@ PCTLS = [5, 25, 50, 75, 90, 95, 99, 99.5]
 # run ~5-15% by tail length; these match run_reserving.COV_FLOOR.
 TARGET_COV = {"COMMERCIAL_PROPERTY": 0.05, "COMMERCIAL_MOTOR": 0.07, "GENERAL_LIABILITY": 0.12,
               "PROFESSIONAL_INDEMNITY": 0.14, "MARINE": 0.06}
+# Collision-free line code (lob[:4] collides COMMERCIAL_PROPERTY/COMMERCIAL_MOTOR → "COMM").
+LINE_CODE = {"COMMERCIAL_PROPERTY": "CPRP", "COMMERCIAL_MOTOR": "CMOT",
+             "GENERAL_LIABILITY": "GENL", "PROFESSIONAL_INDEMNITY": "PROF", "MARINE": "MARN"}
 
 
 def q(w, wid, sql):
@@ -200,7 +203,7 @@ def run(w, wid):
         sd = float(np.std(ult)); cov = round(sd/mean, 4) if mean else 0.0
         for p in PCTLS:
             rows.append(dict(
-                distribution_id=f"DIST-2026-{lob[:4]}-{str(p).replace('.','_')}",
+                distribution_id=f"DIST-2026-{LINE_CODE.get(lob, lob[:4].upper())}-{str(p).replace('.','_')}",
                 valuation_date=VAL_DATE, line_of_business_code=lob, percentile=p,
                 ultimate_at_percentile=round(float(np.percentile(ult, p)), 2),
                 mean_ultimate=round(mean, 2), coefficient_of_variation=cov,

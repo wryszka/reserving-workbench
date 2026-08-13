@@ -1,0 +1,61 @@
+kind: entity
+name: discount_curve
+domain: reserving
+title: Discount Curve (Risk-Free)
+description: >
+  The risk-free discount curve used to present-value reserve cashflows for
+  Solvency II technical provisions and the IFRS 17 Liability for Incurred Claims.
+  One annual spot rate per future development period, per currency, per curve
+  version - the EIOPA risk-free term structure Bricksurance discounts on. This is
+  a governed CONFIG input, not business data: the actuary picks the published
+  curve as at the valuation date, and the reserve_discounted view PVs the single
+  producer cashflow pattern against it. Storing the curve (rather than a single
+  flat rate) is what lets the same cashflows land in both regulatory regimes
+  without either re-deriving the runoff.
+grain: One row per curve version per currency per development period.
+tags:
+  project: reserving-workbench
+  layer: config
+  gen: gen1
+  domain: reserving
+standards:
+  acord: Risk-free term structure (EIOPA, indicative)
+attributes:
+  - name: curve_id
+    type: string
+    required: true
+    description: Identifier for the curve-point row.
+    classification: internal
+  - name: curve_version
+    type: string
+    required: true
+    description: >
+      The published curve as at the valuation date, e.g. EIOPA_RFR_2026Q4 - the
+      version stamped onto a sign-off so the discounting is reproducible.
+    classification: internal
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency the term structure applies to.
+    classification: internal
+  - name: development_period
+    type: integer
+    required: true
+    description: >
+      Future period in whole years from the valuation date (1 = the first year of
+      runoff). Matches reserve_cashflow_pattern.development_period.
+    classification: internal
+  - name: spot_rate
+    type: decimal(9,6)
+    required: true
+    description: >
+      Annualised risk-free spot rate for a cashflow paid at this period, e.g.
+      0.0385 = 3.85%. The discount factor is 1 / (1 + spot_rate)^development_period.
+    classification: internal
+keys:
+  primary: [curve_id]
+owner: Chief Actuary
+quality:
+  - name: rate_reasonable
+    rule: spot_rate >= -0.02 AND spot_rate <= 0.15
+    description: Spot rates sit in a plausible band (allowing mildly negative short rates).

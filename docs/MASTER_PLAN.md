@@ -261,3 +261,16 @@ complete ledger-to-capital arc at real scale.*
   speaks). Deployed to DEV, served HTML carries the markup, all backing endpoints 200, smoke 30/30, demo
   reset clean. **Phases 1-3.5 all shipped.** Remaining: Phase 4 only (A4/A7/A8/A9/A10 engine depth,
   D1-D3 Designer/Excel, F2 downstream landing, F3 deeper segmentation).
+- **2026-08-13 — Phase 4 started; A9 (discounting) done & verified:** new `discount_curve` config entity
+  (EIOPA-style GBP risk-free term structure, seeded by run_ingestion) + `reserve_discounted` view that PVs
+  the single-producer `reserve_cashflow_pattern` against it — undiscounted vs discounted, discount benefit,
+  effective rate, cashflow-weighted mean term. Surfaced on the Committee page (SII TP / IFRS 17 LIC basis).
+  Long-tail discounts more than short-tail, measured (GL 9.95% / PI 9.68% vs Marine 6.47%; book benefit
+  ~£1.6m). **Caught & fixed a real pre-existing bug in the process:** row IDs used `lob[:4]`, which folded
+  COMMERCIAL_PROPERTY and COMMERCIAL_MOTOR both to "COMM" — colliding estimate/cashflow/backtest/dist PKs
+  (Databricks PKs are informational, so it silently double-counted; the discounted-view join exposed it as
+  a fan-out). Added a distinct LINE_CODE (CPRP/CMOT/GENL/PROF/MARN) across run_reserving/backtest/bootstrap,
+  re-ran the engines, added a collision-free regression guard to the smoke test. Book outstanding corrected
+  £22.8m→£18.1m. Deployed to DEV, close_tools re-uploaded (scheduled close reproduces A9), smoke 34/34,
+  demo reset clean. **Remaining Phase 4: A4/A7/A8/A10 engine depth, D1-D3 Designer/Excel, F2 (now unblocked),
+  F3 deeper segmentation.**

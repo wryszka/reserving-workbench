@@ -1152,12 +1152,26 @@ async function approveJudgement(id){
 }
 
 PAGE.committee=async()=>{
-  const c=await API('/api/committee');
+  const [c,dsc]=await Promise.all([API('/api/committee'),API('/api/discounting').catch(()=>null)]);
+  const dt=(dsc&&dsc.totals)||{};
   main(`<h1>Reserving committee</h1><p class="sub">Quarter-over-quarter view, with the Senior Reserving Actuary agent surfacing emerging trends.</p>
   ${explain(`IBNR and outstanding by line of business (chain-ladder basis). The agent below is a real Foundation Model API call over the live diagnostics — it reads the out-of-tolerance cohorts, method spread and open judgements, and briefs the committee the way a senior actuary would.`)}
   <div class="card"><h2>Reserves by line of business</h2><div class="h-sub">Gross and net of the outwards reinsurance programme — every reserve is booked both ways.</div><table><thead><tr><th>LOB</th><th class="num">IBNR</th><th class="num">Outstanding</th><th class="num">Ultimate (gross)</th><th class="num">Ultimate (net)</th></tr></thead><tbody>
   ${c.by_lob.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.ibnr)}</td><td class="num">${money(r.outstanding)}</td><td class="num">${money(r.ultimate)}</td><td class="num" style="color:#1d4ed8">${r.ultimate_net!=null?money(r.ultimate_net):'—'}</td></tr>`).join('')}
   </tbody></table></div>
+  ${dsc&&dsc.by_lob&&dsc.by_lob.length?`<div class="card" style="border-color:#c7d2fe"><h2>Discounted outstanding — the regulatory basis</h2>
+  <div class="h-sub">Present value of the outstanding on the ${dt.curve_version||'risk-free'} curve — the number Solvency II technical provisions and the IFRS 17 Liability for Incurred Claims are booked at. Undiscounted is the committee's best estimate; discounted is what lands on the balance sheet.</div>
+    <div class="row" style="margin-bottom:14px">
+      <div class="tile"><div class="k">Undiscounted outstanding</div><div class="v sm">${money(dt.undiscounted)}</div></div>
+      <div class="tile"><div class="k">Discounted (PV)</div><div class="v sm" style="color:#1d4ed8">${money(dt.discounted)}</div></div>
+      <div class="tile" style="border-color:#bbf7d0;background:#f0fdf4"><div class="k">Discount benefit</div><div class="v sm" style="color:#15803d">${money(dt.benefit)}</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">${dt.undiscounted?((Number(dt.benefit)/Number(dt.undiscounted))*100).toFixed(1):'—'}% of outstanding</div></div>
+    </div>
+    <table><thead><tr><th>LOB</th><th class="num">Undiscounted</th><th class="num">Discounted (PV)</th><th class="num">Discount benefit</th><th class="num">Benefit %</th><th class="num">Mean term (yrs)</th></tr></thead><tbody>
+    ${dsc.by_lob.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.undiscounted)}</td><td class="num" style="color:#1d4ed8">${money(r.discounted)}</td><td class="num" style="color:#15803d">${money(r.benefit)}</td><td class="num">${(Number(r.benefit_pct)*100).toFixed(1)}%</td><td class="num">${Number(r.mean_term).toFixed(1)}</td></tr>`).join('')}
+    </tbody></table>
+    <details class="why"><summary>Why long-tail lines discount more — and why this ties</summary><div>The discount benefit tracks how <b>far away</b> the cash pays: PI and GL run off over ~2.7 years so they gain ~10%, while Marine and Property pay quickly (~2 years) and gain ~6-7%. The number is a <b>view</b> — it discounts the single-producer <span class="mono">reserve_cashflow_pattern</span> against the governed <span class="mono">discount_curve</span>, so it can never drift from the undiscounted best estimate or the curve version stamped on sign-off. This is the seam the Solvency II and IFRS 17 workbenches consume: the runoff is computed <i>once</i>, here, not re-derived downstream — which is the duplication this kills.</div></details>
+    ${wkmark('Re-deriving the runoff and re-keying the curve in each regulatory workbook','one governed cashflow pattern, discounted as a view for both regimes')}
+  </div>`:''}
   <div class="card"><h2>Senior Reserving Actuary agent</h2><div class="h-sub">Claude via Databricks Foundation Model API, grounded on live reserving tables.</div>
   <button class="btn" id="brief">Generate committee brief</button><div id="briefout" style="margin-top:14px"></div></div>${ABOUT}`);
   document.getElementById('brief').onclick=async(ev)=>{

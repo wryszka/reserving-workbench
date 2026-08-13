@@ -312,6 +312,33 @@ def distribution():
     return {"rows": rows}
 
 
+@app.get("/api/discounting")
+def discounting():
+    """A9 — present value of the outstanding on the risk-free curve (SII TP / IFRS 17 LIC).
+    Discounts the single-producer cashflow pattern per line (chain-ladder booking basis),
+    surfacing undiscounted vs discounted, the discount benefit, effective rate and mean term.
+    Long-tail lines show a bigger benefit than short-tail — the whole point of discounting."""
+    curve = sql.query(
+        f"SELECT development_period, spot_rate FROM {F('discount_curve')} "
+        f"WHERE currency_code='GBP' AND development_period<=10 ORDER BY development_period")
+    by_lob = sql.query(
+        f"SELECT line_of_business_code, "
+        f"round(sum(undiscounted_outstanding),0) undiscounted, "
+        f"round(sum(discounted_outstanding),0) discounted, "
+        f"round(sum(discount_benefit),0) benefit, "
+        f"round(sum(undiscounted_outstanding*mean_term_years)/nullif(sum(undiscounted_outstanding),0),2) mean_term, "
+        f"round(sum(discount_benefit)/nullif(sum(undiscounted_outstanding),0),4) benefit_pct, "
+        f"max(curve_version) curve_version "
+        f"FROM {F('reserve_discounted')} WHERE reserving_method_code='CHAIN_LADDER' "
+        f"GROUP BY line_of_business_code ORDER BY benefit_pct DESC")
+    tot = sql.query(
+        f"SELECT round(sum(undiscounted_outstanding),0) undiscounted, "
+        f"round(sum(discounted_outstanding),0) discounted, round(sum(discount_benefit),0) benefit, "
+        f"max(curve_version) curve_version "
+        f"FROM {F('reserve_discounted')} WHERE reserving_method_code='CHAIN_LADDER'")
+    return {"by_lob": by_lob, "totals": (tot[0] if tot else {}), "curve": curve}
+
+
 @app.get("/api/backtest")
 def backtest():
     """Champion/challenger: how each method WOULD have performed at past valuations,

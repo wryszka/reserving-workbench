@@ -438,6 +438,25 @@ def run(w, wid):
          "xol_limit", "xol_expected_recovery", "currency_code", "note"], prog_rows)
     print(f"reinsurance_programme: {n} rows")
 
+    # ---- risk-free discount curve (A9 · discounting for SII TP / IFRS 17 LIC) ----
+    # A published EIOPA-style GBP risk-free term structure as at the Q4 2026 valuation.
+    # Gently upward-sloping from ~3.6% at the short end to ~4.3% long — the shape that
+    # makes long-tail lines (PI, GL) show a materially bigger discount benefit than
+    # short-tail. Stored as a curve (one spot per period) not a flat rate, so the SAME
+    # cashflows PV correctly for both regulatory regimes. Deterministic; clearly a demo curve.
+    CURVE_VER = "EIOPA_RFR_2026Q4"
+    spot = {1: 0.0360, 2: 0.0372, 3: 0.0385, 4: 0.0397, 5: 0.0408, 6: 0.0416, 7: 0.0422,
+            8: 0.0427, 9: 0.0430, 10: 0.0432}
+    curve_rows = []
+    for p in range(1, 21):
+        # flat-extrapolate beyond the last quoted point (standard long-end convention)
+        rate = spot.get(p, spot[10])
+        curve_rows.append(dict(curve_id=f"{CURVE_VER}-GBP-{p:02d}", curve_version=CURVE_VER,
+                               currency_code=CCY, development_period=p, spot_rate=rate))
+    n = overwrite(w, wid, "discount_curve",
+        ["curve_id", "curve_version", "currency_code", "development_period", "spot_rate"], curve_rows)
+    print(f"discount_curve: {n} rows ({CURVE_VER})")
+
     # control gate: the claims reconciliation must actually tie, or the "I never
     # fight the GL again" claim in the demo is not true
     claims_rec = [r for r in rec if r["reconciliation_id"] == "REC-CLAIMS-GL"][0]

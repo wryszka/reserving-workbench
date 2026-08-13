@@ -27,6 +27,12 @@ APRIORI_LR = 0.62
 BACKTEST_YEARS = [2022, 2023, 2024, 2025]
 LATEST = 2026
 
+# Collision-free line code (lob[:4] collides COMMERCIAL_PROPERTY/COMMERCIAL_MOTOR → "COMM").
+LINE_CODE = {"COMMERCIAL_PROPERTY": "CPRP", "COMMERCIAL_MOTOR": "CMOT",
+             "GENERAL_LIABILITY": "GENL", "PROFESSIONAL_INDEMNITY": "PROF", "MARINE": "MARN"}
+def lc(lob):
+    return LINE_CODE.get(lob, (lob[:4]).upper())
+
 
 def q(w, wid, sql):
     r = w.statement_execution.execute_statement(statement=sql, warehouse_id=wid, wait_timeout="50s")
@@ -184,7 +190,7 @@ def run(w, wid):
                     continue
                 for method, ult in methods.items():
                     rows.append(dict(
-                        backtest_id=f"BT-{vy}-{lob[:4]}-{ay}-{method[:2]}",
+                        backtest_id=f"BT-{vy}-{lc(lob)}-{ay}-{method[:2]}",
                         valuation_year=vy, line_of_business_code=lob, accident_year=ay,
                         reserving_method_code=method, projected_ultimate=round(ult, 2),
                         emerged_ultimate=round(em, 2), error_pct=round((ult-em)/em, 4),

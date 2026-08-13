@@ -63,6 +63,25 @@ def main():
                f"(SELECT line_of_business_code, ultimate_at_percentile mid FROM {FQ}.reserve_distribution WHERE percentile=50) m "
                f"ON m.line_of_business_code=d.line_of_business_code WHERE d.percentile=99.5 AND d.ultimate_at_percentile <= m.mid")[0][0])
     check("99.5th percentile sits above the median for every line", bad == 0, f"{bad} lines inverted")
+    # A9: discounting — curve seeded, discounted view ties below undiscounted, long-tail discounts more
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.discount_curve WHERE currency_code='GBP'")[0][0])
+    check("discount curve seeded", n >= 10, f"{n} points")
+    row = q(f"SELECT round(sum(undiscounted_outstanding),0), round(sum(discounted_outstanding),0) "
+            f"FROM {FQ}.reserve_discounted WHERE reserving_method_code='CHAIN_LADDER'")[0]
+    ud, dd = float(row[0] or 0), float(row[1] or 0)
+    check("discounted outstanding sits below undiscounted", ud > 0 and 0.8*ud < dd < ud,
+          f"undisc {ud:,.0f} disc {dd:,.0f} ({(dd/ud*100 if ud else 0):.1f}%)")
+    # long-tail (GL/PI) benefit% must exceed short-tail (Marine) — discounting behaving correctly
+    bp = {r[0]: float(r[1] or 0) for r in q(
+        f"SELECT line_of_business_code, sum(discount_benefit)/nullif(sum(undiscounted_outstanding),0) "
+        f"FROM {FQ}.reserve_discounted WHERE reserving_method_code='CHAIN_LADDER' GROUP BY 1")}
+    check("long-tail lines discount more than short-tail",
+          bp.get("GENERAL_LIABILITY", 0) > bp.get("MARINE", 1),
+          f"GL {bp.get('GENERAL_LIABILITY',0)*100:.1f}% > Marine {bp.get('MARINE',0)*100:.1f}%")
+    # regression guard: row-id line codes must be collision-free (lob[:4] used to fold CP/CM together)
+    coll = int(q(f"SELECT COUNT(*) FROM (SELECT reserve_estimate_id FROM {FQ}.reserve_estimate "
+                 f"GROUP BY reserve_estimate_id HAVING COUNT(DISTINCT line_of_business_code)>1)")[0][0])
+    check("reserve_estimate ids are collision-free across lines", coll == 0, f"{coll} colliding ids")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.reserving_methodology")[0][0])
     check("methodology library registered", n >= 5, f"{n} methods")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.actual_vs_expected WHERE within_tolerance=false")[0][0])
@@ -76,7 +95,7 @@ def main():
     led = q(f"SELECT round(SUM(amount),2) FROM {FQ}.`1_raw_claim_transaction` WHERE claim_transaction_type_code IN ('INDEMNITY_PAYMENT','EXPENSE_PAYMENT','RECOVERY')")[0][0]
     check("triangle paid reconciles to ledger", abs(float(tri) - float(led)) < 1.0, f"tri={tri} ledger={led}")
     # lineage function
-    cells = q(f"SELECT {FQ}.fn_reserve_to_qrt('RES-2026-COMM-2023-CH')")[0][0]
+    cells = q(f"SELECT {FQ}.fn_reserve_to_qrt('RES-2026-CPRP-2023-CH')")[0][0]
     check("reserve→QRT lineage function returns cells", bool(cells), str(cells))
 
     print("\nIngestion control surface (the 'trust the data' front door):")
