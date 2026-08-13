@@ -96,9 +96,18 @@ def selection_compute(body: dict):
     last_n = int(body.get("last_n", 5) or 5)
     tail = float(body.get("tail", 1.01) or 1.01)
     overrides = body.get("overrides") or {}
-    out = reserving.compute(lob, basis, last_n, tail, overrides)
+    measure = body.get("measure", "PAID")
+    out = reserving.compute(lob, basis, last_n, tail, overrides, measure)
     out["prior_reserve"] = reserving.prior_reserve(lob, tail)
     return out
+
+
+@app.get("/api/convergence")
+def convergence(lob: str = "COMMERCIAL_PROPERTY"):
+    """A7 — paid vs incurred consistency: project the line to ultimate on BOTH triangles
+    and report the gap per accident year. Mature years should converge; a persistent gap is
+    a case-reserve-adequacy warning. Read-only."""
+    return reserving.convergence(lob)
 
 
 @app.post("/api/blend")

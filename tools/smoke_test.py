@@ -82,6 +82,12 @@ def main():
     coll = int(q(f"SELECT COUNT(*) FROM (SELECT reserve_estimate_id FROM {FQ}.reserve_estimate "
                  f"GROUP BY reserve_estimate_id HAVING COUNT(DISTINCT line_of_business_code)>1)")[0][0])
     check("reserve_estimate ids are collision-free across lines", coll == 0, f"{coll} colliding ids")
+    # A7: incurred triangle exists as a column and gives a materially different projection than paid
+    row = q(f"SELECT round(sum(cumulative_paid),0), round(sum(cumulative_incurred),0) FROM {FQ}.loss_development "
+            f"WHERE development_lag=0")[0]
+    cp, ci = float(row[0] or 0), float(row[1] or 0)
+    check("incurred triangle present and above paid at dev 0 (case reserves)", ci > cp > 0,
+          f"paid {cp:,.0f} incurred {ci:,.0f}")
     # F2: regulatory landing — signed reserve becomes SII TP + IFRS 17 LIC, built from views
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.regulatory_landing")[0][0])
     check("regulatory landing populated (SII TP / IFRS 17 LIC)", n >= 5, f"{n} lines")

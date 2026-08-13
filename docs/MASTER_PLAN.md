@@ -283,3 +283,12 @@ complete ledger-to-capital arc at real scale.*
   lifecycle stage 8 flipped stub→built. Re-ran bootstrap (stale degenerate Marine CoV → correct 6%). Book
   BE £16.5m → SII TP £17.6m / IFRS 17 LIC £20.3m. Deployed, smoke 36/36, demo reset clean.
   **Remaining Phase 4: A4/A7/A8/A10 engine depth, D1-D3 Designer/Excel, F3 deeper segmentation.**
+- **2026-08-13 — Phase 4 A7 (incurred basis + paid/incurred consistency) done & verified:** the
+  loss_development view already carried cumulative_incurred, so A7 is app-side (no new stored data).
+  `reserving.read_triangle`/`compute` are now basis-aware (measure PAID|INCURRED, defaults PAID so every
+  existing caller is unchanged); added a `measure` selector to the decision module (factors recompute on
+  the chosen triangle). New `reserving.convergence()` + `/api/convergence` projects the line to ultimate on
+  BOTH triangles and reports the per-AY gap with a mature-year warning — surfaced as a paid-vs-incurred card
+  on the Triangle page. Scope kept honest: incurred is a selection-time diagnostic; the booked engine stays
+  paid. Verified GL paid £17.1m vs incurred £19.1m; CP convergence -3.8%. Smoke 37/37, demo reset clean.
+  **Remaining Phase 4: A4/A8/A10 engine depth, D1-D3 Designer/Excel, F3 deeper segmentation.**

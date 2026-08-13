@@ -576,7 +576,7 @@ PAGE.triangle=async()=>{
   const lobOpts=t.lobs.map(l=>`<option value="${l}" ${l===LOB?'selected':''}>${l.replace(/_/g,' ')}</option>`).join('');
   const sels=s.selections||[];
   // reset live state for this LOB
-  SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, overrides:{}, empirical:{}, applied:{}, prior:null, lags:t.development_lags.slice(0,-1), overrode:false};
+  SEL={basis:'VOLUME_WEIGHTED', last_n:5, tail:1.01, measure:'PAID', overrides:{}, empirical:{}, applied:{}, prior:null, lags:t.development_lags.slice(0,-1), overrode:false};
 
   main(`<h1>Triangle &amp; loss-development-factor selection</h1>
   <p class="sub">Review the triangle, choose an averaging basis, override any factor, and select — the decision is recorded and the ultimate recomputes live.</p>
@@ -590,6 +590,11 @@ PAGE.triangle=async()=>{
   <div class="card" style="border-color:#c7d2fe"><h2>Decision module — select development factors</h2>
   <div class="h-sub">Change the basis or edit a factor; the reserve recomputes live. Then select and save.</div>
     <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+      <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Triangle basis</label>
+        <select id="measure" name="measure" aria-label="Triangle basis" title="Select on paid or incurred (paid + case)">
+          <option value="PAID">Paid</option>
+          <option value="INCURRED">Incurred (paid + case)</option>
+        </select></div>
       <div><label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Averaging basis</label>
         <select id="basis" name="basis" aria-label="Averaging basis">
           <option value="VOLUME_WEIGHTED">Volume-weighted (all years)</option>
@@ -659,6 +664,10 @@ PAGE.triangle=async()=>{
     <div id="jobinfo" style="font-size:12.5px;color:var(--mut)"></div>
     <details class="why"><summary>Why does this answer "if it fails, the whole thing reruns"?</summary><div>Each stage is a separate task, so in the run page you click the failed task and <b>Repair run</b> — that task alone reruns, the others are untouched. And because stage 2 stops for a human, the decision on this page is what resumes the flow: approving a selection triggers stage 3 rather than re-running the pipeline from the top.</div></details>
   </div>
+  <div class="card" style="border-color:#a5f3fc"><h2>Paid vs incurred — do the two triangles agree?</h2>
+  <div class="h-sub">The same line projected to ultimate on BOTH the paid and the incurred (paid + case) triangle. Mature accident years should converge; a persistent gap on a mature year is a case-reserve-adequacy warning, not noise.</div>
+    <div id="convbox"><span class="load">Comparing paid and incurred projections…</span></div>
+  </div>
   <div class="card"><h2>Selection audit trail</h2>
   <div class="h-sub">Every selection recorded: who, when, source, why. New selection = new row; the prior is never overwritten.</div>
     <div id="audit">${renderAudit(sels)}</div>
@@ -669,6 +678,11 @@ PAGE.triangle=async()=>{
   document.getElementById('lob').onchange=(e)=>{LOB=e.target.value;route();};
   document.getElementById('basis').onchange=(e)=>{SEL.basis=e.target.value;SEL.overrides={};
     document.getElementById('lastnwrap').style.display=(SEL.basis==='LAST_N')?'block':'none';recompute(true);};
+  const measEl=document.getElementById('measure');
+  if(measEl) measEl.onchange=(e)=>{SEL.measure=e.target.value;SEL.overrides={};
+    const wf=document.getElementById('whyfactor');
+    if(wf) wf.innerHTML=SEL.measure==='INCURRED'?'<b>Incurred basis</b> — factors are computed on paid + case reserves. Compare the ultimate here with the paid basis; on a mature year they should be close. The gap is quantified in the paid-vs-incurred convergence card below.':'';
+    recompute(true);};
   document.getElementById('lastn').onchange=(e)=>{SEL.last_n=parseInt(e.target.value)||5;recompute(true);};
   document.getElementById('tail').onchange=(e)=>{SEL.tail=parseFloat(e.target.value)||1.01;
     document.getElementById('tailmethod').value='';document.getElementById('tailout').innerHTML='';recompute(false);};
@@ -679,6 +693,7 @@ PAGE.triangle=async()=>{
   document.getElementById('elect').onclick=doElect;
   document.getElementById('reviewbtn').onclick=doReview;
   recompute(true);   // initial compute fills the factor inputs
+  loadConvergence();
   // surface the real Job — it exists, so link to it rather than describing it
   API('/api/pipeline/info').then(p=>{
     const el=document.getElementById('jobinfo'); if(!el)return;
@@ -686,6 +701,28 @@ PAGE.triangle=async()=>{
     el.innerHTML=`Open in Databricks: ${L(p.full_job_url,'the full 4-task Job')} &nbsp;·&nbsp; ${L(p.stage3_job_url,'the stage-3 job this page triggers')}`;
   }).catch(()=>{});
 };
+async function loadConvergence(){
+  const box=document.getElementById('convbox'); if(!box)return;
+  try{
+    const d=await API('/api/convergence?lob='+encodeURIComponent(LOB));
+    const t=d.totals||{}; const rows=d.per_ay||[];
+    const gp=Number(t.gap_pct||0)*100; const tone=Math.abs(gp)<=3?'green':(Math.abs(gp)<=8?'amber':'red');
+    box.innerHTML=`<div class="row" style="margin-bottom:12px">
+      <div class="tile"><div class="k">Paid ultimate</div><div class="v sm">${money(t.paid_ultimate)}</div></div>
+      <div class="tile"><div class="k">Incurred ultimate</div><div class="v sm">${money(t.incurred_ultimate)}</div></div>
+      <div class="tile" style="border-color:${tone==='green'?'#bbf7d0':(tone==='amber'?'#fde68a':'#fecaca')}"><div class="k">Gap (paid − incurred)</div><div class="v sm" style="color:${tone==='green'?'#15803d':(tone==='amber'?'#b45309':'#dc2626')}">${money(t.gap)}</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">${gp>=0?'+':''}${gp.toFixed(1)}% of incurred</div></div>
+    </div>
+    <table><thead><tr><th>AY</th><th class="num">Paid ult.</th><th class="num">Incurred ult.</th><th class="num">Gap</th><th class="num">Gap %</th><th>Maturity</th></tr></thead><tbody>
+    ${rows.map(r=>{const g=Number(r.gap_pct)*100;const warn=r.mature&&Math.abs(g)>8;
+      return `<tr${warn?' style="background:var(--redbg)"':''}><td>${r.accident_year}</td>
+      <td class="num">${money(r.paid_ultimate)}</td><td class="num">${money(r.incurred_ultimate)}</td>
+      <td class="num" style="color:${Number(r.gap)>=0?'#dc2626':'#16a34a'}">${money(r.gap)}</td>
+      <td class="num">${g>=0?'+':''}${g.toFixed(1)}%</td>
+      <td>${r.mature?`<span class="pill ${warn?'pill-red':'pill-green'}">${warn?'mature — check':'mature'}</span>`:'<span class="pill pill-slate">developing</span>'}</td></tr>`;}).join('')}
+    </tbody></table>
+    <details class="why"><summary>How to read this</summary><div>Both columns are chain-ladder ultimates on the same line — one developed from <b>paid</b>, one from <b>incurred</b> (paid + case). As a cohort matures, case reserves settle into payments, so the two projections should <b>converge</b>: a small gap on a mature year is fine, a large one says the case reserves or the paid pattern disagree and the selection needs a look. Green "developing" years naturally differ — little has been paid yet. This cross-check is free here because the incurred triangle is the same governed view as the paid one, just a different column.</div></details>`;
+  }catch(e){box.innerHTML=`<div class="err">Couldn't load convergence: ${e.message}</div>`;}
+}
 
 function renderAudit(sels){
   if(!sels||!sels.length) return '<div class="load">No selections recorded for this line yet.</div>';
@@ -697,7 +734,7 @@ function renderAudit(sels){
 async function recompute(refillInputs){
   try{
     const r=await API('/api/selection/compute',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides})});
+      body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides,measure:SEL.measure})});
     SEL.empirical=r.empirical_factors; SEL.applied=r.applied_factors;
     SEL.prior=(r.prior_reserve&&r.prior_reserve.factors)||null;
     // empirical + prior rows — target by cell id so row order can't break them
@@ -728,7 +765,7 @@ async function recompute(refillInputs){
 async function recomputeReserveOnly(){
   try{
     const r=await API('/api/selection/compute',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides})});
+      body:JSON.stringify({lob:LOB,basis:SEL.basis,last_n:SEL.last_n,tail:SEL.tail,overrides:SEL.overrides,measure:SEL.measure})});
     paintReserve(r.reserve, r.prior_reserve);
   }catch(e){}
 }

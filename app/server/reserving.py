@@ -6,15 +6,19 @@ from . import config, sql
 F = config.fqn
 
 
-def read_triangle(lob):
-    """Return {ay: {lag: cumulative_paid}} for one line of business."""
+def read_triangle(lob, measure="PAID"):
+    """Return {ay: {lag: cumulative}} for one line of business, on the chosen basis.
+    measure PAID → cumulative_paid (the booking basis); INCURRED → cumulative_incurred
+    (paid + case, the basis many actuaries select on because it uses case-reserve
+    information). Defaults to PAID so every existing caller is unchanged."""
+    col = "cumulative_incurred" if str(measure).upper() == "INCURRED" else "cumulative_paid"
     rows = sql.query(
-        f"SELECT accident_year, development_lag, cumulative_paid "
+        f"SELECT accident_year, development_lag, {col} AS amount "
         f"FROM {F('loss_development')} WHERE line_of_business_code = '{sql.esc(lob)}' "
         f"ORDER BY accident_year, development_lag")
     tri = {}
     for r in rows:
-        tri.setdefault(int(r["accident_year"]), {})[int(r["development_lag"])] = float(r["cumulative_paid"])
+        tri.setdefault(int(r["accident_year"]), {})[int(r["development_lag"])] = float(r["amount"])
     return tri
 
 
@@ -189,10 +193,11 @@ def fit_tail(factors, method="EXPONENTIAL", n_extrapolate=6):
             "fitted_factors": fitted, "r2": (round(r2, 4) if r2 is not None else None)}
 
 
-def compute(lob, basis="VOLUME_WEIGHTED", last_n=5, tail=1.01, overrides=None):
+def compute(lob, basis="VOLUME_WEIGHTED", last_n=5, tail=1.01, overrides=None, measure="PAID"):
     """Recompute empirical factors (with any manual overrides applied) + resulting reserve.
-    overrides: {lag(str/int): factor} — manual per-factor overrides layered on the basis."""
-    tri = read_triangle(lob)
+    overrides: {lag(str/int): factor} — manual per-factor overrides layered on the basis.
+    measure PAID|INCURRED — which triangle to select on (A7)."""
+    tri = read_triangle(lob, measure)
     factors = empirical_factors(tri, basis, last_n)
     applied = dict(factors)
     if overrides:
@@ -212,8 +217,41 @@ def compute(lob, basis="VOLUME_WEIGHTED", last_n=5, tail=1.01, overrides=None):
         res["ultimate_net"] = net
         res["ceded"] = ceded
         res["reinsurance"] = prog
-    return {"lob": lob, "basis": basis, "last_n": last_n, "tail": tail,
+    return {"lob": lob, "basis": basis, "last_n": last_n, "tail": tail, "measure": measure,
             "empirical_factors": factors, "applied_factors": applied, "reserve": res}
+
+
+def convergence(lob, basis="VOLUME_WEIGHTED", tail=1.01):
+    """Paid vs incurred consistency (A7). Projects the same line to ultimate on BOTH the
+    paid and the incurred triangle and reports the gap per accident year and in total.
+
+    The actuarial point: paid and incurred chain-ladder SHOULD converge to the same
+    ultimate as a cohort matures (case reserves run off into payments). A persistent gap
+    on a mature year is a warning — case-reserve adequacy drifting, or the paid pattern
+    mis-selected. Green years naturally differ (little paid yet); mature years shouldn't.
+    Returns per-AY paid_ult / incurred_ult / gap / gap_pct + book totals. Read-only."""
+    paid = read_triangle(lob, "PAID")
+    inc = read_triangle(lob, "INCURRED")
+    fp = empirical_factors(paid, basis)
+    fi = empirical_factors(inc, basis)
+    rp = ultimate_ibnr(paid, fp, tail)
+    ri = ultimate_ibnr(inc, fi, tail)
+    pmap = {r["accident_year"]: r for r in rp["per_ay"]}
+    imap = {r["accident_year"]: r for r in ri["per_ay"]}
+    ml = max_lag(paid)
+    rows = []
+    for ay in sorted(pmap):
+        pu = pmap[ay]["ultimate"]; iu = imap.get(ay, {}).get("ultimate", 0.0)
+        lag = max(paid[ay]) if ay in paid else 0
+        gap = pu - iu
+        rows.append({"accident_year": ay, "dev_lag": lag,
+                     "paid_ultimate": round(pu, 2), "incurred_ultimate": round(iu, 2),
+                     "gap": round(gap, 2), "gap_pct": round(gap / iu, 4) if iu else 0.0,
+                     "mature": lag >= max(ml - 2, 1)})
+    return {"lob": lob, "basis": basis, "per_ay": rows,
+            "totals": {"paid_ultimate": rp["ultimate"], "incurred_ultimate": ri["ultimate"],
+                       "gap": round(rp["ultimate"] - ri["ultimate"], 2),
+                       "gap_pct": round((rp["ultimate"] - ri["ultimate"]) / ri["ultimate"], 4) if ri["ultimate"] else 0.0}}
 
 
 def blend(lob, basis="VOLUME_WEIGHTED", tail=1.01, cl_weight=None, maturity_switch=None, apriori_lr=0.62, overrides=None):
