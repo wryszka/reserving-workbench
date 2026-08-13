@@ -254,3 +254,10 @@ complete ledger-to-capital arc at real scale.*
   audit trail, approval triggered stage 3. Surfaced on the Workbench AI page. Smoke 30/30.
   **Remaining: G4 (value callouts), then Phase 4 (engine depth A4/A7/A8/A9/A10, D1-D3 Designer/Excel,
   F2 downstream landing, F3 deeper segmentation).**
+- **2026-08-13 — Phase 3.5 COMPLETE (G4 done & verified):** quiet "value callout" markers (`.wkmark`
+  / `wkmark(was, now)`) on the four beats that replace days of manual work — reconciliation (Ingestion),
+  movement/restatement (Ingestion), reproduce-as-at (Governance sign-off), back-testing (Method accuracy).
+  Deliberately understated (line-through "was" → bold "now", no colour shout, no WOW branding — the work
+  speaks). Deployed to DEV, served HTML carries the markup, all backing endpoints 200, smoke 30/30, demo
+  reset clean. **Phases 1-3.5 all shipped.** Remaining: Phase 4 only (A4/A7/A8/A9/A10 engine depth,
+  D1-D3 Designer/Excel, F2 downstream landing, F3 deeper segmentation).
