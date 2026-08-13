@@ -366,12 +366,9 @@ def build_class_mapping(w, wid):
     return rows
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--profile", default="DEV")
-    ap.add_argument("--warehouse-id", default="a3b61648ea4809e3")
-    args = ap.parse_args()
-    w = WorkspaceClient(profile=args.profile); wid = args.warehouse_id
+def run(w, wid):
+    """Reusable entrypoint — the Job wrappers call this so the tested logic runs
+    unchanged whether invoked from the CLI or a Databricks task."""
     now = datetime.utcnow().isoformat(sep=" ", timespec="seconds")
 
     mv = build_movement(w, wid, now)
@@ -447,6 +444,13 @@ def main():
     assert claims_rec["ties"], "claims-to-GL reconciliation does not tie"
     print("Control gate PASSED: claims paid movements tie to the ledger to the penny.")
 
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--profile", default="DEV")
+    ap.add_argument("--warehouse-id", default="a3b61648ea4809e3")
+    args = ap.parse_args()
+    run(WorkspaceClient(profile=args.profile), args.warehouse_id)
 
 if __name__ == "__main__":
     main()

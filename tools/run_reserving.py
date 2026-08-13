@@ -109,12 +109,9 @@ def mack_se(tri, f, max_lag):
     return se
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--profile", default="DEV")
-    ap.add_argument("--warehouse-id", default="a3b61648ea4809e3")
-    args = ap.parse_args()
-    w = WorkspaceClient(profile=args.profile); wid = args.warehouse_id
+def run(w, wid):
+    """Reusable entrypoint — the Job wrappers call this so the tested logic runs
+    unchanged whether invoked from the CLI or a Databricks task."""
     now = datetime.utcnow().isoformat()
 
     tri = read_df(w, wid, f"SELECT * FROM {FQ}.loss_development")
@@ -440,6 +437,13 @@ def main():
     assert int(bad.iloc[0]["n"]) == 0, "reconciliation FAILED"
     print("Reconciliation gate PASSED: paid + case + IBNR = ultimate for every estimate.")
 
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--profile", default="DEV")
+    ap.add_argument("--warehouse-id", default="a3b61648ea4809e3")
+    args = ap.parse_args()
+    run(WorkspaceClient(profile=args.profile), args.warehouse_id)
 
 if __name__ == "__main__":
     main()

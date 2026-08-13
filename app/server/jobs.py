@@ -14,6 +14,7 @@ from . import config
 
 STAGE3_JOB_NAME = "[reserving-workbench] LDF stage 3 — develop on the approved pattern"
 FULL_JOB_NAME = "[reserving-workbench] LDF pipeline — prep · selection · output"
+CLOSE_JOB_NAME = "[reserving-workbench] Quarterly reserving close — end to end"
 
 
 @lru_cache(maxsize=4)
@@ -34,6 +35,10 @@ def stage3_job_id():
 
 def full_job_id():
     return _job_id(FULL_JOB_NAME)
+
+
+def close_job_id():
+    return _job_id(CLOSE_JOB_NAME)
 
 
 def run_stage3():

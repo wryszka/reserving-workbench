@@ -267,10 +267,11 @@ def pipeline_status(run_id: int = 0):
 def pipeline_info():
     """Which pipeline jobs exist here, so the UI can hide the button if they don't."""
     host = config.workspace_host()
-    full, s3 = jobs.full_job_id(), jobs.stage3_job_id()
-    return {"full_job_id": full, "stage3_job_id": s3,
+    full, s3, close = jobs.full_job_id(), jobs.stage3_job_id(), jobs.close_job_id()
+    return {"full_job_id": full, "stage3_job_id": s3, "close_job_id": close,
             "full_job_url": (f"{host}/#job/{full}" if (host and full) else None),
-            "stage3_job_url": (f"{host}/#job/{s3}" if (host and s3) else None)}
+            "stage3_job_url": (f"{host}/#job/{s3}" if (host and s3) else None),
+            "close_job_url": (f"{host}/#job/{close}" if (host and close) else None)}
 
 
 def _user_from_headers():

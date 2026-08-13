@@ -1,0 +1,58 @@
+# The quarterly reserving close as ONE scheduled, reproducible Databricks Job.
+#
+# This is the MLOps-for-reserving beat: the whole close runs end to end on a
+# schedule, every method an MLflow-governed model, one governed run per quarter,
+# and the stage-3 selection guard still applies (the automated run stops before an
+# unapproved pattern reaches output). A package-less team gets a reproducible close
+# a spreadsheet never gave them.
+#
+# The tasks are THIN wrappers over the tested tools/ scripts (option a): the
+# automated close and a hand-run share the exact same logic, so they can't diverge.
+#
+# NOTE: created via the Jobs API (the bundle deploy is blocked by the pre-existing
+# app resource, 409). This file is the record of the job's shape.
+resources:
+  jobs:
+    quarterly_close:
+      name: "[reserving-workbench] Quarterly reserving close — end to end"
+      description: >
+        The full quarterly close, scheduled and reproducible: bind the loss source,
+        run the data controls, develop every method to ultimate (gross and net),
+        and refresh the champion/challenger back-test. Every method is an MLflow
+        model in Unity Catalog; the selection guard downstream still stops an
+        unapproved pattern from flowing to the loss cost.
+      tags:
+        bxc_project: reserving-workbench
+        bxc_domain: reserving
+      # Quarterly, first working-ish day of the quarter, 06:00 UTC — PAUSED by
+      # default (a demo shouldn't fire on a timer); the point is that the schedule
+      # is declared and the run history is real.
+      schedule:
+        quartz_cron_expression: "0 0 6 2 1,4,7,10 ?"
+        timezone_id: "Europe/London"
+        pause_status: PAUSED
+      tasks:
+        - task_key: source_sync
+          description: "Bind the loss source and record provenance (Federation / scheduled copy-in)."
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../demo/ldf_pipeline/stage_0_source_sync.sql
+        - task_key: ingestion_controls
+          description: "Data movement, reconciliation, sign-off gate, DQ, feeds, class mapping, RI programme."
+          depends_on:
+            - task_key: source_sync
+          notebook_task:
+            notebook_path: ../notebooks/close_job/10_ingestion
+        - task_key: reserving_engine
+          description: "Every method → estimates (gross + net), cashflow, actual-vs-expected."
+          depends_on:
+            - task_key: ingestion_controls
+          notebook_task:
+            notebook_path: ../notebooks/close_job/20_reserving
+        - task_key: backtest
+          description: "Replay every method at past valuations; refresh method accuracy."
+          depends_on:
+            - task_key: reserving_engine
+          notebook_task:
+            notebook_path: ../notebooks/close_job/30_backtest

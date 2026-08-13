@@ -132,12 +132,9 @@ def project(tri, max_lag):
     return out
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--profile", default="DEV")
-    ap.add_argument("--warehouse-id", default="a3b61648ea4809e3")
-    args = ap.parse_args()
-    w = WorkspaceClient(profile=args.profile); wid = args.warehouse_id
+def run(w, wid):
+    """Reusable entrypoint — the Job wrappers call this so the tested logic runs
+    unchanged whether invoked from the CLI or a Databricks task."""
 
     ledger = read_df(w, wid, f"""
         SELECT c.line_of_business_code, c.accident_year, t.transaction_year,
@@ -209,6 +206,13 @@ def main():
     for m, errs in sorted(by_m.items(), key=lambda kv: statistics.mean(kv[1])):
         print(f"  {m:22s} {statistics.mean(errs)*100:5.1f}%  (n={len(errs)})")
 
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--profile", default="DEV")
+    ap.add_argument("--warehouse-id", default="a3b61648ea4809e3")
+    args = ap.parse_args()
+    run(WorkspaceClient(profile=args.profile), args.warehouse_id)
 
 if __name__ == "__main__":
     main()

@@ -1343,6 +1343,20 @@ PAGE.governance=async()=>{
     ${(g.signoff||[]).map(s=>`<tr><td>${s.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(s.signed_best_estimate)}</td><td>${methodName(s.reserving_method_code)}</td><td class="mono" style="font-size:11px">${s.data_version}</td><td><span class="pill ${s.status_code==='APPROVED'?'pill-green':'pill-amber'}">${s.status_code==='APPROVED'?'signed':'pending'}</span></td><td>${s.signed_by||'—'}</td><td>${s.status_code==='APPROVED'?'':`<button class="btn" style="padding:5px 10px" onclick="signOff('${s.line_of_business_code}')">Sign off</button>`}</td></tr>`).join('')}
     </tbody></table><span id="somsg" style="font-size:12.5px;color:var(--mut)"></span>
   </div>
+  <div class="card" style="border-color:#a5f3fc"><h2>The quarterly close, as one scheduled Job</h2>
+  <div class="h-sub">The MLOps beat: the whole close runs end to end on a schedule — reproducible, versioned, guarded. What a spreadsheet team never had.</div>
+    <div class="seam" style="margin-bottom:10px">
+      <div class="z"><div class="zt">source</div><div class="zd">Bind the loss source, record provenance.</div></div>
+      <div class="arrow">→</div>
+      <div class="z"><div class="zt">controls</div><div class="zd">Movement, reconciliation, sign-off gate, DQ, feeds, mapping.</div></div>
+      <div class="arrow">→</div>
+      <div class="z"><div class="zt">engine</div><div class="zd">Every method → estimates, gross and net.</div></div>
+      <div class="arrow">→</div>
+      <div class="z mid"><div class="zt">back-test</div><div class="zd">Replay methods at past valuations; refresh accuracy.</div></div>
+    </div>
+    <div id="closejob" style="font-size:12.5px;color:var(--mut)"></div>
+    <details class="why"><summary>Why this is the differentiator</summary><div>Each method is a versioned Unity Catalog model, so "which chain-ladder booked Q2, and what changed since?" is a query, not an investigation — model risk management for free. The run is one governed object per quarter; every number traces to a model version and an input snapshot. And the selection guard still holds: an automated run stops before an unapproved pattern reaches the loss cost. A reserving package rarely offers this; a spreadsheet never can.</div></details>
+  </div>
   <div class="card"><h2>Model registry</h2><div class="h-sub">Every method is a versioned Unity Catalog model.</div>
     <table><thead><tr><th>Method</th><th>UC model</th><th class="num">Version</th><th>Alias</th><th>Owner</th></tr></thead><tbody>
     ${(g.models||[]).map(m=>`<tr><td>${methodName(m.reserving_method_code)}</td><td class="mono">${m.uc_model_name.split('.').pop()}</td><td class="num">${m.model_version}</td><td><span class="pill pill-green">${m.alias||'—'}</span></td><td>${m.owner_role}</td></tr>`).join('')}
@@ -1363,6 +1377,11 @@ PAGE.governance=async()=>{
       `<div style="margin-bottom:8px">${(a.tags||[]).map(t=>`<span class="pill pill-slate" style="margin:3px 5px 3px 0">${t.tag_name} = ${t.tag_value} (${t.n})</span>`).join('')}</div>`+
       `<div style="color:var(--mut);font-size:12px">${a.tables.length} governed objects in <span class="mono">${a.catalog}.${a.schema}</span>, all carrying the <span class="mono">[reserving-workbench]</span> comment + bxc_ tags. gen1 → gen2 is a single tag flip.</div>`;
   }catch(e){}
+  API('/api/pipeline/info').then(p=>{const el=document.getElementById('closejob');if(!el)return;
+    el.innerHTML=p.close_job_url
+      ? `Scheduled <b>quarterly, paused</b> (a demo shouldn't fire on a timer) — <a href="${p.close_job_url}" target="_blank" style="color:var(--blue);font-weight:600">open the close Job in Databricks →</a>. It has a real successful run in its history.`
+      : '<span style="color:#94a3b8">Close job not deployed in this workspace.</span>';
+  }).catch(()=>{});
 }
 async function signOff(lob){const m=document.getElementById('somsg');m.textContent='Signing off '+lob+'…';
   try{const r=await API('/api/signoff',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lob})});

@@ -232,3 +232,10 @@ complete ledger-to-capital arc at real scale.*
   net/backtest). C2 must chain ONE. Options: (a) wrap the verified tools/ scripts as job-task notebooks
   [lower risk, keeps the tested engine]; (b) bring notebook 01 to parity [cleaner long-term, more work].
   Recommend (a). A6 (bootstrap) then slots in as another task on whichever wins.
+- **2026-08-13 — Phase 3 C2 done & verified:** the quarterly close is one scheduled Databricks Job
+  (source_sync → ingestion → reserving engine → back-test), ran green end to end. Built option (a):
+  the tools/ scripts refactored to a reusable `run(w, wid)` (logic untouched, CLI shim kept) and
+  called by thin wrapper notebooks, so the automated close and a hand-run share the exact same tested
+  logic. Job created via API (bundle blocked by the app 409); resources/quarterly_close_job.yml is the
+  record. Surfaced on the governance page with a live link; scheduled quarterly + PAUSED. Smoke 28/28.
+  **Next: A6 (bootstrap distribution) as another task on this job — the last Phase-3 engine piece.**
