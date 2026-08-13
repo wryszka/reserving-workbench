@@ -246,3 +246,11 @@ complete ledger-to-capital arc at real scale.*
   floor (honest about the smooth synthetic world). Smoke 30/30.
   **Phases 1-3 all shipped.** Remaining: Phase 3.5 (H2 MCP-by-chat, G4 value callouts) and Phase 4
   (A4/A7/A8/A9/A10 engine depth, D1-D3 Designer/Excel, F2 downstream landing, F3 deeper segmentation).
+- **2026-08-13 — Phase 3.5 H2 done & verified:** MCP server (server/mcp.py, JSON-RPC at /api/mcp +
+  GET /api/mcp/manifest, mirrors pricing's routes/mcp.py). Six tools: get_triangle, compare_prior,
+  what_if (reads) + propose_selection, approve_selection (governed writes) + method_accuracy. The
+  write tools call the SAME app functions the UI calls — verified the governance holds through the
+  chat door: override-without-rationale REFUSED, proposal landed as PENDING_APPROVAL in the app's own
+  audit trail, approval triggered stage 3. Surfaced on the Workbench AI page. Smoke 30/30.
+  **Remaining: G4 (value callouts), then Phase 4 (engine depth A4/A7/A8/A9/A10, D1-D3 Designer/Excel,
+  F2 downstream landing, F3 deeper segmentation).**

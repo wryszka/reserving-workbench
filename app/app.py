@@ -903,6 +903,15 @@ def assets():
             "tables": q["tables"], "tags": q["tagged"]}
 
 
+# ------------------------------------------------------------------ MCP (operate by chat)
+# Mounted last so the tool implementations can reference the endpoint functions defined
+# above. The write tools call selection_elect / selection_approve directly — the SAME
+# governed logic the UI uses, so no rule is bypassed.
+import sys as _sys
+from server import mcp as _mcp
+app.include_router(_mcp.register(_sys.modules[__name__]))
+
+
 # ------------------------------------------------------------------ SPA
 DIST = os.path.join(os.path.dirname(__file__), "dist")
 

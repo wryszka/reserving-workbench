@@ -1289,7 +1289,17 @@ PAGE.ai=async()=>{
     <div class="agrid" id="agrid"></div>
     <div style="margin-top:12px;font-size:12px;color:var(--mut)">Live routing activity → <a onclick="go('governance')" style="cursor:pointer">Governance &amp; sign-off → AI activity</a></div>
   </div>
-  <div id="gout" style="margin-top:2px"></div>${ABOUT}`);
+  <div id="gout" style="margin-top:2px"></div>
+  <div class="card" style="border-color:#a5f3fc"><h2>Operate it by chat — the MCP server</h2>
+  <div class="h-sub">The whole workbench is a second front door for any assistant. Same governed operations, same audit trail — the governance is in the platform, not this UI.</div>
+    <div style="font-size:12.5px;color:#334155;line-height:1.6">
+      An MCP endpoint at <span class="mono">/api/mcp</span> exposes: <b>get_triangle</b>, <b>compare_prior</b>, <b>what_if</b> (reads), and the governed writes <b>propose_selection</b> and <b>approve_selection</b>. From Claude Desktop or a Genie-driven agent you can say <i>"show Commercial Property, compare to the prior, propose holding 1.667 with a rationale"</i> — and it lands as a <b>PENDING_APPROVAL</b> row in the same table the app writes to, visible in the audit trail.</div>
+    <div id="mcpinfo" style="margin-top:10px;font-size:12px;color:var(--mut)"></div>
+    <details class="why"><summary>Why this isn't a governance bypass</summary><div>The write tools call the <b>exact same functions the UI calls</b> — so every rule still holds through the chat door: an override with no rationale is refused, propose and approve are separate maker/checker acts, and the stage-3 guard still stops an unapproved pattern reaching the loss cost. Proposing from chat can't do anything proposing from the screen can't; it's the same governed record, reached a different way.</div></details>
+  </div>${ABOUT}`);
+  API('/api/mcp/manifest').then(m=>{const el=document.getElementById('mcpinfo');if(!el)return;
+    el.innerHTML=`Live: <span class="mono">${(m.server||{}).name} v${(m.server||{}).version}</span> · ${(m.tools||[]).length} tools · MCP ${m.protocol_version}. Point an MCP client at <span class="mono">${(CFG.workspace_host?'':'')}…/api/mcp</span>.`;
+  }).catch(()=>{});
   // 6 tiles = 5 specialists + Genie (3×2 grid), each coloured; Genie opens an inline ask box.
   const tiles=specs.map(s=>{const m=SPEC_META[s.key]||{icon:'✦',where:'live tables',tone:'blue'};
     return `<div class="acard t-${m.tone}" onclick="askSpecialist('${s.key}')">
