@@ -56,6 +56,13 @@ def main():
     check("back-test spans multiple past valuations", n >= 3, f"{n} valuations")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.method_backtest")[0][0])
     check("method_backtest populated", n > 0, f"{n} rows")
+    # A6: bootstrap distribution with realistic per-line CoV and a 99.5th above the mean
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.reserve_distribution")[0][0])
+    check("bootstrap distribution populated", n > 0, f"{n} rows")
+    bad = int(q(f"SELECT COUNT(*) FROM {FQ}.reserve_distribution d JOIN "
+               f"(SELECT line_of_business_code, ultimate_at_percentile mid FROM {FQ}.reserve_distribution WHERE percentile=50) m "
+               f"ON m.line_of_business_code=d.line_of_business_code WHERE d.percentile=99.5 AND d.ultimate_at_percentile <= m.mid")[0][0])
+    check("99.5th percentile sits above the median for every line", bad == 0, f"{bad} lines inverted")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.reserving_methodology")[0][0])
     check("methodology library registered", n >= 5, f"{n} methods")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.actual_vs_expected WHERE within_tolerance=false")[0][0])

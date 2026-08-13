@@ -1,0 +1,70 @@
+kind: entity
+name: reserve_distribution
+domain: reserving
+title: Bootstrap Reserve Distribution
+description: >
+  The full predictive distribution of the reserve for a line of business, from an
+  over-dispersed Poisson bootstrap of the chain-ladder (the actuary's standard way
+  to get a distribution, not just the analytic Mack standard error). Each row is one
+  percentile point of the simulated ultimate, plus the mean and the coefficient of
+  variation. This is what the capital team asks for - a 1-in-200 (99.5th) as well as
+  the best estimate - and what turns a point reserve into the SII risk margin / IFRS
+  17 risk adjustment story with a real distribution behind it. Produced by a
+  scheduled Job task (thousands of simulations), not synchronously in the app.
+grain: One row per line of business per percentile point per valuation date.
+tags:
+  project: reserving-workbench
+  layer: engine
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: distribution_id
+    type: string
+    required: true
+    description: Identifier for the distribution point row.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: The close this distribution was simulated for.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: Line of business.
+    classification: internal
+  - name: percentile
+    type: decimal(6,3)
+    required: true
+    description: >
+      The percentile point (0-100), e.g. 50 = median, 99.5 = the 1-in-200 the
+      capital model uses.
+    classification: internal
+  - name: ultimate_at_percentile
+    type: decimal(18,2)
+    required: true
+    description: Simulated ultimate loss at this percentile of the bootstrap distribution.
+    classification: internal
+  - name: mean_ultimate
+    type: decimal(18,2)
+    required: true
+    description: Mean of the simulated distribution (repeated on every row for the line).
+    classification: internal
+  - name: coefficient_of_variation
+    type: decimal(9,4)
+    required: true
+    description: Standard deviation over mean of the simulated distribution.
+    classification: internal
+  - name: n_simulations
+    type: integer
+    required: true
+    description: Number of bootstrap simulations behind the distribution.
+    classification: internal
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the amounts.
+    classification: internal
+keys:
+  primary: [distribution_id]
+owner: Chief Actuary

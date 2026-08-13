@@ -300,6 +300,18 @@ def estimates(lob: str = None):
 
 
 # ------------------------------------------------------------------ diagnostics / validation
+@app.get("/api/distribution")
+def distribution():
+    """The bootstrap predictive reserve distribution — percentile points incl. the
+    1-in-200 (99.5th) the capital team asks for. A full distribution, not just Mack's
+    analytic CoV. Produced by a scheduled Job task (thousands of sims)."""
+    rows = sql.query(
+        f"SELECT line_of_business_code, percentile, ultimate_at_percentile, mean_ultimate, "
+        f"coefficient_of_variation, n_simulations FROM {F('reserve_distribution')} "
+        f"ORDER BY line_of_business_code, percentile")
+    return {"rows": rows}
+
+
 @app.get("/api/backtest")
 def backtest():
     """Champion/challenger: how each method WOULD have performed at past valuations,

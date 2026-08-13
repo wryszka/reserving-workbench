@@ -947,12 +947,24 @@ PAGE.estimates=async()=>{
 };
 
 PAGE.variability=async()=>{
-  const v=await API('/api/variability');
+  const [v,dist]=await Promise.all([API('/api/variability'),API('/api/distribution').catch(()=>({rows:[]}))]);
+  // group distribution rows by line, keyed by percentile
+  const byLob={}; (dist.rows||[]).forEach(r=>{(byLob[r.line_of_business_code]=byLob[r.line_of_business_code]||{})[Number(r.percentile)]=r;});
+  const P=[50,75,95,99.5];
   main(`<h1>Reserve ranges</h1><p class="sub">Best estimate is only half the answer — here's how uncertain it is.</p>
-  ${explain(`The board and the regulator increasingly ask "what's your best estimate, and how uncertain is it?" The coefficient of variation and percentiles (from Mack) turn the point estimate into a range — the uncertainty that informs the Solvency II risk margin and the IFRS 17 risk adjustment.`)}
-  <div class="card"><table><thead><tr><th>LOB</th><th class="num">Best estimate</th><th class="num">Std error</th><th class="num">CoV</th><th class="num">75th pct</th><th class="num">95th pct</th></tr></thead><tbody>
+  ${explain(`The board and the regulator ask "what's your best estimate, and how uncertain is it?" Two ways here: the analytic <b>Mack</b> CoV/percentiles, and a full <b>bootstrap distribution</b> (over-dispersed Poisson) — thousands of simulations giving the whole shape, including the <b>1-in-200 (99.5th)</b> the capital model needs. The bootstrap runs as a task in the scheduled close, not in the app.`)}
+  <div class="card"><h2>Analytic (Mack)</h2><table><thead><tr><th>LOB</th><th class="num">Best estimate</th><th class="num">Std error</th><th class="num">CoV</th><th class="num">75th pct</th><th class="num">95th pct</th></tr></thead><tbody>
   ${v.rows.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.best_estimate)}</td><td class="num">${money(r.standard_error)}</td><td class="num">${(Number(r.coefficient_of_variation)*100).toFixed(1)}%</td><td class="num">${money(r.percentile_75)}</td><td class="num">${money(r.percentile_95)}</td></tr>`).join('')}
-  </tbody></table></div>${ABOUT}`);
+  </tbody></table></div>
+  ${Object.keys(byLob).length?`<div class="card" style="border-color:#c7d2fe"><h2>Bootstrap distribution — the full shape</h2>
+  <div class="h-sub">Over-dispersed Poisson bootstrap, ${(dist.rows[0]||{}).n_simulations||'2000'} simulations per line. The 99.5th is the 1-in-200 the capital team asks for.</div>
+    <table><thead><tr><th>LOB</th><th class="num">CoV</th>${P.map(p=>`<th class="num">${p===50?'Median':p+'th'}</th>`).join('')}</tr></thead><tbody>
+    ${Object.entries(byLob).map(([lob,pts])=>`<tr><td>${lob.replace(/_/g,' ')}</td>
+      <td class="num">${((pts[50]||{}).coefficient_of_variation!=null?(Number(pts[50].coefficient_of_variation)*100).toFixed(1):'—')}%</td>
+      ${P.map(p=>`<td class="num"${p===99.5?' style="color:#6d28d9;font-weight:700"':''}>${pts[p]?money(pts[p].ultimate_at_percentile):'—'}</td>`).join('')}</tr>`).join('')}
+    </tbody></table>
+    <details class="why"><summary>Bootstrap vs Mack — why both</summary><div>Mack gives an analytic standard error cheaply; the bootstrap gives the whole distribution, including the skew that matters in the tail — a long-tail line's 99.5th sits much further above its mean than a normal approximation implies. The capital model wants the 1-in-200, and it wants a distribution behind it, not a point plus a CoV. <i>(On this synthetic book the spread is calibrated to realistic per-line levels — a smooth deterministic triangle understates process variance, so the dispersion is floored to what these tail lengths actually show; the shape and percentile structure are the bootstrap's.)</i></div></details>
+  </div>`:''}${ABOUT}`);
 };
 
 PAGE.largeloss=async()=>{
