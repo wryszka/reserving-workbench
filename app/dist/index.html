@@ -1379,8 +1379,8 @@ async function askGenie(q){if(!q||!q.trim())return;const tgt=document.getElement
   }catch(e){(document.getElementById('ginner')||document.getElementById('gout')).innerHTML=`<div class="err">${e.message}</div>`;}}
 
 PAGE.governance=async()=>{
-  const g=await API('/api/governance');
-  const rec=g.reconciliation||{};
+  const [g,reg]=await Promise.all([API('/api/governance'),API('/api/regulatory').catch(()=>null)]);
+  const rec=g.reconciliation||{}; const rt=(reg&&reg.totals)||{};
   main(`<h1>Governance &amp; sign-off</h1><p class="sub">Every data point reconciled, every action logged, every model versioned.</p>
   ${explain(`The governance spine. The triangle reconciles to the ledger to the penny; every selection, judgement, sign-off and agent call is logged with who/when/why; every method is a versioned UC model. Sign-off records the as-at data version so the whole basis is reproducible for the auditor — the actuary can put their name to the number and defend it.`)}
   <div class="row">
@@ -1394,6 +1394,19 @@ PAGE.governance=async()=>{
     </tbody></table><span id="somsg" style="font-size:12.5px;color:var(--mut)"></span>
     ${wkmark('Rebuilding six-month-old numbers for the auditor from archived spreadsheets','the as-at basis reproduces from the data version on demand')}
   </div>
+  ${reg&&reg.by_lob&&reg.by_lob.length?`<div class="card" style="border-color:#bbf7d0"><h2>Where the signed number lands — Solvency II &amp; IFRS 17</h2>
+  <div class="h-sub">The last mile. The signed, discounted best estimate becomes the two regulatory numbers — built only from views this workbench already produces (the discounted runoff for the best estimate, the bootstrap distribution for the capital measures). One governed number, landed in both regimes — computed once, not re-derived downstream.</div>
+    <div class="row" style="margin-bottom:14px">
+      <div class="tile"><div class="k">Best estimate (PV)</div><div class="v sm">${money(rt.be)}</div></div>
+      <div class="tile" style="border-color:#c7d2fe;background:#faf9ff"><div class="k">SII technical provision</div><div class="v sm" style="color:#6d28d9">${money(rt.tp)}</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">incl. ${money(rt.rm)} risk margin</div></div>
+      <div class="tile" style="border-color:#a5f3fc;background:#f0fdff"><div class="k">IFRS 17 LIC</div><div class="v sm" style="color:#0e7490">${money(rt.lic)}</div><div style="color:var(--mut);font-size:11.5px;margin-top:4px">incl. ${money(rt.ra)} risk adjustment</div></div>
+    </div>
+    <table><thead><tr><th>LOB</th><th class="num">Best estimate (PV)</th><th class="num">SII risk margin</th><th class="num">SII TP</th><th class="num">IFRS 17 RA</th><th class="num">IFRS 17 LIC</th><th>Sign-off</th></tr></thead><tbody>
+    ${reg.by_lob.map(r=>`<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${money(r.best_estimate)}</td><td class="num">${money(r.sii_risk_margin)}</td><td class="num" style="color:#6d28d9">${money(r.sii_technical_provision)}</td><td class="num">${money(r.ifrs17_risk_adjustment)}</td><td class="num" style="color:#0e7490">${money(r.ifrs17_lic)}</td><td><span class="pill ${r.signoff_status==='APPROVED'?'pill-green':'pill-amber'}">${(r.signoff_status||'—').replace(/_/g,' ').toLowerCase()}</span></td></tr>`).join('')}
+    </tbody></table>
+    <details class="why"><summary>How the regulatory numbers are built (and what's illustrative)</summary><div>The <b>best estimate</b> is the discounted outstanding — the PV of the single-producer <span class="mono">reserve_cashflow_pattern</span> on the risk-free curve, exactly the figure the committee page shows. The <b>SII risk margin</b> is 6% cost-of-capital on the 1-in-200 capital (99.5th over mean, from the bootstrap distribution); the <b>IFRS 17 risk adjustment</b> is the 75th-percentile margin over the mean. Those two calibrations are <i>illustrative demo values</i> — a real close plugs in the firm's cost-of-capital and target confidence level. What's <b>real</b> is the lineage: <span class="mono">reserve_signoff</span> → <span class="mono">reserve_discounted</span> + <span class="mono">reserve_distribution</span> → <span class="mono">regulatory_landing</span>, all views, so the SII and IFRS 17 workbenches consume this seam rather than each re-running chain-ladder. That is the duplication this kills.</div></details>
+    ${wkmark('Hand-copying the reserve into the SII and IFRS 17 workbooks, each re-deriving the runoff','one signed number lands in both regimes as a governed view')}
+  </div>`:''}
   <div class="card" style="border-color:#a5f3fc"><h2>The quarterly close, as one scheduled Job</h2>
   <div class="h-sub">The MLOps beat: the whole close runs end to end on a schedule — reproducible, versioned, guarded. What a spreadsheet team never had.</div>
     <div class="seam" style="margin-bottom:10px">

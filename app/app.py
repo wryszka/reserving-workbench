@@ -339,6 +339,24 @@ def discounting():
     return {"by_lob": by_lob, "totals": (tot[0] if tot else {}), "curve": curve}
 
 
+@app.get("/api/regulatory")
+def regulatory():
+    """F2 — the last mile: the signed reserve landed as regulatory numbers. Solvency II
+    technical provision (BE + risk margin) and IFRS 17 LIC (BE + risk adjustment) per line,
+    built ONLY from views this workbench already produces (reserve_discounted for the BE,
+    reserve_distribution for the capital measures). Closes the ledger→regulatory-cell arc."""
+    rows = sql.query(
+        f"SELECT line_of_business_code, best_estimate, best_estimate_undiscounted, "
+        f"sii_risk_margin, sii_technical_provision, ifrs17_risk_adjustment, ifrs17_lic, "
+        f"coefficient_of_variation, signoff_status, signed_by, data_version, curve_version "
+        f"FROM {F('regulatory_landing')} ORDER BY sii_technical_provision DESC")
+    tot = sql.query(
+        f"SELECT round(sum(best_estimate),0) be, round(sum(sii_risk_margin),0) rm, "
+        f"round(sum(sii_technical_provision),0) tp, round(sum(ifrs17_risk_adjustment),0) ra, "
+        f"round(sum(ifrs17_lic),0) lic FROM {F('regulatory_landing')}")
+    return {"by_lob": rows, "totals": (tot[0] if tot else {})}
+
+
 @app.get("/api/backtest")
 def backtest():
     """Champion/challenger: how each method WOULD have performed at past valuations,
@@ -509,7 +527,7 @@ LIFECYCLE = [
      "where": "reserve_estimate (+ranges)", "status": "next"},
     {"n": 8, "stage": "Downstream & close",
      "answers": "Single-producer contract to Solvency II TP, IFRS 17 LIC, GL recon, capital model; the reserving close cockpit",
-     "where": "reserve_cashflow_pattern", "status": "next"},
+     "where": "regulatory_landing (SII TP + IFRS 17 LIC)", "status": "built"},
 ]
 
 

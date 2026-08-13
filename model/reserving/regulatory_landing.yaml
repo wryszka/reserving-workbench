@@ -1,0 +1,73 @@
+kind: view
+name: regulatory_landing
+domain: reserving
+title: Regulatory Landing (SII TP / IFRS 17 LIC)
+description: >
+  The last mile: where a signed reserve becomes the regulatory numbers. For each
+  line it lands the same governed best estimate in both regimes - the Solvency II
+  technical provision (best estimate + risk margin) and the IFRS 17 Liability for
+  Incurred Claims (best estimate + risk adjustment) - built ONLY from views this
+  workbench already produces: the discounted outstanding (reserve_discounted, the
+  PV of the single-producer cashflow pattern) as the best estimate, and the
+  bootstrap distribution (reserve_distribution) for the capital and confidence
+  measures. Nothing is re-derived: the SII and IFRS 17 workbenches consume this
+  seam rather than each re-running chain-ladder. The risk margin (6% cost-of-capital
+  on the 1-in-200 capital, a standard simplification) and the risk adjustment (the
+  75th-percentile margin over the mean) are illustrative demo calibrations, clearly
+  labelled - the point is the LINEAGE from ledger to regulatory cell, computed once.
+grain: One row per line of business per valuation date (chain-ladder booking basis).
+tags:
+  project: reserving-workbench
+  layer: engine
+  gen: gen1
+  domain: reserving
+standards:
+  acord: Solvency II S.19.01 / IFRS 17 LIC (indicative)
+sql: |
+  WITH disc AS (
+    SELECT
+      line_of_business_code,
+      SUM(undiscounted_outstanding)                        AS undiscounted_be,
+      SUM(discounted_outstanding)                          AS discounted_be,
+      MAX(curve_version)                                   AS curve_version
+    FROM {reserving.reserve_discounted}
+    WHERE reserving_method_code = 'CHAIN_LADDER'
+    GROUP BY line_of_business_code
+  ),
+  dist AS (
+    SELECT
+      line_of_business_code,
+      MAX(CASE WHEN percentile = 50   THEN ultimate_at_percentile END) AS ult_p50,
+      MAX(CASE WHEN percentile = 75   THEN ultimate_at_percentile END) AS ult_p75,
+      MAX(CASE WHEN percentile = 99.5 THEN ultimate_at_percentile END) AS ult_p995,
+      MAX(mean_ultimate)                                               AS ult_mean,
+      MAX(coefficient_of_variation)                                    AS cov
+    FROM {reserving.reserve_distribution}
+    GROUP BY line_of_business_code
+  ),
+  so AS (
+    SELECT line_of_business_code, signed_best_estimate, status_code, signed_by,
+           reserving_method_code, selection_id, data_version, valuation_date
+    FROM {reserving.reserve_signoff}
+  )
+  SELECT
+    d.line_of_business_code,
+    so.valuation_date,
+    so.status_code                                          AS signoff_status,
+    so.signed_by,
+    so.data_version,
+    d.curve_version,
+    ROUND(d.discounted_be, 2)                               AS best_estimate,
+    ROUND(d.undiscounted_be, 2)                             AS best_estimate_undiscounted,
+    -- SII risk margin: 6% cost-of-capital on the 1-in-200 capital (99.5th over mean).
+    ROUND(GREATEST(di.ult_p995 - di.ult_mean, 0) * 0.06, 2) AS sii_risk_margin,
+    ROUND(d.discounted_be
+          + GREATEST(di.ult_p995 - di.ult_mean, 0) * 0.06, 2) AS sii_technical_provision,
+    -- IFRS 17 risk adjustment: the 75th-percentile margin over the mean (a confidence-level RA).
+    ROUND(GREATEST(di.ult_p75 - di.ult_mean, 0), 2)         AS ifrs17_risk_adjustment,
+    ROUND(d.discounted_be
+          + GREATEST(di.ult_p75 - di.ult_mean, 0), 2)       AS ifrs17_lic,
+    ROUND(di.cov, 4)                                        AS coefficient_of_variation
+  FROM disc d
+  JOIN dist di ON di.line_of_business_code = d.line_of_business_code
+  LEFT JOIN so ON so.line_of_business_code = d.line_of_business_code

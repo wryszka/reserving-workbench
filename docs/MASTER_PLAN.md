@@ -274,3 +274,12 @@ complete ledger-to-capital arc at real scale.*
   £22.8m→£18.1m. Deployed to DEV, close_tools re-uploaded (scheduled close reproduces A9), smoke 34/34,
   demo reset clean. **Remaining Phase 4: A4/A7/A8/A10 engine depth, D1-D3 Designer/Excel, F2 (now unblocked),
   F3 deeper segmentation.**
+- **2026-08-13 — Phase 4 F2 (downstream landing) done & verified:** new `regulatory_landing` view closes
+  the ledger→regulatory arc — the signed, discounted best estimate lands as the Solvency II technical
+  provision (BE + 6%-CoC risk margin on the 1-in-200 capital) and the IFRS 17 LIC (BE + 75th-pctile risk
+  adjustment), per line. Built ONLY from views already produced: reserve_signoff → reserve_discounted (A9)
+  + reserve_distribution (A6). Risk-margin/RA calibrations labelled illustrative in-app; the LINEAGE is the
+  real point (computed once, both regimes consume the seam). Surfaced on the Governance page after sign-off;
+  lifecycle stage 8 flipped stub→built. Re-ran bootstrap (stale degenerate Marine CoV → correct 6%). Book
+  BE £16.5m → SII TP £17.6m / IFRS 17 LIC £20.3m. Deployed, smoke 36/36, demo reset clean.
+  **Remaining Phase 4: A4/A7/A8/A10 engine depth, D1-D3 Designer/Excel, F3 deeper segmentation.**

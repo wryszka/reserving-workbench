@@ -82,6 +82,12 @@ def main():
     coll = int(q(f"SELECT COUNT(*) FROM (SELECT reserve_estimate_id FROM {FQ}.reserve_estimate "
                  f"GROUP BY reserve_estimate_id HAVING COUNT(DISTINCT line_of_business_code)>1)")[0][0])
     check("reserve_estimate ids are collision-free across lines", coll == 0, f"{coll} colliding ids")
+    # F2: regulatory landing — signed reserve becomes SII TP + IFRS 17 LIC, built from views
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.regulatory_landing")[0][0])
+    check("regulatory landing populated (SII TP / IFRS 17 LIC)", n >= 5, f"{n} lines")
+    bad = int(q(f"SELECT COUNT(*) FROM {FQ}.regulatory_landing WHERE "
+                f"sii_technical_provision < best_estimate OR ifrs17_lic < best_estimate")[0][0])
+    check("regulatory provisions sit at or above the best estimate", bad == 0, f"{bad} below BE")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.reserving_methodology")[0][0])
     check("methodology library registered", n >= 5, f"{n} methods")
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.actual_vs_expected WHERE within_tolerance=false")[0][0])
