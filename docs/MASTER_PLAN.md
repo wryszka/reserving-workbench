@@ -239,3 +239,10 @@ complete ledger-to-capital arc at real scale.*
   logic. Job created via API (bundle blocked by the app 409); resources/quarterly_close_job.yml is the
   record. Surfaced on the governance page with a live link; scheduled quarterly + PAUSED. Smoke 28/28.
   **Next: A6 (bootstrap distribution) as another task on this job — the last Phase-3 engine piece.**
+- **2026-08-13 — Phase 3 COMPLETE (A6 done & verified):** ODP bootstrap predictive distribution
+  (reserve_distribution) added as a close-job task; the full close now runs source → ingestion →
+  reserving → back-test + bootstrap, all green end to end. Ranges page shows Mack + bootstrap side by
+  side with the 1-in-200. Bootstrap dispersion calibrated to the same per-line targets as the Mack
+  floor (honest about the smooth synthetic world). Smoke 30/30.
+  **Phases 1-3 all shipped.** Remaining: Phase 3.5 (H2 MCP-by-chat, G4 value callouts) and Phase 4
+  (A4/A7/A8/A9/A10 engine depth, D1-D3 Designer/Excel, F2 downstream landing, F3 deeper segmentation).
