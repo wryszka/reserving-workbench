@@ -1367,6 +1367,31 @@ PAGE.engines=async()=>{
     </tbody></table>
     <details class="why"><summary>Why lead with this rather than the triangle mechanics?</summary><div>Because the mechanics are not the differentiator — everyone has them. The data going in, the governance around, and the narrative coming out are. A team that already runs its own models in R and Python doesn't want them replaced; it wants them versioned, reproducible, off one analyst's laptop, and fed by data that reconciles. That is what this page is: the engine is a step, and we own everything around it.</div></details>
   </div>
+  <div class="card" style="border-color:#bbf7d0;background:linear-gradient(180deg,#f6fef9,#fff)"><h2>Meet the actuary where they live — Excel &amp; Designer, still governed</h2>
+  <div class="h-sub">Two more doors into the same governed record. Not "leave your tools" — "use them, but let the platform own the lineage."</div>
+    <div class="doors">
+      <div class="door" onclick="dlCommitteePack(event)">
+        <div class="dn">D3 · read out</div><div class="dt">One-click committee pack</div>
+        <div class="dd">An .xlsx of the signed ultimates, the selection each rests on, and the audit trail — every number still carrying its <span class="mono">selection_id</span>, approver and rationale. Your Excel, with lineage.</div>
+        <div class="dgo">↓ Download the pack</div></div>
+      <div class="door" onclick="dlTemplate(event)">
+        <div class="dn">D2 · write back</div><div class="dt">Selection template → governed row</div>
+        <div class="dd">Fill factors and a rationale in Excel, upload it, and it lands a PENDING_APPROVAL selection via the <b>same governed path</b> as the app — override needs a rationale, same audit trail. Excel as a first-class door.</div>
+        <div class="dgo">↓ Download the template</div></div>
+      <div class="door" style="cursor:default">
+        <div class="dn">D2 · read live</div><div class="dt">The metric view, live in Excel</div>
+        <div class="dd">Point Excel at the <span class="mono">reserving_metrics</span> metric view over the Databricks connector — one governed KPI definition, refreshed on open. No exported-then-stale CSV; the actuary's grid reads the certified numbers directly.</div>
+        <div class="dgo" style="color:#94a3b8">connection guide below</div></div>
+    </div>
+    <div id="xlmsg" style="font-size:12.5px;color:var(--mut);margin-top:10px"></div>
+    <div style="margin-top:12px">
+      <input type="file" id="wbfile" accept=".xlsx" style="display:none">
+      <span id="wbresult" style="font-size:12.5px"></span>
+    </div>
+    <details class="why"><summary>The metric-view connection (read live from Excel)</summary><div>In Excel: <b>Data → Get Data → From Database → Azure Databricks / Databricks</b>, point it at this workspace's SQL warehouse, and select <span class="mono">${(CFG.catalog||'lr_dev_aws_us_catalog')}.${(CFG.schema||'reserving_workbench')}.reserving_metrics</span>. Because it's a <b>metric view</b>, the measures (<span class="mono">paid_to_date</span>, <span class="mono">incurred_to_date</span>, …) are defined once on the platform — so the reserving actuary, the finance close and Genie all read the identical figures, and the spreadsheet can't drift its own definition. It refreshes on open: no more emailing a workbook that was already stale when it was sent.</div></details>
+    <div style="margin-top:8px;background:#f8fafc;border:1px solid var(--line);border-left:3px solid #94a3b8;border-radius:0 8px 8px 0;padding:10px 14px;font-size:12px;color:#475569"><b>D1 · Lakeflow Designer</b> — the non-SQL analyst can build the stage-1 prep flow visually (drag sources, joins, the large-loss exclusion) and it writes the <b>same governed output table</b> the SQL prep does. A different front door onto the identical pipeline — no code, same lineage.</div>
+    ${wkmark('Emailing a workbook that was stale before it arrived, its numbers untraceable','the committee pack carries its own lineage; the template writes to the governed record')}
+  </div>
   <div class="card"><h2>Straight talk — what runs here, what you bring, what a package still does better</h2>
   <div class="h-sub">No overclaiming. This is where the boundary is, honestly.</div>
     <table><thead><tr><th>Capability</th><th>Native here</th><th>Bring your model</th><th>A package still leads</th></tr></thead><tbody>
@@ -1387,7 +1412,38 @@ PAGE.engines=async()=>{
     <div style="margin-top:10px;color:var(--mut);font-size:12.5px">The green column is what a team with <b>no package</b> gets on day one. The last column is exactly why we don't pretend to replace a reserving package — and why "plug yours in" is a real option, not a fallback.</div>
   </div>
   ${ABOUT}`);
+  const wf=document.getElementById('wbfile');
+  if(wf) wf.onchange=uploadWriteback;
 };
+async function dlFile(url, fallbackName, ev){
+  const msg=document.getElementById('xlmsg'); if(msg) msg.textContent='Building '+fallbackName+'…';
+  try{
+    const r=await fetch(url); if(!r.ok) throw new Error('HTTP '+r.status);
+    const blob=await r.blob();
+    const cd=r.headers.get('Content-Disposition')||''; const m=cd.match(/filename="?([^"]+)"?/);
+    const name=m?m[1]:fallbackName;
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    if(msg) msg.innerHTML=`<span style="color:#16a34a">✓ Downloaded ${name}</span>`;
+  }catch(e){ if(msg) msg.innerHTML=`<span style="color:#dc2626">Download failed: ${e.message}</span>`; }
+}
+function dlCommitteePack(ev){ dlFile('/api/excel/committee-pack','reserving_committee_pack.xlsx',ev); }
+function dlTemplate(ev){
+  dlFile('/api/excel/writeback-template','reserving_selection_template.xlsx',ev);
+  const r=document.getElementById('wbresult');
+  if(r) r.innerHTML=`&nbsp; <button class="btn" style="padding:6px 12px;background:#16a34a" onclick="document.getElementById('wbfile').click()">↑ Upload a filled template</button>`;
+}
+async function uploadWriteback(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const res=document.getElementById('wbresult'); res.innerHTML='<span class="load">Reading the template and landing the selection…</span>';
+  try{
+    const fd=new FormData(); fd.append('file', f);
+    const r=await fetch('/api/excel/writeback',{method:'POST',body:fd}).then(x=>x.json());
+    if(!r.ok){ res.innerHTML=`<span style="color:#dc2626">⛔ ${r.error}</span>`; return; }
+    res.innerHTML=`<span style="color:#16a34a">✓ Landed <b>${r.selection_id}</b> for ${(r.lob||'').replace(/_/g,' ')} as <b>PENDING_APPROVAL</b> (source ${r.source}) — the same governed row the app writes, now from Excel. See it on the Triangle page's audit trail or approve it on Governance.</span>`;
+  }catch(e){ res.innerHTML=`<span style="color:#dc2626">Upload failed: ${e.message}</span>`; }
+  ev.target.value='';
+}
 
 PAGE.genie=async()=>{
   const url=CFG.genie_embed_url;

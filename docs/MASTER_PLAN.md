@@ -309,3 +309,15 @@ complete ledger-to-capital arc at real scale.*
   audit-trailed (AE-AP-%), validation refuses LR outside (0,3); reset restores seeded LRs. **A-ENGINE
   TRANCHE COMPLETE** (A1-A10 all shipped). close_tools re-uploaded. Smoke 41/41.
   **Remaining Phase 4: D1-D3 Designer/Excel on-ramps, F3 deeper segmentation.**
+- **2026-08-13 — Phase 4 D2/D3/D1 (Excel & Designer on-ramps) done & verified:** new server/excel.py
+  (openpyxl, added to requirements). **D3** one-click committee pack — `/api/excel/committee-pack` streams
+  a styled 3-sheet .xlsx (signed reserves, the selections behind them, the audit trail), so the workbook
+  that leaves the platform still carries selection_id/approver/rationale. **D2** Excel as a first-class
+  surface: `/api/excel/writeback-template` (fillable .xlsx) + `/api/excel/writeback` (upload) lands a
+  PENDING_APPROVAL selection by REUSING selection_elect — verified the same governance holds through the
+  Excel door (filled MARINE template landed SEL-LIVE-MARI-…; a no-rationale upload was REFUSED with the
+  identical message as the app); plus a documented live metric-view connection (reserving_metrics read from
+  Excel, one governed KPI definition). **D1** Lakeflow Designer framed as the no-code prep on-ramp (same
+  governed output table). All three surfaced as an "Excel & Designer" card on the Engines page. Downloads
+  stream valid .xlsx (verified via file(1)); reset clears Excel-authored selections. Smoke 41/41, demo clean.
+  **Remaining Phase 4: F3 deeper segmentation — the last item.**

@@ -3,13 +3,13 @@ engine table / UC function / metric view / serving endpoint. No reserving logic 
 import json
 import os
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import FileResponse, Response
 
 import datetime
 import uuid
 
-from server import agents, config, genie_api, jobs, reserving, sql
+from server import agents, config, excel, genie_api, jobs, reserving, sql
 
 app = FastAPI(title="Reserving Workbench — Bricksurance SE")
 F = config.fqn
@@ -441,6 +441,57 @@ def regulatory():
         f"round(sum(sii_technical_provision),0) tp, round(sum(ifrs17_risk_adjustment),0) ra, "
         f"round(sum(ifrs17_lic),0) lic FROM {F('regulatory_landing')}")
     return {"by_lob": rows, "totals": (tot[0] if tot else {})}
+
+
+@app.get("/api/excel/committee-pack")
+def excel_committee_pack():
+    """D3 — one-click committee pack: an .xlsx of the signed ultimates, the selection each
+    rests on, and the audit trail — so the workbook that leaves the platform still carries
+    the selection_id, approver and rationale behind every number. Excel with lineage."""
+    signoff = sql.query(
+        f"SELECT line_of_business_code, signed_best_estimate, reserving_method_code, selection_id, "
+        f"data_version, status_code, signed_by FROM {F('reserve_signoff')} ORDER BY line_of_business_code")
+    selections = sql.query(
+        f"SELECT selection_id, line_of_business_code, source_code, tail_factor, approved_by, rationale "
+        f"FROM {F('selected_development_pattern')} WHERE status_code='APPROVED' ORDER BY line_of_business_code")
+    audit = sql.query(
+        f"SELECT created_at, event_type, entity_id, detail, actor FROM {F('5_gov_audit_event')} "
+        f"ORDER BY created_at DESC LIMIT 40")
+    data = excel.committee_pack(signoff, selections, audit, config.VALUATION_DATE, config.ENTITY)
+    fname = f"reserving_committee_pack_{config.VALUATION_DATE}.xlsx"
+    return Response(content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+@app.get("/api/excel/writeback-template")
+def excel_writeback_template():
+    """D2 — the selection write-back template: an analyst fills line/factors/rationale in Excel;
+    uploading it lands a PENDING_APPROVAL selection via the same governed path as the app."""
+    lobs = [r["lob"] for r in sql.query(
+        f"SELECT DISTINCT line_of_business_code lob FROM {F('loss_development')} ORDER BY lob")]
+    data = excel.writeback_template(lobs)
+    return Response(content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="reserving_selection_template.xlsx"'})
+
+
+@app.post("/api/excel/writeback")
+async def excel_writeback(file: UploadFile = File(...)):
+    """D2 — read a filled write-back template and land it as a PENDING_APPROVAL selection.
+    Reuses selection_elect, so the SAME governance holds: an override needs a rationale, the
+    pick lands in the same audit trail as the app / notebook / SQL / MCP. Excel is just another door."""
+    try:
+        raw = await file.read()
+        parsed = excel.parse_writeback(raw)
+    except Exception as e:
+        return {"ok": False, "error": f"Couldn't read the template: {str(e)[:200]}"}
+    # a write-back is treated as a manual override (an analyst set the factors by hand),
+    # so the rationale requirement applies — exactly as in the app.
+    return selection_elect({"lob": parsed["lob"], "factors": parsed["factors"],
+                            "tail": parsed["tail"], "basis": "VOLUME_WEIGHTED",
+                            "overrode": True, "rationale": parsed["rationale"],
+                            "via": "excel"})
 
 
 @app.get("/api/backtest")
