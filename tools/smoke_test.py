@@ -88,6 +88,15 @@ def main():
     cp, ci = float(row[0] or 0), float(row[1] or 0)
     check("incurred triangle present and above paid at dev 0 (case reserves)", ci > cp > 0,
           f"paid {cp:,.0f} incurred {ci:,.0f}")
+    # A8: frequency-severity triangle — reported counts develop, and the AY2023 CP spike is severity
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.claim_count_triangle WHERE cumulative_reported_count>0")[0][0])
+    check("claim count triangle populated", n > 0, f"{n} cells")
+    row = q(f"SELECT max(CASE WHEN development_lag=0 THEN avg_cost_per_claim END), "
+            f"max(CASE WHEN development_lag=1 THEN avg_cost_per_claim END) "
+            f"FROM {FQ}.claim_count_triangle WHERE line_of_business_code='COMMERCIAL_PROPERTY' AND accident_year=2023")[0]
+    c0, c1 = float(row[0] or 0), float(row[1] or 0)
+    check("AY2023 CP spike shows as severity (avg cost jumps dev0→1)", c1 > c0 * 2,
+          f"avg cost {c0:,.0f} → {c1:,.0f}")
     # F2: regulatory landing — signed reserve becomes SII TP + IFRS 17 LIC, built from views
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.regulatory_landing")[0][0])
     check("regulatory landing populated (SII TP / IFRS 17 LIC)", n >= 5, f"{n} lines")

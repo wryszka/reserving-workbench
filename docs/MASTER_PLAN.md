@@ -292,3 +292,12 @@ complete ledger-to-capital arc at real scale.*
   on the Triangle page. Scope kept honest: incurred is a selection-time diagnostic; the booked engine stays
   paid. Verified GL paid £17.1m vs incurred £19.1m; CP convergence -3.8%. Smoke 37/37, demo reset clean.
   **Remaining Phase 4: A4/A8/A10 engine depth, D1-D3 Designer/Excel, F3 deeper segmentation.**
+- **2026-08-13 — Phase 4 A8 (frequency-severity) + A10 (residual heatmap) done & verified:** A8 new
+  `claim_count_triangle` view (over the ledger, no stored data) — cumulative reported count + avg cost per
+  claim by AY×lag; frequency-severity card on Diagnostics. It literally shows the seeded AY2023 CP anomaly
+  as a SEVERITY event (count 10→11 but avg cost £54k→£177k), proving from the ledger the fix is to reserve
+  the large loss individually. A10 `reserving.residual_heatmap()` + `/api/residuals` — standardised
+  actual-vs-expected residual per observed cell (the Mack diagnostic), shaded blue/red heatmap on
+  Diagnostics; correctly lights exactly one hot cell (AY2023 dev0→1 at +2.34σ). Both are views/computed,
+  no new stored data. Smoke 39/39, demo reset clean.
+  **Remaining Phase 4: A4 editable a-priori, D1-D3 Designer/Excel, F3 deeper segmentation.**

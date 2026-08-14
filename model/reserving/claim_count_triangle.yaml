@@ -1,0 +1,74 @@
+kind: view
+name: claim_count_triangle
+domain: reserving
+title: Claim Count & Average-Cost Triangle
+description: >
+  The frequency-severity companion to the paid triangle, derived entirely from the
+  claim ledger: for every accident year and development lag, the cumulative number
+  of reported claims (a claim is "reported" at the development lag of its first
+  financial movement), the cumulative paid, and the implied average cost per
+  reported claim. Nothing is stored - it is a view over 1_raw_claim /
+  1_raw_claim_transaction, so it reconciles to the same ledger the paid triangle
+  does. This is the pricing actuary's decomposition (frequency x severity) and a
+  reserving cross-check: a paid triangle developing on rising average cost tells a
+  different story from one developing on late-reported counts, and only splitting
+  them shows which. Reporting-lag (IBNyR) shows up here as counts still emerging at
+  later lags; average-cost inflation shows up as the severity column trending.
+grain: One row per accident year per development lag per line of business.
+tags:
+  project: reserving-workbench
+  layer: semantic
+  gen: gen1
+  domain: reserving
+sql: |
+  WITH first_move AS (
+    -- the development lag at which each claim is first seen (reported)
+    SELECT
+      ct.claim_id,
+      MIN(ct.transaction_year) AS first_txn_year
+    FROM {reserving.1_raw_claim_transaction} ct
+    GROUP BY ct.claim_id
+  ),
+  reported AS (
+    SELECT
+      c.line_of_business_code,
+      c.accident_year,
+      GREATEST(fm.first_txn_year - c.accident_year, 0) AS report_lag,
+      COUNT(*)                                         AS claims_reported
+    FROM {reserving.1_raw_claim} c
+    JOIN first_move fm ON fm.claim_id = c.claim_id
+    GROUP BY c.line_of_business_code, c.accident_year,
+             GREATEST(fm.first_txn_year - c.accident_year, 0)
+  ),
+  paid AS (
+    SELECT
+      line_of_business_code,
+      accident_year,
+      development_lag,
+      cumulative_paid
+    FROM {reserving.loss_development}
+  ),
+  lags AS (
+    SELECT DISTINCT line_of_business_code, accident_year, development_lag FROM paid
+  )
+  SELECT
+    l.line_of_business_code,
+    l.accident_year,
+    l.development_lag,
+    -- cumulative reported count up to and including this lag
+    COALESCE(SUM(r.claims_reported) OVER (
+      PARTITION BY l.line_of_business_code, l.accident_year
+      ORDER BY l.development_lag ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 0) AS cumulative_reported_count,
+    p.cumulative_paid,
+    ROUND(p.cumulative_paid / NULLIF(COALESCE(SUM(r.claims_reported) OVER (
+      PARTITION BY l.line_of_business_code, l.accident_year
+      ORDER BY l.development_lag ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 0), 0), 2) AS avg_cost_per_claim
+  FROM lags l
+  LEFT JOIN reported r
+    ON  r.line_of_business_code = l.line_of_business_code
+    AND r.accident_year = l.accident_year
+    AND r.report_lag = l.development_lag
+  LEFT JOIN paid p
+    ON  p.line_of_business_code = l.line_of_business_code
+    AND p.accident_year = l.accident_year
+    AND p.development_lag = l.development_lag

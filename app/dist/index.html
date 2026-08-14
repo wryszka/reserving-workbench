@@ -142,6 +142,9 @@
   .wkmark .wm-ic{font-size:13px;opacity:.6;flex-shrink:0}
   .wkmark .was{text-decoration:line-through;text-decoration-color:#cbd5e1;color:#94a3b8}
   .wkmark b{color:#334155;font-weight:700}
+  /* A10 · residual heatmap shading — diverging blue(neg)/white(0)/red(pos) */
+  .heat td.hc{color:#0f172a;font-variant-numeric:tabular-nums;text-align:right;border:1px solid #fff}
+  .heat .lg{display:inline-block;width:16px;height:12px;border-radius:2px;vertical-align:middle;margin:0 2px}
 </style>
 </head>
 <body>
@@ -1041,8 +1044,52 @@ PAGE.movement=async()=>{
   </div>${ABOUT}`);
 };
 
+// A8 · frequency-severity: two mini-triangles (reported count, average cost per claim)
+// over the same ledger as the paid triangle. Shows whether development is counts or severity.
+function freqSevCard(fs){
+  const ays=fs.accident_years, lags=fs.development_lags;
+  const cm={}; fs.count.forEach(c=>cm[c.ay+'_'+c.lag]=c.v);
+  const am={}; fs.avg_cost.forEach(c=>am[c.ay+'_'+c.lag]=c.v);
+  const head='<tr><th>AY \\ dev</th>'+lags.map(l=>`<th>${l}</th>`).join('')+'</tr>';
+  const tri=(map,fmtf)=>ays.map(ay=>{
+    const tds=lags.map(l=>{const v=map[ay+'_'+l];const obs=(ay+l)<=2026;
+      return v==null?'<td class="fut">·</td>':`<td class="${obs?'obs':'fut'}">${fmtf(v)}</td>`;}).join('');
+    return `<tr><td>${ay}</td>${tds}</tr>`;}).join('');
+  return `<div class="card" style="border-color:#c7d2fe"><h2>Frequency &amp; severity — ${fs.lob.replace(/_/g,' ')}</h2>
+  <div class="h-sub">The paid triangle split into its two drivers: how many claims are reported (frequency) and the average cost of each (severity). Same ledger, same reconciliation — just decomposed. A paid triangle that develops on rising average cost tells a different story than one developing on late counts.</div>
+    <div style="display:flex;gap:22px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px"><div style="font-weight:700;font-size:12.5px;margin-bottom:6px">Cumulative reported claim count</div>
+        <div style="overflow-x:auto"><table class="tri"><thead>${head}</thead><tbody>${tri(cm,v=>fmt(v))}</tbody></table></div></div>
+      <div style="flex:1;min-width:300px"><div style="font-weight:700;font-size:12.5px;margin-bottom:6px">Average cost per reported claim</div>
+        <div style="overflow-x:auto"><table class="tri"><thead>${head}</thead><tbody>${tri(am,v=>money(v))}</tbody></table></div></div>
+    </div>
+    <details class="why"><summary>What this reveals on this book</summary><div>Look at <b>Commercial Property AY2023</b>: the reported count barely moves (10 → 11 at dev 1), but the average cost <b>leaps</b> (~£54k → ~£177k). That is the signature of a <b>severity</b> event — one large late-reported loss — not a frequency one, and it's exactly the cohort whose paid factor spiked to 3.63. The decomposition proves, from the ledger, that the fix is to reserve the large loss individually (not to re-rate the whole cohort's frequency). This split is free here because both triangles are views over the one claim ledger.</div></details>
+    ${wkmark('Building and reconciling separate count and severity triangles by hand','both fall out of the same governed ledger view')}
+  </div>`;
+}
+// A10 · residual heatmap — colour each observed cell by its standardised residual.
+function heatColor(r){
+  const x=Math.max(-3,Math.min(3,Number(r||0)))/3;  // clamp to ±3 sd
+  if(x>=0){const a=x; return `rgba(220,38,38,${(0.12+a*0.72).toFixed(2)})`;}   // red = above expected
+  const a=-x; return `rgba(37,99,235,${(0.12+a*0.72).toFixed(2)})`;             // blue = below expected
+}
+function residualCard(h){
+  const ays=h.accident_years, lags=h.development_lags;
+  const m={}; h.cells.forEach(c=>m[c.accident_year+'_'+c.dev_lag]=c);
+  const head='<tr><th>AY \\ dev</th>'+lags.map(l=>`<th>${l}→${l+1}</th>`).join('')+'</tr>';
+  const body=ays.map(ay=>{
+    const tds=lags.map(l=>{const c=m[ay+'_'+l];if(!c)return '<td class="fut">·</td>';
+      return `<td class="hc" style="background:${heatColor(c.residual)}" title="AY${ay} ${l}→${l+1}: factor ${c.individual_factor} vs selected ${c.selected_factor}, residual ${c.residual>=0?'+':''}${c.residual}σ">${c.residual>=0?'+':''}${c.residual.toFixed(1)}</td>`;}).join('');
+    return `<tr><td>${ay}</td>${tds}</tr>`;}).join('');
+  return `<div class="card"><h2>Residual heatmap — ${h.lob.replace(/_/g,' ')}</h2>
+  <div class="h-sub">Every observed development step scored against the selected factor for its period, standardised (σ). The Mack diagnostic: a random scatter of pale cells means the chain-ladder assumption holds; a row, column or diagonal that lights up means it doesn't.</div>
+    <div class="heat" style="overflow-x:auto"><table class="tri"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    <div style="margin-top:8px;font-size:11.5px;color:var(--mut)"><span class="lg" style="background:rgba(37,99,235,.7)"></span> below expected &nbsp;&nbsp;<span class="lg" style="background:rgba(220,38,38,.15)"></span> ≈ expected &nbsp;&nbsp;<span class="lg" style="background:rgba(220,38,38,.7)"></span> above expected</div>
+    <details class="why"><summary>How to read a residual heatmap</summary><div>Each cell is <span class="mono">(individual factor − selected factor) / sd of factors at that period</span>. <b>Random pale scatter</b> = the development pattern is stable, chain-ladder is appropriate. A <b>hot row</b> = one accident year developing unlike the rest (e.g. the AY2023 CP loss shows a deep-red early cell). A <b>hot diagonal</b> = a calendar-year effect (claims inflation, a process change) hitting every cohort at once — the thing chain-ladder can't see but this display can. It turns "is CL OK here?" from a judgement call into a picture.</div></details>
+  </div>`;
+}
 PAGE.diagnostics=async()=>{
-  const [d,rf,l]=await Promise.all([API('/api/diagnostics'),API('/api/rollforward?lob=COMMERCIAL_PROPERTY'),API('/api/large-losses')]);
+  const [d,rf,l,fs,hm]=await Promise.all([API('/api/diagnostics'),API('/api/rollforward?lob=COMMERCIAL_PROPERTY'),API('/api/large-losses'),API('/api/frequency_severity?lob='+encodeURIComponent(LOB)).catch(()=>null),API('/api/residuals?lob='+encodeURIComponent(LOB)).catch(()=>null)]);
   const money0=(n)=>(n>=0?'+':'')+money(n);
   main(`<h1>Diagnostics</h1><p class="sub">Validate the methods, explain the movement, and separate the large losses.</p>
   ${explain(`Three checks in one place. <b>Actual-vs-expected</b> validates the methods against emerging experience — breaches beyond ±2.5 are flagged. <b>Roll-forward</b> answers "why did reserves move?" by driver. <b>Large-loss review</b> separates the individual claims that distort factors (and drive overrides) from attritional experience.`)}
@@ -1052,6 +1099,8 @@ PAGE.diagnostics=async()=>{
     <table><thead><tr><th>LOB</th><th class="num">AY</th><th class="num">Expected</th><th class="num">Actual</th><th class="num">Variance</th><th class="num">Std resid</th><th>Status</th></tr></thead><tbody>
     ${d.actual_vs_expected.map(r=>{const ok=r.within_tolerance==='true'||r.within_tolerance===true;return `<tr><td>${r.line_of_business_code.replace(/_/g,' ')}</td><td class="num">${r.accident_year}</td><td class="num">${money(r.expected_emergence)}</td><td class="num">${money(r.actual_emergence)}</td><td class="num">${money(r.variance)}</td><td class="num">${Number(r.standardised_residual).toFixed(2)}</td><td><span class="pill ${ok?'pill-green':'pill-red'}">${ok?'within':'BREACH'}</span></td></tr>`;}).join('')}
     </tbody></table></div>
+  ${hm&&hm.cells&&hm.cells.length?residualCard(hm):''}
+  ${fs&&fs.count&&fs.count.length?freqSevCard(fs):''}
   <div class="card"><h2>Movement &amp; roll-forward — Commercial Property</h2><div class="h-sub">"Why did reserves move?" by driver.</div>
     <table><thead><tr><th>Driver</th><th class="num">Amount</th></tr></thead><tbody>
     ${(rf.rows||[]).map(r=>{const lvl=(r.driver==='opening'||r.driver==='closing');return `<tr${lvl?' style="font-weight:700;background:#f8fafc"':''}><td>${r.driver.replace(/_/g,' ')}</td><td class="num" style="color:${lvl?'var(--ink)':(r.amount>=0?'#dc2626':'#16a34a')}">${lvl?money(r.amount):money0(r.amount)}</td></tr>`;}).join('')}

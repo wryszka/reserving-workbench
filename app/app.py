@@ -102,12 +102,46 @@ def selection_compute(body: dict):
     return out
 
 
+@app.get("/api/frequency_severity")
+def frequency_severity(lob: str = "COMMERCIAL_PROPERTY"):
+    """A8 — the frequency-severity decomposition: cumulative reported count, cumulative paid,
+    and implied average cost per claim by accident year x development lag. A view over the same
+    ledger the paid triangle uses, so it reconciles. Splitting frequency from severity shows
+    WHETHER a developing paid triangle is late-reported counts or rising average cost — and, on
+    this synthetic book, reveals the AY2023 CP spike as a severity (one large loss) not frequency."""
+    rows = sql.query(
+        f"SELECT accident_year, development_lag, cumulative_reported_count, cumulative_paid, "
+        f"avg_cost_per_claim FROM {F('claim_count_triangle')} "
+        f"WHERE line_of_business_code = '{sql.esc(lob)}' ORDER BY accident_year, development_lag")
+    ays, lags = set(), set()
+    cnt, cost = {}, {}
+    for r in rows:
+        ay, lag = int(r["accident_year"]), int(r["development_lag"])
+        ays.add(ay); lags.add(lag)
+        if r["cumulative_reported_count"] is not None:
+            cnt[(ay, lag)] = int(r["cumulative_reported_count"])
+        if r["avg_cost_per_claim"] is not None:
+            cost[(ay, lag)] = float(r["avg_cost_per_claim"])
+    return {"lob": lob, "accident_years": sorted(ays), "development_lags": sorted(lags),
+            "count": [{"ay": a, "lag": l, "v": cnt[(a, l)]} for (a, l) in cnt],
+            "avg_cost": [{"ay": a, "lag": l, "v": cost[(a, l)]} for (a, l) in cost]}
+
+
 @app.get("/api/convergence")
 def convergence(lob: str = "COMMERCIAL_PROPERTY"):
     """A7 — paid vs incurred consistency: project the line to ultimate on BOTH triangles
     and report the gap per accident year. Mature years should converge; a persistent gap is
     a case-reserve-adequacy warning. Read-only."""
     return reserving.convergence(lob)
+
+
+@app.get("/api/residuals")
+def residuals(lob: str = "COMMERCIAL_PROPERTY"):
+    """A10 — cell-level actual-vs-expected residuals across the whole triangle (the Mack
+    diagnostic). Each observed development step's individual factor vs the selected factor,
+    standardised. Random small scatter = CL assumption holds; a lit-up row/column/diagonal =
+    it doesn't. Read-only."""
+    return reserving.residual_heatmap(lob)
 
 
 @app.post("/api/blend")

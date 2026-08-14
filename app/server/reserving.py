@@ -221,6 +221,45 @@ def compute(lob, basis="VOLUME_WEIGHTED", last_n=5, tail=1.01, overrides=None, m
             "empirical_factors": factors, "applied_factors": applied, "reserve": res}
 
 
+def residual_heatmap(lob, basis="VOLUME_WEIGHTED"):
+    """A10 — cell-level actual-vs-expected across the WHOLE triangle, not just the first step.
+
+    For every observed development step (ay, k→k+1), compare the cell's individual age-to-age
+    factor against the selected factor for that development period, and express the gap as a
+    standardised residual: (f_indiv - f_sel) / sd_of_factors_at_k. A residual heatmap is the
+    standard Mack diagnostic — a random scatter of small residuals means the chain-ladder
+    assumption holds; a row/column/diagonal that lights up systematically means it doesn't
+    (a calendar-year inflation trend reads as a diagonal, a bad cohort as a row). Read-only.
+
+    Returns per-cell residuals + the factor sd per development period, so the UI can shade cells.
+    """
+    tri = read_triangle(lob, "PAID")
+    fsel = empirical_factors(tri, basis)
+    ml = max_lag(tri)
+    # sd of the individual factors at each development period (the residual denominator)
+    sd = {}
+    for k in range(ml):
+        rr = [tri[ay][k + 1] / tri[ay][k] for ay in tri if k in tri[ay] and (k + 1) in tri[ay] and tri[ay][k]]
+        if len(rr) >= 2:
+            m = sum(rr) / len(rr)
+            sd[k] = (sum((x - m) ** 2 for x in rr) / (len(rr) - 1)) ** 0.5
+        else:
+            sd[k] = 0.0
+    cells = []
+    for ay in sorted(tri):
+        for k in range(ml):
+            if k in tri[ay] and (k + 1) in tri[ay] and tri[ay][k]:
+                fi = tri[ay][k + 1] / tri[ay][k]
+                fs = fsel.get(k, 1.0)
+                denom = sd[k] if sd[k] > 1e-9 else None
+                resid = ((fi - fs) / denom) if denom else 0.0
+                cells.append({"accident_year": ay, "dev_lag": k,
+                              "individual_factor": round(fi, 4), "selected_factor": round(fs, 4),
+                              "residual": round(resid, 3)})
+    return {"lob": lob, "basis": basis, "development_lags": list(range(ml)),
+            "accident_years": sorted(tri), "cells": cells}
+
+
 def convergence(lob, basis="VOLUME_WEIGHTED", tail=1.01):
     """Paid vs incurred consistency (A7). Projects the same line to ultimate on BOTH the
     paid and the incurred triangle and reports the gap per accident year and in total.
