@@ -160,6 +160,49 @@ def blend(body: dict):
                            overrides=b.get("overrides") or {})
 
 
+@app.get("/api/apriori")
+def apriori_get(lob: str = "COMMERCIAL_PROPERTY"):
+    """A4 — the editable BF/ELR a-priori per cohort (earned premium × planning loss ratio).
+    The governed planning basis the BF leg rests on."""
+    rows = sql.query(
+        f"SELECT accident_year, earned_premium, planning_loss_ratio, apriori_ultimate "
+        f"FROM {F('reserve_apriori')} WHERE line_of_business_code = '{sql.esc(lob)}' "
+        f"ORDER BY accident_year")
+    return {"lob": lob, "rows": rows}
+
+
+@app.post("/api/apriori/set")
+def apriori_set(body: dict):
+    """Edit the planning loss ratio for one cohort — the a-priori ultimate recomputes off
+    earned premium, and the change is audit-trailed. This is what makes BF/ELR defensible:
+    the a-priori is an attestable, owned input, not a formula constant."""
+    lob = body.get("lob"); ay = body.get("accident_year")
+    try:
+        lr = float(body.get("planning_loss_ratio"))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "planning_loss_ratio must be a number, e.g. 0.62"}
+    if not lob or ay is None:
+        return {"ok": False, "error": "lob and accident_year required"}
+    if not (0.0 < lr < 3.0):
+        return {"ok": False, "error": "planning loss ratio should be between 0 and 3 (e.g. 0.62)"}
+    ay = int(ay)
+    row = sql.query_one(
+        f"SELECT earned_premium FROM {F('reserve_apriori')} "
+        f"WHERE line_of_business_code='{sql.esc(lob)}' AND accident_year={ay}")
+    if not row:
+        return {"ok": False, "error": "no a-priori row for that cohort"}
+    ep = float(row["earned_premium"]); new_apri = round(ep * lr, 2)
+    sql.query(f"UPDATE {F('reserve_apriori')} SET planning_loss_ratio={lr}, apriori_ultimate={new_apri} "
+              f"WHERE line_of_business_code='{sql.esc(lob)}' AND accident_year={ay}")
+    eid = "AE-AP-" + uuid.uuid4().hex[:8]
+    user = _user_from_headers()
+    sql.query(f"INSERT INTO {F('5_gov_audit_event')} (event_id, event_type, entity_type, entity_id, detail, actor, created_at) "
+              f"VALUES ('{eid}', 'apriori_edited', 'reserve_apriori', 'APRI-{sql.esc(lob[:4])}-{ay}', "
+              f"'Set planning LR to {lr:.1%} for {sql.esc(lob)} AY{ay} (a-priori {new_apri:,.0f})', '{sql.esc(user)}', current_timestamp())")
+    return {"ok": True, "lob": lob, "accident_year": ay, "planning_loss_ratio": lr,
+            "apriori_ultimate": new_apri, "by": user}
+
+
 @app.post("/api/tail/fit")
 def tail_fit(body: dict):
     """Fit a decay curve (exponential / inverse-power) to the current factor pattern and
@@ -879,6 +922,13 @@ def reset_demo():
               f"WHERE selection_id LIKE 'SEL-LIVE-%' OR selection_id LIKE 'SEL-NB-%'"); actions.append("cleared live + notebook selections")
     sql.query(f"DELETE FROM {F('expert_judgement')} WHERE judgement_id LIKE 'EJ-LIVE-%'"); actions.append("cleared live judgements")
     sql.query(f"DELETE FROM {F('5_gov_audit_event')} WHERE event_type='agent_query' OR event_id LIKE 'AE-SO-%' OR event_id LIKE 'AE-EJ-%' OR event_id LIKE 'AE-ING-%' OR event_id LIKE 'AE-DS-%' OR event_id LIKE 'AE-AP-%'"); actions.append("cleared demo audit rows")
+    # A4: restore seeded planning loss ratios (a demo may have edited them), recompute a-priori
+    _seed_lr = {"COMMERCIAL_PROPERTY": 0.58, "COMMERCIAL_MOTOR": 0.66, "GENERAL_LIABILITY": 0.68,
+                "PROFESSIONAL_INDEMNITY": 0.72, "MARINE": 0.55}
+    for _lob, _lr in _seed_lr.items():
+        sql.query(f"UPDATE {F('reserve_apriori')} SET planning_loss_ratio={_lr}, "
+                  f"apriori_ultimate=round(earned_premium*{_lr},2) WHERE line_of_business_code='{sql.esc(_lob)}'")
+    actions.append("restored seeded a-priori planning LRs")
     sql.query(f"UPDATE {F('reserve_signoff')} SET status_code=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'APPROVED' ELSE 'PENDING_APPROVAL' END, "
               f"signed_by=CASE WHEN line_of_business_code='GENERAL_LIABILITY' THEN 'chief.actuary' ELSE NULL END"); actions.append("reset sign-offs to baseline")
     # Restore the seeded selection trail. The guard keys on status_code +

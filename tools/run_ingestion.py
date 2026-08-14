@@ -32,6 +32,9 @@ FQ = f"{CAT}.{SCH}"
 VAL_DATE = "2026-12-31"
 PRIOR_VAL_DATE = "2026-09-30"
 CCY = "GBP"
+# Collision-free line code for row IDs (lob[:4] folds CP/CM to "COMM").
+LINE_CODE = {"COMMERCIAL_PROPERTY": "CPRP", "COMMERCIAL_MOTOR": "CMOT",
+             "GENERAL_LIABILITY": "GENL", "PROFESSIONAL_INDEMNITY": "PROF", "MARINE": "MARN"}
 
 
 def q(w, wid, sql):
@@ -456,6 +459,40 @@ def run(w, wid):
     n = overwrite(w, wid, "discount_curve",
         ["curve_id", "curve_version", "currency_code", "development_period", "spot_rate"], curve_rows)
     print(f"discount_curve: {n} rows ({CURVE_VER})")
+
+    # ---- reserve a-priori (A4 · editable BF/ELR planning basis) ----
+    # Earned premium × planning loss ratio per line × accident year — the basis a BF/ELR
+    # method rests on, held as an editable governed row instead of buried in a formula.
+    # We size earned premium so the a-priori is a plausible planning number for each cohort:
+    # cumulative paid-to-date grossed up by a per-line expected reporting proportion, then
+    # divided by the planning LR. Deterministic; clearly a planning (not backed-out) basis.
+    PLANNING_LR = {"COMMERCIAL_PROPERTY": 0.58, "COMMERCIAL_MOTOR": 0.66, "GENERAL_LIABILITY": 0.68,
+                   "PROFESSIONAL_INDEMNITY": 0.72, "MARINE": 0.55}
+    # rough share of ultimate paid by the latest diagonal, by line (short-tail nearly done,
+    # long-tail still developing) — turns paid-to-date into a sensible earned-premium scale.
+    PAID_PROP = {"COMMERCIAL_PROPERTY": 0.80, "COMMERCIAL_MOTOR": 0.72, "GENERAL_LIABILITY": 0.55,
+                 "PROFESSIONAL_INDEMNITY": 0.50, "MARINE": 0.82}
+    ap_paid = read_df(w, wid, f"""
+        SELECT line_of_business_code, accident_year, MAX(cumulative_paid) paid_to_date
+        FROM {FQ}.loss_development GROUP BY line_of_business_code, accident_year""")
+    ap_paid["accident_year"] = ap_paid["accident_year"].astype(int)
+    ap_paid["paid_to_date"] = ap_paid["paid_to_date"].astype(float)
+    apriori_rows = []
+    for _, r in ap_paid.iterrows():
+        lob = r["line_of_business_code"]; ay = r["accident_year"]
+        lr = PLANNING_LR.get(lob, 0.62); prop = PAID_PROP.get(lob, 0.65)
+        est_ultimate = r["paid_to_date"] / prop if prop else r["paid_to_date"]
+        earned = est_ultimate / lr if lr else est_ultimate      # premium implied by planning LR
+        apriori_rows.append(dict(
+            apriori_id=f"APRI-2026-{LINE_CODE.get(lob, lob[:4])}-{ay}",
+            valuation_date=VAL_DATE,
+            accident_year=ay, line_of_business_code=lob,
+            earned_premium=round(earned, 2), planning_loss_ratio=lr,
+            apriori_ultimate=round(earned * lr, 2), currency_code=CCY))
+    n = overwrite(w, wid, "reserve_apriori",
+        ["apriori_id", "valuation_date", "accident_year", "line_of_business_code",
+         "earned_premium", "planning_loss_ratio", "apriori_ultimate", "currency_code"], apriori_rows)
+    print(f"reserve_apriori: {n} rows")
 
     # control gate: the claims reconciliation must actually tie, or the "I never
     # fight the GL again" claim in the demo is not true

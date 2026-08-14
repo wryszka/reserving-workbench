@@ -301,3 +301,11 @@ complete ledger-to-capital arc at real scale.*
   Diagnostics; correctly lights exactly one hot cell (AY2023 dev0→1 at +2.34σ). Both are views/computed,
   no new stored data. Smoke 39/39, demo reset clean.
   **Remaining Phase 4: A4 editable a-priori, D1-D3 Designer/Excel, F3 deeper segmentation.**
+- **2026-08-13 — Phase 4 A4 (editable BF/ELR a-priori) done & verified:** new `reserve_apriori` config
+  entity (earned premium × planning loss ratio per line×AY, seeded by run_ingestion). The blend's BF leg
+  now consumes the GOVERNED a-priori per cohort (falling back to the paid-proxy only where none seeded), so
+  BF rests on an attestable planning number instead of one reverse-engineered from paid. Editable a-priori
+  card on the Methods page: change a planning LR → a-priori + blended ultimate recompute, change is
+  audit-trailed (AE-AP-%), validation refuses LR outside (0,3); reset restores seeded LRs. **A-ENGINE
+  TRANCHE COMPLETE** (A1-A10 all shipped). close_tools re-uploaded. Smoke 41/41.
+  **Remaining Phase 4: D1-D3 Designer/Excel on-ramps, F3 deeper segmentation.**

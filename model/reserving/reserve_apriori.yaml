@@ -1,0 +1,71 @@
+kind: entity
+name: reserve_apriori
+domain: reserving
+title: Reserve A-Priori (Planning Basis)
+description: >
+  The a-priori expected loss per accident year and line of business - the planning
+  basis a Bornhuetter-Ferguson or Expected-Loss-Ratio method rests on. It is
+  earned premium multiplied by the planning (or pricing) loss ratio, set by the
+  actuary rather than backed out of the paid triangle. Holding it as a governed,
+  editable row is the point: BF and ELR are only as defensible as the a-priori
+  behind them, so the a-priori becomes an attestable input with an owner and a
+  history, not a number buried in a spreadsheet formula. The app lets the actuary
+  edit the planning loss ratio per cohort; the blended ultimate recomputes off
+  this row. Earned premium here is the reserving book's own premium by line (not
+  the pricing team's single-line policy extract).
+grain: One row per valuation date per accident year per line of business.
+tags:
+  project: reserving-workbench
+  layer: config
+  gen: gen1
+  domain: reserving
+attributes:
+  - name: apriori_id
+    type: string
+    required: true
+    description: Identifier for the a-priori row.
+    classification: internal
+  - name: valuation_date
+    type: date
+    required: true
+    description: The close this a-priori applies to.
+    classification: internal
+  - name: accident_year
+    type: integer
+    required: true
+    description: Accident year the a-priori is for.
+    classification: internal
+  - name: line_of_business_code
+    code_set: line_of_business
+    required: true
+    description: Line of business.
+    classification: internal
+  - name: earned_premium
+    type: decimal(18,2)
+    required: true
+    description: Earned premium for the cohort - the exposure base the a-priori scales.
+    classification: confidential
+  - name: planning_loss_ratio
+    type: decimal(9,4)
+    required: true
+    description: >
+      The planning / pricing loss ratio applied to earned premium, e.g. 0.62 =
+      62%. This is the number the actuary edits; the a-priori ultimate follows.
+    classification: internal
+  - name: apriori_ultimate
+    type: decimal(18,2)
+    required: true
+    description: The a-priori expected ultimate loss = earned_premium * planning_loss_ratio.
+    classification: confidential
+  - name: currency_code
+    code_set: currency
+    required: true
+    description: Currency of the amounts.
+    classification: internal
+keys:
+  primary: [apriori_id]
+owner: Chief Actuary
+quality:
+  - name: apriori_reconciles
+    rule: abs(apriori_ultimate - earned_premium * planning_loss_ratio) < 1.0
+    description: The a-priori ultimate must equal earned premium times the planning loss ratio.

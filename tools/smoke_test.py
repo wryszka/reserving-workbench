@@ -97,6 +97,12 @@ def main():
     c0, c1 = float(row[0] or 0), float(row[1] or 0)
     check("AY2023 CP spike shows as severity (avg cost jumps dev0→1)", c1 > c0 * 2,
           f"avg cost {c0:,.0f} → {c1:,.0f}")
+    # A4: editable a-priori — seeded per cohort and reconciles (apriori = premium * LR)
+    n = int(q(f"SELECT COUNT(*) FROM {FQ}.reserve_apriori")[0][0])
+    check("reserve a-priori seeded per cohort", n >= 5, f"{n} rows")
+    bad = int(q(f"SELECT COUNT(*) FROM {FQ}.reserve_apriori "
+                f"WHERE abs(apriori_ultimate - earned_premium*planning_loss_ratio) >= 1.0")[0][0])
+    check("a-priori reconciles (earned premium × planning LR)", bad == 0, f"{bad} breaks")
     # F2: regulatory landing — signed reserve becomes SII TP + IFRS 17 LIC, built from views
     n = int(q(f"SELECT COUNT(*) FROM {FQ}.regulatory_landing")[0][0])
     check("regulatory landing populated (SII TP / IFRS 17 LIC)", n >= 5, f"{n} lines")

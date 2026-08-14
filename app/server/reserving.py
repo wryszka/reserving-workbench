@@ -293,12 +293,34 @@ def convergence(lob, basis="VOLUME_WEIGHTED", tail=1.01):
                        "gap_pct": round((rp["ultimate"] - ri["ultimate"]) / ri["ultimate"], 4) if ri["ultimate"] else 0.0}}
 
 
+def apriori_map(lob):
+    """The governed, editable a-priori per accident year (A4): {ay: {earned_premium,
+    planning_loss_ratio, apriori_ultimate}}. This is the planning basis the BF/ELR leg
+    rests on — set by the actuary, not backed out of the paid triangle. Empty if none seeded."""
+    rows = sql.query(
+        f"SELECT accident_year, earned_premium, planning_loss_ratio, apriori_ultimate "
+        f"FROM {F('reserve_apriori')} WHERE line_of_business_code = '{sql.esc(lob)}'")
+    out = {}
+    for r in rows:
+        try:
+            out[int(r["accident_year"])] = {
+                "earned_premium": float(r["earned_premium"]),
+                "planning_loss_ratio": float(r["planning_loss_ratio"]),
+                "apriori_ultimate": float(r["apriori_ultimate"])}
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
 def blend(lob, basis="VOLUME_WEIGHTED", tail=1.01, cl_weight=None, maturity_switch=None, apriori_lr=0.62, overrides=None):
     """Blend chain-ladder and Bornhuetter-Ferguson PER ACCIDENT YEAR — what "selection"
     actually means beyond one factor. Two ways to set the weight:
       * cl_weight: a flat CL weight 0..1 applied to every cohort (blend = w*CL + (1-w)*BF)
       * maturity_switch: {before_lag: w_green, at_or_after: w_mature} — the actuarial rule
         of thumb (BF for green years, CL once mature). If given, it overrides cl_weight.
+    The BF leg uses the GOVERNED a-priori (reserve_apriori: earned premium × planning LR)
+    per cohort when one is seeded (A4), falling back to a paid-proxy premium otherwise —
+    so BF rests on an attestable planning number, not a figure reverse-engineered from paid.
     Returns per-AY CL / BF / blended ultimate + the totals, so the UI shows the mix, not
     just a number. Read-only.
     """
@@ -313,6 +335,8 @@ def blend(lob, basis="VOLUME_WEIGHTED", tail=1.01, cl_weight=None, maturity_swit
                 pass
     ml = max_lag(tri)
     diag = latest_diagonal(tri)
+    apri_by_ay = apriori_map(lob)
+    used_apriori = bool(apri_by_ay)
     rows = []
     tot_cl = tot_bf = tot_blend = tot_paid = 0.0
     for ay, (lag, paid) in diag.items():
@@ -320,8 +344,12 @@ def blend(lob, basis="VOLUME_WEIGHTED", tail=1.01, cl_weight=None, maturity_swit
         for k in range(lag, ml):
             cdf *= applied.get(k, 1.0)
         cl = paid * cdf
-        prem = paid / apriori_lr if paid else 0.0        # crude premium proxy from paid
-        apri = prem * apriori_lr
+        # BF a-priori: prefer the governed reserve_apriori row for this cohort (A4);
+        # fall back to the crude paid-proxy premium only where no a-priori is seeded.
+        if ay in apri_by_ay:
+            apri = apri_by_ay[ay]["apriori_ultimate"]
+        else:
+            apri = (paid / apriori_lr if paid else 0.0) * apriori_lr
         pct_unpaid = 1.0 - (1.0 / cdf if cdf else 1.0)
         bf = paid + apri * pct_unpaid
         # weight for this cohort
@@ -341,7 +369,7 @@ def blend(lob, basis="VOLUME_WEIGHTED", tail=1.01, cl_weight=None, maturity_swit
         net, ceded = apply_reinsurance(res["ultimate"], prog["quota_share_pct"],
                                        prog["xol_attachment"], prog["xol_limit"], prog["xol_expected_recovery"])
         res["ultimate_net"] = net; res["ceded"] = ceded; res["reinsurance"] = prog
-    return {"lob": lob, "per_ay": rows, "reserve": res,
+    return {"lob": lob, "per_ay": rows, "reserve": res, "used_apriori": used_apriori,
             "totals": {"chain_ladder": round(tot_cl, 2), "bornhuetter_ferguson": round(tot_bf, 2),
                        "blended": round(tot_blend, 2)}}
 

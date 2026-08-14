@@ -923,8 +923,12 @@ PAGE.methods=async()=>{
   <table><thead><tr><th>Method</th><th>UC model</th><th class="num">Ver</th><th>Alias</th><th>Distribution</th><th>Owner</th></tr></thead><tbody>
   ${m.methods.map(x=>`<tr><td><b>${methodName(x.reserving_method_code)}</b></td><td class="mono">${x.uc_model_name.split('.').pop()}</td><td class="num">${x.model_version}</td><td><span class="pill pill-green">${x.alias||'—'}</span></td><td>${x.produces_distribution==='true'||x.produces_distribution===true?'✓':'—'}</td><td>${x.owner_role}</td></tr>`).join('')}
   </tbody></table></div>
+  <div class="card"><h2>Bornhuetter-Ferguson a-priori — editable planning basis</h2>
+  <div class="h-sub">BF and ELR are only as defensible as the a-priori behind them. Here it is a <b>governed, editable</b> row per accident year — earned premium × the planning loss ratio you set — not a constant buried in a formula. Edit a planning LR and the a-priori (and the blend below) recompute; the change is audit-trailed. Commercial Property.</div>
+    <div id="apriorybox"><div class="load">Loading a-priori…</div></div>
+  </div>
   <div class="card" style="border-color:#c7d2fe"><h2>Blend the methods — per cohort</h2>
-  <div class="h-sub">Showing five ultimates side by side isn't a selection. Selecting is <b>choosing and blending per accident year</b> — chain-ladder once a cohort is mature, Bornhuetter-Ferguson while it's green. Commercial Property.</div>
+  <div class="h-sub">Showing five ultimates side by side isn't a selection. Selecting is <b>choosing and blending per accident year</b> — chain-ladder once a cohort is mature, Bornhuetter-Ferguson while it's green. The BF leg uses the governed a-priori above. Commercial Property.</div>
     <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
       <label style="display:flex;align-items:center;gap:8px;font-size:12.5px"><input type="radio" name="blendmode" value="flat" checked> Flat weight</label>
       <div id="flatwrap" style="display:flex;align-items:center;gap:8px">
@@ -956,7 +960,33 @@ PAGE.methods=async()=>{
     document.getElementById('flatwrap').style.display=mat?'none':'flex';
     document.getElementById('matwrap').style.display=mat?'block':'none';runBlend();});
   runBlend();
+  loadApriori();
 };
+async function loadApriori(){
+  const box=document.getElementById('apriorybox'); if(!box)return;
+  try{
+    const d=await API('/api/apriori?lob=COMMERCIAL_PROPERTY');
+    const rows=d.rows||[];
+    box.innerHTML=`<table><thead><tr><th class="num">AY</th><th class="num">Earned premium</th><th>Planning LR</th><th class="num">A-priori ultimate</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td class="num">${r.accident_year}</td><td class="num">${money(r.earned_premium)}</td>
+      <td><input class="aprilr" data-ay="${r.accident_year}" type="number" step="0.01" min="0" max="3" value="${Number(r.planning_loss_ratio).toFixed(2)}" style="width:74px;padding:5px;border:1px solid #c7d2fe;border-radius:6px;text-align:right;font-variant-numeric:tabular-nums"> <span style="color:var(--mut);font-size:11px">= ${(Number(r.planning_loss_ratio)*100).toFixed(0)}%</span></td>
+      <td class="num" id="apri_${r.accident_year}">${money(r.apriori_ultimate)}</td></tr>`).join('')}
+    </tbody></table><div id="aprimsg" style="font-size:12px;color:var(--mut);margin-top:6px"></div>
+    <details class="why"><summary>Why hold the a-priori as a governed row?</summary><div>The Bornhuetter-Ferguson ultimate is <span class="mono">paid + a-priori × (unpaid %)</span>. On a green cohort — little paid yet — the a-priori is almost the entire answer, so the planning loss ratio is one of the most consequential numbers in the reserve, and in most shops it lives as a hard-coded constant in a spreadsheet cell nobody attests. Here it is a row with an owner and an audit trail: change it and you can see who did, when, and what it did to the blended ultimate below. That is the difference between a defensible BF and a plausible one.</div></details>`;
+    box.querySelectorAll('.aprilr').forEach(inp=>inp.onchange=()=>setApriori(inp.dataset.ay, inp.value));
+  }catch(e){box.innerHTML=`<div class="err">Couldn't load a-priori: ${e.message}</div>`;}
+}
+async function setApriori(ay, lr){
+  const msg=document.getElementById('aprimsg'); msg.textContent='Saving…';
+  try{
+    const r=await API('/api/apriori/set',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lob:'COMMERCIAL_PROPERTY',accident_year:parseInt(ay),planning_loss_ratio:parseFloat(lr)})});
+    if(!r.ok){msg.innerHTML=`<span style="color:#dc2626">${r.error}</span>`;return;}
+    const cell=document.getElementById('apri_'+ay); if(cell) cell.textContent=money(r.apriori_ultimate);
+    msg.innerHTML=`<span style="color:#16a34a">✓ AY${ay} planning LR set to ${(r.planning_loss_ratio*100).toFixed(0)}% by ${r.by} — recomputing blend…</span>`;
+    runBlend();
+  }catch(e){msg.innerHTML=`<span style="color:#dc2626">Save failed: ${e.message}</span>`;}
+}
 async function runBlend(){
   const out=document.getElementById('blendout'); if(!out)return;
   const mat=document.querySelector('input[name="blendmode"]:checked').value==='maturity';
