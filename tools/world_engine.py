@@ -58,6 +58,36 @@ LOB_PROFILE = {
     "MARINE":                 dict(claims=(4, 9),   sev=(50_000, 300_000)),
 }
 
+# F3 · the 15 additional classes that fill out the book. Development patterns are
+# grouped by tail length (short/medium/long) so the wider book spans the spectrum an
+# actuary expects — short-tail PA/property binder next to long-tail EL/med-mal/environmental.
+_SHORT = [0.55, 0.25, 0.11, 0.05, 0.02, 0.01, 0.01]
+_MED   = [0.32, 0.28, 0.18, 0.10, 0.06, 0.04, 0.02]
+_LONG  = [0.13, 0.20, 0.21, 0.17, 0.13, 0.09, 0.05]
+LOB_DEV.update({
+    "EMPLOYERS_LIABILITY": _LONG, "PUBLIC_LIABILITY": _MED, "DIRECTORS_OFFICERS": _LONG,
+    "CYBER": _MED, "CONSTRUCTION": _MED, "FINANCIAL_LINES": _LONG, "MEDICAL_MALPRACTICE": _LONG,
+    "AVIATION": _MED, "TRADE_CREDIT": _SHORT, "PERSONAL_ACCIDENT": _SHORT, "PROPERTY_BINDER": _SHORT,
+    "GOODS_IN_TRANSIT": _SHORT, "SURETY": _MED, "TERRORISM": _SHORT, "ENVIRONMENTAL": _LONG,
+})
+WIDER_LOB_PROFILE = {
+    "EMPLOYERS_LIABILITY":  dict(claims=(6, 12), sev=(70_000, 380_000)),
+    "PUBLIC_LIABILITY":     dict(claims=(7, 13), sev=(40_000, 220_000)),
+    "DIRECTORS_OFFICERS":   dict(claims=(3, 7),  sev=(120_000, 600_000)),
+    "CYBER":                dict(claims=(4, 10), sev=(60_000, 450_000)),
+    "CONSTRUCTION":         dict(claims=(5, 11), sev=(80_000, 350_000)),
+    "FINANCIAL_LINES":      dict(claims=(3, 7),  sev=(150_000, 700_000)),
+    "MEDICAL_MALPRACTICE":  dict(claims=(3, 6),  sev=(180_000, 800_000)),
+    "AVIATION":             dict(claims=(2, 5),  sev=(200_000, 900_000)),
+    "TRADE_CREDIT":         dict(claims=(5, 10), sev=(30_000, 180_000)),
+    "PERSONAL_ACCIDENT":    dict(claims=(9, 16), sev=(10_000, 70_000)),
+    "PROPERTY_BINDER":      dict(claims=(10, 18),sev=(15_000, 110_000)),
+    "GOODS_IN_TRANSIT":     dict(claims=(6, 12), sev=(12_000, 90_000)),
+    "SURETY":               dict(claims=(3, 7),  sev=(60_000, 300_000)),
+    "TERRORISM":            dict(claims=(2, 4),  sev=(90_000, 500_000)),
+    "ENVIRONMENTAL":        dict(claims=(3, 6),  sev=(110_000, 550_000)),
+}
+
 
 def _round2(x):
     return round(x + 1e-9, 2)
@@ -208,6 +238,39 @@ def generate(seed=SEED):
         add_txn(rid, VALUATION_YEAR, "EXPENSE_PAYMENT", paid * 0.15)
         add_txn(rid, VALUATION_YEAR, "CASE_RESERVE_MOVEMENT", case)
         _prev_case[rid] = case
+
+    # ---- F3 · the wider book (15 more classes) -------------------------------
+    # Generated AFTER the original five + the anomaly + the reopens, on a SEPARATE
+    # RNG stream, so every claim/transaction above is byte-identical to before —
+    # the hero, the AY2023 CP anomaly and the reopens are untouched, and only NEW
+    # rows are appended. This turns the asserted "30+ classes" into a book the
+    # cockpit actually shows, without disturbing the narrative the demo rests on.
+    rng2 = random.Random(seed + 1)
+    for lob, prof in WIDER_LOB_PROFILE.items():
+        fracs = _dev_fractions(lob)
+        for ay in ACCIDENT_YEARS:
+            n = rng2.randint(*prof["claims"])
+            for _ in range(n):
+                cid = new_claim_id(ay)
+                ultimate = rng2.uniform(*prof["sev"])
+                claims.append(dict(claim_id=cid,
+                                   policy_id=f"POL-{ay}-{rng2.randint(1, 900000):06d}",
+                                   accident_year=ay,
+                                   loss_date=f"{ay}-{rng2.randint(1,12):02d}-{rng2.randint(1,28):02d}",
+                                   line_of_business_code=lob, report_date=None))
+                cum_paid = 0.0
+                for lag, frac in enumerate(fracs):
+                    tyear = ay + lag
+                    if tyear > VALUATION_YEAR:
+                        break
+                    inc_paid = ultimate * frac
+                    add_txn(cid, tyear, "INDEMNITY_PAYMENT", inc_paid * 0.85)
+                    add_txn(cid, tyear, "EXPENSE_PAYMENT", inc_paid * 0.15)
+                    cum_paid += inc_paid
+                    unpaid = max(ultimate - cum_paid, 0.0)
+                    target_case = unpaid * CASE_ADEQUACY[min(lag, len(CASE_ADEQUACY) - 1)]
+                    add_txn(cid, tyear, "CASE_RESERVE_MOVEMENT", target_case - _prev_case.get(cid, 0.0))
+                    _prev_case[cid] = target_case
 
     return claims, txns
 

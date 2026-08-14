@@ -23,3 +23,48 @@ codes:
   - code: MARINE
     label: Marine
     description: Marine cargo and hull.
+  - code: EMPLOYERS_LIABILITY
+    label: Employers' Liability
+    description: Employers' liability / workers' compensation - long-tail bodily injury.
+  - code: PUBLIC_LIABILITY
+    label: Public Liability
+    description: Public / third-party liability, excluding products.
+  - code: DIRECTORS_OFFICERS
+    label: Directors' & Officers'
+    description: Management liability - directors' and officers' cover.
+  - code: CYBER
+    label: Cyber
+    description: Cyber and data-breach liability and first-party costs.
+  - code: CONSTRUCTION
+    label: Construction & Engineering
+    description: Contractors' all-risks and engineering.
+  - code: FINANCIAL_LINES
+    label: Financial Lines
+    description: Financial institutions' professional and crime cover.
+  - code: MEDICAL_MALPRACTICE
+    label: Medical Malpractice
+    description: Healthcare professional liability - very long-tail.
+  - code: AVIATION
+    label: Aviation
+    description: Aviation hull and liability.
+  - code: TRADE_CREDIT
+    label: Trade Credit
+    description: Trade credit and political-risk indemnity.
+  - code: PERSONAL_ACCIDENT
+    label: Personal Accident
+    description: Personal accident and travel - short-tail.
+  - code: PROPERTY_BINDER
+    label: Property Binder
+    description: Delegated-authority commercial property binder.
+  - code: GOODS_IN_TRANSIT
+    label: Goods in Transit
+    description: Goods-in-transit and freight liability.
+  - code: SURETY
+    label: Surety & Bonds
+    description: Surety, performance and contract bonds.
+  - code: TERRORISM
+    label: Terrorism & Political Violence
+    description: Terrorism and political-violence property cover.
+  - code: ENVIRONMENTAL
+    label: Environmental Liability
+    description: Pollution and environmental-impairment liability - long-tail.

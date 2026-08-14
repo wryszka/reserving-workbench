@@ -321,3 +321,14 @@ complete ledger-to-capital arc at real scale.*
   governed output table). All three surfaced as an "Excel & Designer" card on the Engines page. Downloads
   stream valid .xlsx (verified via file(1)); reset clears Excel-authored selections. Smoke 41/41, demo clean.
   **Remaining Phase 4: F3 deeper segmentation — the last item.**
+- **2026-08-14 — Phase 4 F3 (deeper segmentation) done & verified — PHASE 4 COMPLETE:** book grown from
+  5 to **20 classes** (added EL, PL, D&O, Cyber, Construction, Financial Lines, Med-Mal, Aviation, Trade
+  Credit, PA, Property Binder, Goods-in-Transit, Surety, Terrorism, Environmental). Done SAFELY: the 15 new
+  lines generate on a SEPARATE RNG stream AFTER the original five + anomaly + reopens, so the existing
+  366 claims / 4729 txns are a **byte-identical prefix** (proved by diff against a captured baseline) — the
+  golden-thread hero and the AY2023 CP anomaly are untouched. Line-keyed config maps (LINE_CODE, reinsurance,
+  planning LR, target CoV) all use .get() fallbacks; verified the 20 short codes are collision-free. Reloaded
+  the ledger (1228 claims / 16231 txns), re-ran all engines (960 estimates, 1600 backtest, 160 distribution,
+  160 a-priori) — every line reconciles, triangle ties to the penny (£176.1m). The whole app scales: Today
+  cockpit ranks all 20, committee/discounting/triangle selector all show 20. Now the book has the depth the
+  "30+ classes" copy asserted. Smoke 41/41, demo reset clean. **ALL OF PHASE 4 SHIPPED — Phases 1-4 complete.**
