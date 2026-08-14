@@ -1554,13 +1554,22 @@ function _appendMsg(role, html){
 }
 function _toolHtml(t){
   const args=Object.keys(t.args||{}).length?JSON.stringify(t.args):'{}';
-  let rp='';
   const r=t.result||{};
-  if(r.error) rp=String(r.error);
-  else if(r.selection_id) rp=`→ ${r.selection_id} · ${r.status||''}`;
-  else if(r.empirical_ultimate!=null) rp=`empirical ult ${money(r.empirical_ultimate)} vs prior ${money(r.prior_ultimate)}`;
-  else if(r.reserve&&r.reserve.ultimate!=null) rp=`ultimate ${money(r.reserve.ultimate)}`;
-  else { const keys=Object.keys(r).slice(0,4); rp=keys.length?keys.map(k=>`${k}: ${typeof r[k]==='object'?'…':r[k]}`).join(' · '):'ok'; }
+  let rp='';
+  const methodShort={CHAIN_LADDER:'CL',BORNHUETTER_FERGUSON:'BF',EXPECTED_LOSS_RATIO:'ELR',MACK:'Mack',CAPE_COD:'Cape Cod',BENKTANDER:'Benktander',GLM:'GLM',PEER_COMPARISON:'Benchmark',INHOUSE_FREQUENCY_SEVERITY:'In-house'};
+  const mn=(c)=>methodShort[c]||(c||'').replace(/_/g,' ');
+  if(r.error){ rp=String(r.error); }
+  else if(t.tool==='propose_selection'||t.tool==='approve_selection'){ rp=`→ ${r.selection_id||'?'} · ${r.status||r.new_status||'ok'}`; }
+  else if(t.tool==='compare_prior'){ rp=`empirical ult ${money(r.empirical_ultimate)} vs prior ${money(r.prior_ultimate)}`; }
+  else if(t.tool==='get_triangle'){ const nay=(r.accident_years||[]).length; const f=(r.empirical_factors&&r.empirical_factors[0]); rp=`${nay} accident years · first factor ${f!=null?Number(f).toFixed(3):'—'}`; }
+  else if(t.tool==='what_if'){ rp=`what-if ultimate ${money((r.reserve||{}).ultimate!=null?r.reserve.ultimate:r.ultimate)} (writes nothing)`; }
+  else if(t.tool==='method_accuracy'){
+    const bm=r.by_method||[];
+    if(bm.length){ const best=bm[0]; const worst=bm[bm.length-1];
+      rp=`most accurate: ${mn(best.reserving_method_code)} ${best.mae_pct}% · least: ${mn(worst.reserving_method_code)} ${worst.mae_pct}% · ${(r.valuations||[]).length} valuations`; }
+    else rp='no back-test rows';
+  }
+  else { const keys=Object.keys(r).filter(k=>k!=='ok').slice(0,4); rp=keys.length?keys.map(k=>`${k}: ${typeof r[k]==='object'?'…':r[k]}`).join(' · '):'ok'; }
   return `<div class="toolcall ${t.ok?'':'bad'}"><span class="tn">${t.ok?'✓':'⛔'} ${_esc(t.tool)}</span>(<span class="mono">${_esc(args)}</span>)<div class="tr">${_esc(rp)}</div></div>`;
 }
 async function mcpChat(q){

@@ -293,6 +293,12 @@ def register(app_module):
         messages.extend(history)
         messages.append({"role": "user", "content": message})
         tool_log = []
+        # per-turn memo of READ-tool results: a model sometimes calls the same read twice
+        # in one turn (e.g. method_accuracy x2). Serve the repeat from memo so the tool
+        # doesn't re-query and the duplicate doesn't clutter the visible log. Write tools
+        # (propose/approve) are never memoised — each is a distinct governed action.
+        _READ_TOOLS = {"get_triangle", "compare_prior", "what_if", "method_accuracy"}
+        memo = {}
         reply = ""
         try:
             for _ in range(CHAT_MAX_HOPS):
@@ -310,6 +316,12 @@ def register(app_module):
                         args = json.loads(fn.get("arguments") or "{}")
                     except json.JSONDecodeError:
                         args = {}
+                    memo_key = (name, json.dumps(args, sort_keys=True)) if name in _READ_TOOLS else None
+                    if memo_key is not None and memo_key in memo:
+                        result = memo[memo_key]        # repeat read — reuse, don't re-run or re-log
+                        messages.append({"role": "tool", "tool_call_id": call.get("id"),
+                                         "content": json.dumps(result, default=str)[:4000]})
+                        continue
                     impl = TOOL_IMPLS.get(name)
                     if impl is None:
                         result = {"error": f"unknown tool {name}"}
@@ -319,6 +331,8 @@ def register(app_module):
                         except Exception as e:
                             logger.exception("mcp chat tool %s failed", name)
                             result = {"error": str(e)[:200]}
+                    if memo_key is not None:
+                        memo[memo_key] = result
                     ok = not (isinstance(result, dict) and (result.get("ok") is False or result.get("error")))
                     tool_log.append({"tool": name, "args": args, "ok": ok,
                                      "result": (result if isinstance(result, dict) else {"value": result})})
