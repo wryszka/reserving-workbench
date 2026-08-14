@@ -157,6 +157,74 @@ def _err(rpc_id, code, message):
     return {"jsonrpc": "2.0", "id": rpc_id, "error": {"code": code, "message": message}}
 
 
+# --- hands-on chat: drive the SAME tools from an in-app assistant --------------
+# The demo point: type in plain English, watch Claude call the governed MCP tools,
+# and see a proposed selection land in the app's audit trail — no external client
+# needed to show the "operate it by chat" beat. The tools are the identical
+# TOOL_IMPLS the JSON-RPC endpoint exposes, so nothing is re-implemented and the
+# governance (rationale-on-override, propose≠approve) holds exactly.
+CHAT_MAX_HOPS = 6
+CHAT_SYSTEM = (
+    "You are the reserving-workbench assistant for Bricksurance SE (commercial P&C), "
+    "operating the workbench for a reserving actuary over the valuation at Q4 2026. "
+    "You have tools that read the loss triangle, compare the prior approved pattern, run a "
+    "scratch what-if, propose a development-factor selection, approve a pending selection, and "
+    "report method back-test accuracy. Rules you must respect, because they are enforced by the "
+    "same governed code the app uses:\n"
+    "- ALWAYS read the triangle and/or compare the prior before you propose anything.\n"
+    "- propose_selection writes a PENDING_APPROVAL row in the SAME audit trail as the app; it does "
+    "NOT book anything. If you depart from the empirical factors you MUST pass overrode=true AND a "
+    "rationale of at least 10 characters, or the tool refuses it.\n"
+    "- approve_selection is a SEPARATE maker/checker step; only approve when the actuary asks.\n"
+    "- Never invent a number: every figure you state must have come back from a tool. "
+    "Be concise and specific; name the line of business and the factors you used."
+)
+
+
+def _fmapi_tools():
+    """The MCP tool schemas in FMAPI/OpenAI function-calling shape."""
+    return [{"type": "function", "function": {
+        "name": t["name"], "description": t["description"],
+        "parameters": t.get("inputSchema") or {"type": "object", "properties": {}}}}
+        for t in TOOL_SCHEMAS]
+
+
+def _fm_chat(w, fm_endpoint, messages):
+    """One FMAPI chat completion WITH tools, via the raw invocations API so tool_calls
+    come back unflattened (the typed SDK ChatMessage drops them)."""
+    # NB: claude-sonnet-5 rejects the `temperature` parameter — omit it.
+    return w.api_client.do("POST", f"/serving-endpoints/{fm_endpoint}/invocations",
+        body={"messages": messages, "tools": _fmapi_tools(), "max_tokens": 900})
+
+
+def _flatten_content(content):
+    """claude-sonnet-5 returns content as either a plain string or a list of typed
+    blocks (reasoning / text / …). Flatten to the visible prose for display."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for b in content:
+            if isinstance(b, dict) and b.get("type") == "text" and b.get("text"):
+                parts.append(b["text"])
+        return "\n".join(parts).strip()
+    return ""
+
+
+def _assistant_msg(resp):
+    choices = (resp or {}).get("choices") or []
+    if not choices:
+        return {"role": "assistant", "content": ""}
+    m = choices[0].get("message") or {}
+    # keep the ORIGINAL content shape in the message we feed back to the model (it may
+    # carry reasoning signatures the API needs), but expose flattened text separately.
+    out = {"role": "assistant", "content": m.get("content") or ""}
+    if m.get("tool_calls"):
+        out["tool_calls"] = m["tool_calls"]
+    out["_text"] = _flatten_content(m.get("content"))
+    return out
+
+
 def register(app_module):
     """Wire the router to the app module so tools can call its endpoint functions."""
 
@@ -201,5 +269,72 @@ def register(app_module):
     async def manifest():
         return {"server": SERVER_INFO, "protocol_version": PROTOCOL_VERSION,
                 "tools": [{"name": t["name"], "description": t["description"]} for t in TOOL_SCHEMAS]}
+
+    @router.post("/chat")
+    async def chat(request: Request):
+        """Hands-on: one turn of a Claude tool-use loop over the SAME governed MCP tools.
+        Returns the assistant reply plus a log of every tool call (name, args, ok, result
+        preview) so an audience watches the tools fire and a proposal land in the audit trail."""
+        from . import config
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        message = (body.get("message") or "").strip()
+        history = body.get("history") or []
+        if not message:
+            return {"ok": False, "error": "empty message"}
+        fm = config.FM_ENDPOINT
+        try:
+            w = config.get_workspace_client()
+        except Exception as e:
+            return {"ok": False, "error": f"workspace client unavailable: {str(e)[:160]}"}
+        messages = [{"role": "system", "content": CHAT_SYSTEM}]
+        messages.extend(history)
+        messages.append({"role": "user", "content": message})
+        tool_log = []
+        reply = ""
+        try:
+            for _ in range(CHAT_MAX_HOPS):
+                resp = _fm_chat(w, fm, messages)
+                assistant = _assistant_msg(resp)
+                messages.append(assistant)
+                calls = assistant.get("tool_calls") or []
+                if not calls:
+                    reply = assistant.get("_text") or _flatten_content(assistant.get("content"))
+                    break
+                for call in calls:
+                    fn = call.get("function") or {}
+                    name = fn.get("name") or ""
+                    try:
+                        args = json.loads(fn.get("arguments") or "{}")
+                    except json.JSONDecodeError:
+                        args = {}
+                    impl = TOOL_IMPLS.get(name)
+                    if impl is None:
+                        result = {"error": f"unknown tool {name}"}
+                    else:
+                        try:
+                            result = impl(args, app_module)
+                        except Exception as e:
+                            logger.exception("mcp chat tool %s failed", name)
+                            result = {"error": str(e)[:200]}
+                    ok = not (isinstance(result, dict) and (result.get("ok") is False or result.get("error")))
+                    tool_log.append({"tool": name, "args": args, "ok": ok,
+                                     "result": (result if isinstance(result, dict) else {"value": result})})
+                    messages.append({"role": "tool", "tool_call_id": call.get("id"),
+                                     "content": json.dumps(result, default=str)[:4000]})
+            else:
+                reply = reply or "I made several tool calls without settling — try asking one step at a time."
+        except Exception as e:
+            logger.exception("mcp chat turn failed")
+            return {"ok": False, "error": str(e)[:300], "tool_log": tool_log,
+                    "reply": "The assistant is briefly unavailable — try again in a moment."}
+        # trim history for the client to send back next turn (drop the system prompt +
+        # the display-only _text field so the model gets clean turns back).
+        hist = [{k: v for k, v in m.items() if k != "_text"}
+                for m in messages if m.get("role") != "system"]
+        return {"ok": True, "reply": reply, "tool_log": tool_log,
+                "history": hist[-12:], "model": fm}
 
     return router

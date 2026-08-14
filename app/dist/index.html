@@ -145,6 +145,21 @@
   /* A10 · residual heatmap shading — diverging blue(neg)/white(0)/red(pos) */
   .heat td.hc{color:#0f172a;font-variant-numeric:tabular-nums;text-align:right;border:1px solid #fff}
   .heat .lg{display:inline-block;width:16px;height:12px;border-radius:2px;vertical-align:middle;margin:0 2px}
+  /* MCP hands-on chat */
+  .chat{display:flex;flex-direction:column;gap:10px}
+  .chatlog{border:1px solid var(--line);border-radius:10px;padding:12px;max-height:420px;overflow-y:auto;background:#fbfcfe}
+  .cmsg{margin-bottom:10px;display:flex;gap:9px}
+  .cmsg .av{width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+  .cmsg.user .av{background:#dbeafe;color:#1d4ed8} .cmsg.bot .av{background:#ede9fe;color:#6d28d9}
+  .cmsg .bub{font-size:13px;line-height:1.55;padding:8px 12px;border-radius:10px;background:#fff;border:1px solid var(--line);white-space:pre-wrap;flex:1}
+  .cmsg.user .bub{background:#eff6ff;border-color:#bfdbfe}
+  .toolcall{border:1px solid #a5f3fc;background:#f0fdff;border-radius:8px;padding:8px 11px;margin:6px 0;font-size:11.5px}
+  .toolcall .tn{font-weight:800;color:#0e7490;font-family:ui-monospace,Menlo,monospace}
+  .toolcall .tr{color:var(--mut);margin-top:3px;font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:pre-wrap;word-break:break-word}
+  .toolcall.bad{border-color:#fecaca;background:var(--redbg)} .toolcall.bad .tn{color:var(--red)}
+  .chatin{display:flex;gap:8px} .chatin input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+  .chip{display:inline-block;background:#f1f5f9;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:11.5px;cursor:pointer;margin:0 6px 6px 0}
+  .chip:hover{background:#e0e7ff;border-color:#c7d2fe}
 </style>
 </head>
 <body>
@@ -1490,16 +1505,28 @@ PAGE.ai=async()=>{
     <div style="margin-top:12px;font-size:12px;color:var(--mut)">Live routing activity → <a onclick="go('governance')" style="cursor:pointer">Governance &amp; sign-off → AI activity</a></div>
   </div>
   <div id="gout" style="margin-top:2px"></div>
-  <div class="card" style="border-color:#a5f3fc"><h2>Operate it by chat — the MCP server</h2>
-  <div class="h-sub">The whole workbench is a second front door for any assistant. Same governed operations, same audit trail — the governance is in the platform, not this UI.</div>
-    <div style="font-size:12.5px;color:#334155;line-height:1.6">
-      An MCP endpoint at <span class="mono">/api/mcp</span> exposes: <b>get_triangle</b>, <b>compare_prior</b>, <b>what_if</b> (reads), and the governed writes <b>propose_selection</b> and <b>approve_selection</b>. From Claude Desktop or a Genie-driven agent you can say <i>"show Commercial Property, compare to the prior, propose holding 1.667 with a rationale"</i> — and it lands as a <b>PENDING_APPROVAL</b> row in the same table the app writes to, visible in the audit trail.</div>
+  <div class="card" style="border-color:#a5f3fc"><h2>Operate it by chat — hands-on MCP</h2>
+  <div class="h-sub">Type in plain English and watch the assistant call the governed MCP tools live. Same operations, same audit trail as the app — the governance is in the platform, not this screen. This is the MCP server driving itself; any external client (Claude Desktop, a Genie agent) does exactly this against <span class="mono">/api/mcp</span>.</div>
+    <div style="margin-bottom:8px">
+      <span class="chip" onclick="mcpSay(this)">Show Commercial Property and compare it to the prior pattern</span>
+      <span class="chip" onclick="mcpSay(this)">Propose holding the prior 1.667 factor on Commercial Property because the AY2023 spike is one late large loss</span>
+      <span class="chip" onclick="mcpSay(this)">Try to override CP factors with no reason</span>
+      <span class="chip" onclick="mcpSay(this)">Which method has been most accurate?</span>
+    </div>
+    <div class="chat">
+      <div class="chatlog" id="mcplog"><div class="cmsg bot"><span class="av">✦</span><span class="bub">Ask me to read a triangle, compare the prior, run a what-if, or <b>propose a selection</b>. Watch each tool fire below the reply — and a proposal land in the audit trail on the Governance page.</span></div></div>
+      <div class="chatin"><input id="mcpq" placeholder="e.g. Show me General Liability and compare to the prior" aria-label="Ask the MCP assistant"><button class="btn" id="mcpsend">Send</button></div>
+    </div>
     <div id="mcpinfo" style="margin-top:10px;font-size:12px;color:var(--mut)"></div>
-    <details class="why"><summary>Why this isn't a governance bypass</summary><div>The write tools call the <b>exact same functions the UI calls</b> — so every rule still holds through the chat door: an override with no rationale is refused, propose and approve are separate maker/checker acts, and the stage-3 guard still stops an unapproved pattern reaching the loss cost. Proposing from chat can't do anything proposing from the screen can't; it's the same governed record, reached a different way.</div></details>
+    <details class="why"><summary>Why this isn't a governance bypass</summary><div>The chat's tools call the <b>exact same functions the UI calls</b> — so every rule still holds through the chat door: an override with no rationale is refused, propose and approve are separate maker/checker acts, and the stage-3 guard still stops an unapproved pattern reaching the loss cost. Try the "no reason" chip — the tool refuses it, just as the screen would. It's the same governed record, reached a different way.</div></details>
   </div>${ABOUT}`);
   API('/api/mcp/manifest').then(m=>{const el=document.getElementById('mcpinfo');if(!el)return;
-    el.innerHTML=`Live: <span class="mono">${(m.server||{}).name} v${(m.server||{}).version}</span> · ${(m.tools||[]).length} tools · MCP ${m.protocol_version}. Point an MCP client at <span class="mono">${(CFG.workspace_host?'':'')}…/api/mcp</span>.`;
+    el.innerHTML=`Live: <span class="mono">${(m.server||{}).name} v${(m.server||{}).version}</span> · ${(m.tools||[]).length} tools · MCP ${m.protocol_version}. External clients point at <span class="mono">…/api/mcp</span>.`;
   }).catch(()=>{});
+  MCP_HISTORY=[];
+  const mq=document.getElementById('mcpq'), ms=document.getElementById('mcpsend');
+  if(ms) ms.onclick=()=>mcpChat(mq.value);
+  if(mq) mq.addEventListener('keydown',e=>{if(e.key==='Enter')mcpChat(e.target.value);});
   // 6 tiles = 5 specialists + Genie (3×2 grid), each coloured; Genie opens an inline ask box.
   const tiles=specs.map(s=>{const m=SPEC_META[s.key]||{icon:'✦',where:'live tables',tone:'blue'};
     return `<div class="acard t-${m.tone}" onclick="askSpecialist('${s.key}')">
@@ -1516,6 +1543,42 @@ PAGE.ai=async()=>{
   document.getElementById('askbtn').onclick=()=>askAI(document.getElementById('q').value);
   document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')askAI(e.target.value);});
 };
+let MCP_HISTORY=[];
+function mcpSay(el){ const q=el.textContent; const inp=document.getElementById('mcpq'); if(inp) inp.value=q; mcpChat(q); }
+function _esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _appendMsg(role, html){
+  const log=document.getElementById('mcplog'); if(!log) return;
+  const div=document.createElement('div'); div.className='cmsg '+(role==='user'?'user':'bot');
+  div.innerHTML=`<span class="av">${role==='user'?'you':'✦'}</span><span class="bub">${html}</span>`;
+  log.appendChild(div); log.scrollTop=log.scrollHeight; return div;
+}
+function _toolHtml(t){
+  const args=Object.keys(t.args||{}).length?JSON.stringify(t.args):'{}';
+  let rp='';
+  const r=t.result||{};
+  if(r.error) rp=String(r.error);
+  else if(r.selection_id) rp=`→ ${r.selection_id} · ${r.status||''}`;
+  else if(r.empirical_ultimate!=null) rp=`empirical ult ${money(r.empirical_ultimate)} vs prior ${money(r.prior_ultimate)}`;
+  else if(r.reserve&&r.reserve.ultimate!=null) rp=`ultimate ${money(r.reserve.ultimate)}`;
+  else { const keys=Object.keys(r).slice(0,4); rp=keys.length?keys.map(k=>`${k}: ${typeof r[k]==='object'?'…':r[k]}`).join(' · '):'ok'; }
+  return `<div class="toolcall ${t.ok?'':'bad'}"><span class="tn">${t.ok?'✓':'⛔'} ${_esc(t.tool)}</span>(<span class="mono">${_esc(args)}</span>)<div class="tr">${_esc(rp)}</div></div>`;
+}
+async function mcpChat(q){
+  if(!q||!q.trim()) return;
+  const inp=document.getElementById('mcpq'), btn=document.getElementById('mcpsend');
+  _appendMsg('user', _esc(q)); if(inp) inp.value=''; if(btn) btn.disabled=true;
+  const thinking=_appendMsg('bot','<span class="load" style="padding:0">calling tools…</span>');
+  try{
+    const r=await API('/api/mcp/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:q, history:MCP_HISTORY})});
+    if(thinking) thinking.remove();
+    (r.tool_log||[]).forEach(t=>{ const d=document.getElementById('mcplog'); if(d) d.insertAdjacentHTML('beforeend', _toolHtml(t)); });
+    _appendMsg('bot', _esc(r.reply||'(no reply)') + (r.ok===false&&r.error?`<div style="color:var(--red);font-size:11px;margin-top:5px">${_esc(r.error)}</div>`:''));
+    if(r.history) MCP_HISTORY=r.history;
+    const log=document.getElementById('mcplog'); if(log) log.scrollTop=log.scrollHeight;
+  }catch(e){ if(thinking) thinking.remove(); _appendMsg('bot', `<span style="color:var(--red)">Error: ${_esc(e.message)}</span>`); }
+  if(btn) btn.disabled=false; if(inp) inp.focus();
+}
 function openGenie(){
   const out=document.getElementById('gout');
   out.innerHTML=`<div class="card" style="border-color:#a5f3fc"><h2>Ask the Triangle — Genie</h2><div class="h-sub">Natural-language over the reserving tables via the Genie Conversation API (server-side — governed SQL).</div>
