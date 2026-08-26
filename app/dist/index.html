@@ -200,7 +200,7 @@ const NAV=[
   {section:"Prepare", items:[["ingestion","Ingestion & data controls","⇩"],["triangle","Triangle & selection","△"]]},
   {section:"Analyse", items:[["methods","Methods & estimates","∑"],["diagnostics","Diagnostics","◫"],["backtest","Method accuracy","◎"]]},
   {section:"Decide", items:[["judgements","Expert judgement","⚖"],["committee","Committee","◆"],["governance","Governance & sign-off","⬡"]]},
-  {section:"AI & platform", items:[["ai","Workbench AI","✦"],["engines","Engines & your models","⚙"]]},
+  {section:"AI & platform", items:[["ai","Workbench AI","✦"],["agent","Agent interface","⚡"],["engines","Engines & your models","⚙"]]},
 ];
 const PAGES=NAV.flatMap(g=>g.items);
 let CURRENT="overview", LOB="COMMERCIAL_PROPERTY";
@@ -254,6 +254,38 @@ async function route(){
   catch(e){ main(`<h1>${(PAGES.find(p=>p[0]===CURRENT)||['','Page'])[1]}</h1><div class="err">Couldn't load this page: ${e.message}. The app may be waking up — try again in a moment.</div>`); }
 }
 const PAGE={};
+
+PAGE.agent=async()=>{
+  let m; try{ m=await API('/api/mcp/manifest'); }
+  catch(e){ main(`<h1>Agent interface</h1><div class="err">MCP manifest unavailable: ${e.message}</div>`); return; }
+  const tools=m.tools||[], origin=location.origin, rpc=origin+'/api/mcp';
+  const act=(t)=>/^\[(action|gated)\]/i.test(t.description)||/propose|approve|compute_|set_apriori|blend|fit_tail|raise_|accept_|attest_|signoff|elect/.test(t.name);
+  const gated=(t)=>/^\[gated\]/i.test(t.description);
+  const clean=(d)=>d.replace(/^\[(gated|action)\]\s*/i,'');
+  const badge=(t)=>{const a=act(t),g=gated(t);const c=g?['#fecaca','#fef2f2','#b91c1c','gated']:a?['#fed7aa','#fffbeb','#b45309','action']:['#bbf7d0','#f0fdf4','#15803d','read'];
+    return `<span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;border:1px solid ${c[0]};background:${c[1]};color:${c[2]};white-space:nowrap">${c[3]}</span>`;};
+  const rowh=(t)=>`<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 12px;border-bottom:1px solid var(--line)"><code style="font-family:monospace;font-size:11.5px;background:#f1f5f9;border:1px solid var(--line);padding:1px 6px;border-radius:4px;white-space:nowrap">${t.name}</code>${badge(t)}<span style="font-size:13px;color:var(--ink);line-height:1.5">${clean(t.description)}</span></div>`;
+  const reads=tools.filter(t=>!act(t)), acts=tools.filter(act);
+  const list=(ts)=>`<div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff">${ts.map(rowh).join('')}</div>`;
+  const sec=(lbl,ts)=>ts.length?`<h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:18px 0 8px">${lbl} <span style="color:var(--mut);font-weight:400">· ${ts.length}</span></h2>${list(ts)}`:'';
+  main(`<h1>Agent interface</h1>
+  <p class="sub">The reserving workbench as a governed MCP tool surface.</p>
+  ${explain(`This workbench publishes its <b>whole surface</b> as a <b>Model Context Protocol</b> server, so an outside agent — including the Bricksurance <b>control tower</b> — can operate it end to end using the <i>same</i> governed functions the app uses (MCP-first: one surface, no logic built twice). Write actions re-use the same rules as the UI — <b>propose ≠ approve</b>, rationale-on-override, magnitude-routed approval, the sign-off gate — so an agent can’t bypass them. This list is read live from the running server’s manifest.`)}
+  <div class="row">
+    <div class="tile"><div class="k">Server</div><div class="v sm">${(m.server||{}).name||'—'}</div></div>
+    <div class="tile"><div class="k">Tools</div><div class="v sm">${tools.length}</div></div>
+    <div class="tile"><div class="k">MCP protocol</div><div class="v sm">${m.protocol_version||'—'}</div></div>
+    <div class="tile"><div class="k">Transport</div><div class="v sm">JSON-RPC 2.0</div></div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:12px">
+    <div class="k" style="margin-bottom:6px">Endpoints</div>
+    <div style="font-size:12.5px;margin:2px 0"><b>POST</b> <code style="font-family:monospace">${rpc}</code> <span style="color:var(--mut)">· initialize · tools/list · tools/call</span></div>
+    <div style="font-size:12.5px;margin:2px 0"><b>GET</b> &nbsp;<code style="font-family:monospace">${rpc}/manifest</code> <span style="color:var(--mut)">· this manifest</span></div>
+  </div>
+  ${sec('Reads',reads)}
+  ${sec('Governed actions',acts)}
+  ${ABOUT}`);
+};
 
 PAGE.overview=async()=>{
   const [a,lc]=await Promise.all([API('/api/attention'),API('/api/lifecycle')]);
