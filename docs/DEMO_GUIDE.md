@@ -132,8 +132,8 @@ Everything above, in the same story order, plus:
 ---
 
 ## Two audiences, one asset
-- **Reserving actuaries** (e.g. Hiscox reserving) — book the reserve: trust the data, select, judge, explain, sign off. Frame as *their in-house process on the platform they're adopting* — the Excel/data-wrangling grind gone; their own R/Python models registered as first-class methods; capital (e.g. Tyche) sits downstream. **Do not pitch an external reserving tool to this room.**
-- **Pricing analysts** (e.g. Hiscox US) — develop losses to ultimate for the rate **indication**: the same triangle machinery, feeding the indicated rate, not the balance sheet.
+- **Reserving actuaries** (e.g. a client reserving team) — book the reserve: trust the data, select, judge, explain, sign off. Frame as *their in-house process on the platform they're adopting* — the Excel/data-wrangling grind gone; their own R/Python models registered as first-class methods; capital (e.g. Tyche) sits downstream. **Do not pitch an external reserving tool to this room.**
+- **Pricing analysts** (e.g. a US pricing team) — develop losses to ultimate for the rate **indication**: the same triangle machinery, feeding the indicated rate, not the balance sheet.
 
 ## Q&A armour
 - *Methodology certified?* No — illustrative, method-agnostic; your own models plug in as first-class methods.

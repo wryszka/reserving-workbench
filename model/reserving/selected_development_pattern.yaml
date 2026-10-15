@@ -6,7 +6,7 @@ description: >
   The audited output of the loss-development-factor (LDF) selection step: the
   set of age-to-age development factors an actuary elected to use for one
   accident-year cohort, line of business and valuation date, together with WHERE
-  the selection came from and WHY. This is the record the whole Hiscox US ask
+  the selection came from and WHY. This is the record the whole US pricing ask
   turns on - view the empirical factors, compare them against a prior selection,
   and elect empirical vs prior with every override logged.
 

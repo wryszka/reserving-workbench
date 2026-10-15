@@ -1,6 +1,6 @@
 # The two open asks — answered on synthetic data
 
-Neither the split LDF script nor the R indication code ever arrived from Hiscox.
+Neither the split LDF script nor the R indication code ever arrived from the client.
 Rather than wait, both are answered here with synthetic stand-ins built on the
 live `reserving_workbench` schema. **Everything below has been run for real** — the SQL pipeline on DEV, the R on a classic
 cluster (see the note in §2).

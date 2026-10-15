@@ -62,7 +62,7 @@ The data model already supports this: `development_selection_source` carries `RE
 so a ResQ pick needs no new schema — the writeback, governance and downstream code never care
 which engine produced it. That is the whole point of the engine seam.
 
-## Why this wins on the Hiscox account
+## Why this wins on a target account
 - **Reserving team** (moved to LCP ResQ): "keep ResQ, we govern and orchestrate it, and give you
   the data + reporting + AI around it" — non-threatening, meets them where they are.
 - **US Pricing team** (LDF off Discovery): the same triangle/selection machinery, framed for rate

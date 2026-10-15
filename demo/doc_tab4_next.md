@@ -41,11 +41,11 @@ Premium data is already in Databricks, so that side needs nothing.
 
 | Step | What | Owner |
 |---|---|---|
-| 1 | Send the split script and a sample R indication | Hiscox |
-| 2 | Point stage 1 at Discovery via Federation | Databricks, with Hiscox platform team |
+| 1 | Send the split script and a sample R indication | Client |
+| 2 | Point stage 1 at Discovery via Federation | Databricks, with the client platform team |
 | 3 | Reproduce one quarter's factors and reconcile against the current process | Joint |
 | 4 | Wire the real R indication as a task in the job | Joint |
-| 5 | Agree the review and approval routing for elections | Hiscox actuarial |
+| 5 | Agree the review and approval routing for elections | Client actuarial |
 
 Step 3 is the one that matters: reproducing a known quarter and tying out to the existing
 output is what makes this trustworthy enough to run alongside, and eventually replace,

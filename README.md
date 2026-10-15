@@ -24,14 +24,14 @@ each reserve estimate to the regulatory (QRT) cells it produces**.
 - **Reserve → QRT lineage** — each reserve estimate traced to the QRT cells it
   produces (S.19.01 non-life triangles, etc.), surfaced in an audit panel.
 
-## Development-factor selection (the Hiscox US hook)
+## Development-factor selection (the US pricing hook)
 
 The **loss-development-factor (LDF) selection** module is the first-built,
 demo-critical capability: view a triangle of losses and empirical LDFs, compare
 against a previously-selected set, and **elect** whether to use the empirical
 pick or hold the prior — every override audited (who / when / old / new / why).
-This is what Hiscox US Pricing asked for (call 23 Jul 2026; review 6 Aug 2026).
-See `docs/HISCOX_LDF.md`. Note: LDFs are a **shared** technique — pricing teams
+This is what a US pricing team asked for (call 23 Jul 2026; review 6 Aug 2026).
+See `demo/README_LDF_AND_R.md`. Note: LDFs are a **shared** technique — pricing teams
 develop losses to ultimate for *rate indications*; reserving teams for *booked
 reserves*. Same triangle machinery, different downstream consumer.
 
@@ -85,7 +85,7 @@ manifest so ownership is visible in-product too.
 | `notebooks/` | Reserving engines (triangle → factor selection → methods → estimates) |
 | `app/` | Thin FastAPI + React SPA (Bricksurance house style) |
 | `resources/` | DAB job/app/pipeline YAMLs |
-| `docs/` | Design, deploy, demo run, Hiscox LDF, asset labelling |
+| `docs/` | Design, deploy, demo run, LDF selection, asset labelling |
 
 ## Target
 

@@ -1,6 +1,6 @@
 # LDF Process on Databricks — Prototype Review
 
-**For:** Hiscox US Pricing — John McGinn, Richard Derr (+ Scott Klepetka, Imogen Hirsh)
+**For:** a client US pricing team — the pricing lead and senior pricing actuaries
 **Date:** 6 August 2026
 
 ---

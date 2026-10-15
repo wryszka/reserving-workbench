@@ -108,7 +108,7 @@ ORDER BY l.accident_year;
 --
 -- UPDATE selected_development_pattern
 --    SET status_code = 'APPROVED',
---        approved_by = 'john.mcginn@hiscox.com',      -- <- a named human
+--        approved_by = 'pricing.lead@client.example',      -- <- a named human
 --        approved_at = current_timestamp()
 --  WHERE line_of_business_code = 'COMMERCIAL_PROPERTY'
 --    AND status_code = 'PENDING_APPROVAL';
@@ -120,7 +120,7 @@ ORDER BY l.accident_year;
 --
 -- UPDATE selected_development_pattern
 --    SET status_code = 'REJECTED',
---        approved_by = 'john.mcginn@hiscox.com',
+--        approved_by = 'pricing.lead@client.example',
 --        approved_at = current_timestamp(),
 --        rationale   = rationale || ' | REJECTED on review: empirical spike is '
 --                   || 'genuine deterioration, not a one-off — do not hold the prior.'

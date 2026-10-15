@@ -4,7 +4,7 @@
 Free-standing (**gen1**) governed reserving workbench for Bricksurance SE, tiled
 into the Actuarial Workbench hub. Authored **gen2-ready** (convertible into
 `bricksurance-data-core` via `import_ontology.py`, no business-level data
-duplication). First-built capability = **LDF selection** (the Hiscox US Pricing
+duplication). First-built capability = **LDF selection** (the US pricing team's
 hook, review 6 Aug 2026). See `README.md` and `docs/`.
 
 ## Non-negotiables (user instructions)
@@ -65,7 +65,7 @@ generate specs → world_engine (synthetic data) → deploy. Big INSERTs can han
 gh CLI: `gh auth switch -u wryszka` for the public repo, switch back after.
 
 ## Status (updated 2026-07-28)
-- [x] Repo scaffold, README, ASSET_LABELLING, HISCOX_ENGAGEMENTS, DAB, CLAUDE.md
+- [x] Repo scaffold, README, ASSET_LABELLING, CLIENT_ENGAGEMENTS, DAB, CLAUDE.md
 - [x] Specs — 21 files (10 code sets, 8 entities, 1 view, 1 metric view, 2 fns), gen2-format, compile clean
 - [x] Vendored compiler tools/generate.py (backticks numbered tables, one rich-commented schema, bxc_ tags)
       + model/model.yaml + bindings/databricks.yaml (single-schema binding). Ontology JSON emitted.
@@ -77,5 +77,5 @@ gh CLI: `gh auth switch -u wryszka` for the public repo, switch back after.
 - [ ] Notebooks (methods CL/BF/Mack/GLM → reserve_estimate, cashflow, AvE, methodology registry, agent) — task 5
 - [ ] App (backend routers + React SPA) — task 6
 - [ ] Smoke test + Genie space + hub tile — task 7
-- Waiting on Hiscox: split LDF script (3 parts) + synthetic R indication code. Build proceeds on synthetic.
+- Waiting on the client: split LDF script (3 parts) + synthetic R indication code. Build proceeds on synthetic.
 - DEPLOY CMD: `uv run --native-tls --with databricks-sdk --with pyyaml tools/deploy_databricks.py --profile DEV --warehouse-id a3b61648ea4809e3`

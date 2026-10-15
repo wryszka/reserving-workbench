@@ -1,6 +1,6 @@
-# Demo Run — Aug 5, 2026 · Hiscox Reserving Team Workshop
+# Demo Run — Aug 5, 2026 · Client Reserving Team Workshop
 
-**Audience:** ~10–12 Hiscox reserving analysts (Daniel Tully, Jay Bishop). **Slot:**
+**Audience:** ~10–12 client reserving analysts (the reserving lead and a senior reserving actuary). **Slot:**
 10:00–11:00 "Databricks 101 & Reserving on Databricks (visionary)". **Frame:** a day in
 the life — reserving proper. **App:** https://reserving-workbench-7474656169654171.aws.databricksapps.com
 
@@ -57,7 +57,7 @@ and IFRS 17 risk adjustment. One producer, many consumers."
 "That's a close week: the platform found the problem, Sarah made the judgment, the AI wrote
 it up, and it's all governed and reproducible. Time back, and bulletproof at sign-off."
 
-## Daniel's stated needs → where they land
+## The reserving lead's stated needs → where they land
 - **Practitioner workflows, not toy notebooks** → the whole Sarah flow is her actual quarter.
 - **Excel migration** → "this is what your workbook did — triangle, selection, overlays — governed and reproducible."
 - **Entry-level AI + Genie for semi-technical actuaries** → Workbench AI (routed specialists) + Ask the Triangle (Genie) + the Learn page.

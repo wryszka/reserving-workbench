@@ -151,7 +151,7 @@ ORDER BY line_of_business_code, step_idx;
 --   '[1.8972, 1.2062, 1.078, 1.0532, 1.02, 1.0374, 1.0]', 1.01,
 --   'SEL-2026Q4-PROP-EMPIRICAL', 'APPROVED',
 --   'Empirical pattern accepted; no distorting events identified this quarter.',
---   'j.mcginn', current_timestamp(), 'chief.actuary', current_timestamp());
+--   'pricing.lead', current_timestamp(), 'chief.actuary', current_timestamp());
 --
 -- -- (b) HOLD PRIOR for the distorted step (the real decision this quarter):
 -- INSERT INTO selected_development_pattern VALUES (
@@ -160,7 +160,7 @@ ORDER BY line_of_business_code, step_idx;
 --   '[1.667, 1.2062, 1.078, 1.0532, 1.02, 1.0374, 1.0]', 1.01,
 --   'SEL-2026Q4-PROP-EMPIRICAL', 'APPROVED',
 --   'Held prior 12-24 factor: AY2023 empirical 3.63x distorted by a single late-reported large loss (LL-2023-001, GBP 1.05m) now reserved individually. Remaining steps taken from empirical.',
---   'j.mcginn', current_timestamp(), 'chief.actuary', current_timestamp());
+--   'pricing.lead', current_timestamp(), 'chief.actuary', current_timestamp());
 --
 -- 3) Then, and only then, run stage 3.
 -- ════════════════════════════════════════════════════════════════════════════

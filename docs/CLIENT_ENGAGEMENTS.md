@@ -1,18 +1,18 @@
-# Hiscox engagements — one workbench, two back-to-back events
+# Client engagements — one workbench, two back-to-back events
 
-This workbench is the shared asset behind two Hiscox sessions on consecutive days.
+This workbench is the shared asset behind two client sessions on consecutive days.
 Same build, two audiences, two framings.
 
-## Aug 5, 2026 — Hiscox **Reserving team** workshop (Daniel Tully, Jay Bishop)
-- All-day, ~10–12 reserving analysts. Databricks office (Tamika hosting). Prep
-  check-in Tue **Aug 4** (Laurence + Daniel). Materials to Daniel/Jay beforehand.
+## Aug 5, 2026 — client **Reserving team** workshop (the reserving lead and a senior reserving actuary)
+- All-day, ~10–12 reserving analysts. Databricks office (account team hosting). Prep
+  check-in Tue **Aug 4** (Laurence + the reserving lead). Materials to the reserving lead beforehand.
 - Agenda (from 21 Jul planning call):
   - **10:00–11:00 — "Databricks 101 & Reserving on Databricks" (visionary/high-level).**
     ← *This workbench is the centrepiece here: a "day in the life of a reserving
     actuary on Databricks" — the end-to-end governed process, Art of the Possible.*
   - 11:15–12:30 — hands-on worked examples (loss ratios, pipeline reporting layers).
   - Afternoon — technical deep-dive + attendees' own use cases.
-- What Daniel has repeatedly asked for (use as design pressure):
+- What the reserving lead has repeatedly asked for (use as design pressure):
   - **Practitioner-focused, real reserving workflows** — not toy notebooks. The
     workbench walks the actual quarterly process end to end.
   - **Excel/VBA migration** story — "this is what your spreadsheet did, governed."
@@ -21,10 +21,10 @@ Same build, two audiences, two framings.
 - Framing for this room: **reserving proper** (booking reserves, quarterly close,
   committee, governance) — title it as reserving. This is their day job.
 
-## Aug 6, 2026 — Hiscox **US Pricing** LDF review (John McGinn, Richard Derr)
+## Aug 6, 2026 — client **US Pricing** LDF review (the pricing lead and a senior pricing actuary)
 - The **LDF-selection module** specifically: triangle → empirical LDFs →
   compare-to-prior → elect/override → audit. Plus R-integration options and the
-  Federation-to-Discovery read path. See `HISCOX_LDF.md`.
+  Federation-to-Discovery read path. See `../demo/README_LDF_AND_R.md`.
 - Framing for this room: **loss development for rate indications** — pricing
   actuaries develop losses to ultimate to compute loss cost / indicated rate.
   Same triangle machinery as reserving, different downstream consumer. Do NOT
@@ -38,7 +38,7 @@ itself the story — and the gen2 single-producer thesis landed live on the acco
 
 ## Guardrails (both rooms)
 - Bricksurance SE is fictional; synthetic data throughout; "About this demo"
-  disclaimer visible. Never mirror Hiscox's real estate (see
+  disclaimer visible. Never mirror the client's real estate (see
   [[feedback-no-real-customer-parallels]]) — their real LMR unit was the reason
   the data-core "London Market & Re" unit was genericized.
 - Runs for real on Databricks (Federation/Jobs/MLflow/UC/Apps), not faked.

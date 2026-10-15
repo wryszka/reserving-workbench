@@ -2,7 +2,7 @@
 
 > **Internal note to self — not for sharing.** The other tabs are written customer-safe;
 > this one is candid, including what is *not* built. Delete or move it before sending
-> the document to anyone at Hiscox.
+> the document to anyone at the client.
 
 Every row: their words (or close to them) from the 23 July discovery and Rich's 10 July
 email, then the specific thing I point at.

@@ -1,6 +1,6 @@
-# Aug 5 — Hiscox reserving: 9-minute run
+# Aug 5 — client reserving: 9-minute run
 
-**Room:** Daniel Tully, Jay Bishop + reserving team. **Slot:** the 10:00 hour.
+**Room:** the reserving lead and a senior reserving actuary + reserving team. **Slot:** the 10:00 hour.
 **App:** https://reserving-workbench-7474656169654171.aws.databricksapps.com
 
 **One line:** *"Data you trust, judgement that's yours, a story that writes itself, an audit trail for free."*
@@ -53,7 +53,7 @@ Point at the data version: **"And the regulator asks in March about the Q2 numbe
 
 ---
 
-**Know the room:** in-house **Python/R** models, Excel/macros, SQL, monthly FDW loads, **Tyche for capital** (stays). They're **adopting Databricks**; Daniel is the champion. Frame as *their process on the platform they're already on*. **Do not mention ResQ** — different accounts. On Engines, talk about *their* R/Python and Tyche downstream.
+**Know the room:** in-house **Python/R** models, Excel/macros, SQL, monthly FDW loads, **Tyche for capital** (stays). They're **adopting Databricks**; the reserving lead is the champion. Frame as *their process on the platform they're already on*. **Do not mention ResQ** — different accounts. On Engines, talk about *their* R/Python and Tyche downstream.
 
 **If asked:**
 - *methodology?* Illustrative, method-agnostic — your models register as first-class methods.
