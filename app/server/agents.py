@@ -54,8 +54,9 @@ def _invoke_endpoint(question, specialist):
         pred = preds[0] if isinstance(preds, list) and preds else preds
         if not isinstance(pred, dict):
             return None
+        from .mcp import _flatten_content
         msgs = pred.get("messages") or []
-        text = (msgs[0].get("content") if msgs and isinstance(msgs[0], dict) else "") or ""
+        text = _flatten_content(msgs[0].get("content") if msgs and isinstance(msgs[0], dict) else "")
         if not text:
             return None
         co = pred.get("custom_outputs") or {}
@@ -110,8 +111,9 @@ def _fm(system, prompt, agent, question):
             name=config.FM_ENDPOINT,
             messages=[ChatMessage(role=ChatMessageRole.SYSTEM, content=system),
                       ChatMessage(role=ChatMessageRole.USER, content=prompt)],
-            max_tokens=750)
-        text = resp.choices[0].message.content if resp.choices else ""
+            max_tokens=2500)  # sonnet-5 reasoning shares this budget; 750 left no room for the answer
+        from .mcp import _flatten_content
+        text = _flatten_content(resp.choices[0].message.content) if resp.choices else ""
         cache_put(agent, prompt, question, text, config.FM_ENDPOINT)
         return {"text": text, "model": config.FM_ENDPOINT, "cached": False}
     except Exception as e:
