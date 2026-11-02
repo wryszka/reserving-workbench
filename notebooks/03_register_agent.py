@@ -62,7 +62,7 @@ class ReservingAgent(ChatAgent):
     def _fm(self, system, prompt):
         r = self._w().serving_endpoints.query(name=FM, messages=[
             ChatMessage(role=ChatMessageRole.SYSTEM, content=system),
-            ChatMessage(role=ChatMessageRole.USER, content=prompt)], max_tokens=750)
+            ChatMessage(role=ChatMessageRole.USER, content=prompt)], max_tokens=2500)  # reasoning shares the budget
         c = r.choices[0]
         content = c.message.content
         # sonnet-5 returns content as a list of blocks (reasoning + text); keep only text blocks,
@@ -139,8 +139,15 @@ import sys
 sys.path.insert(0, SRC_DIR)
 from reserving_agent import ReservingAgent  # noqa
 
+from mlflow.models.resources import DatabricksServingEndpoint, DatabricksSQLWarehouse, DatabricksTable
+
 mlflow.set_registry_uri("databricks-uc")
 agent = ReservingAgent()
+# Declared resources = automatic (passthrough) auth: the endpoint gets short-lived, auto-rotated
+# credentials scoped to exactly these assets. Replaces the baked notebook token, which expired.
+resources = [DatabricksServingEndpoint(endpoint_name=FM), DatabricksSQLWarehouse(warehouse_id=WID)]
+resources += [DatabricksTable(table_name=f"{CAT}.{SCH}.{t}")
+              for t in ["actual_vs_expected", "reserve_estimate", "reserve_rollforward"]]
 with mlflow.start_run(run_name="reserving_agent"):
     info = mlflow.pyfunc.log_model(
         name="reserving_agent",
@@ -148,7 +155,7 @@ with mlflow.start_run(run_name="reserving_agent"):
         code_paths=[SRC_PATH],
         pip_requirements=["mlflow>=2.16", "databricks-sdk"],
         registered_model_name=MODEL,
-        resources=[],
+        resources=resources,
     )
 from mlflow.tracking import MlflowClient
 c = MlflowClient()
@@ -160,10 +167,8 @@ print(f"registered {MODEL} v{ver} @Production")
 # MAGIC %md ## Deploy to a serving endpoint (Agent Framework)
 
 # COMMAND ----------
-ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
 env = {"CATALOG_NAME": CAT, "SCHEMA_NAME": SCH, "FM_ENDPOINT": FM,
-       "AGENT_WAREHOUSE_ID": WID,
-       "DATABRICKS_HOST": ctx.apiUrl().get(), "DATABRICKS_TOKEN": ctx.apiToken().get()}
+       "AGENT_WAREHOUSE_ID": WID}  # no DATABRICKS_TOKEN — auth comes from the declared resources
 try:
     from databricks import agents
     dep = agents.deploy(MODEL, ver, scale_to_zero=True, environment_vars=env,
